@@ -1,0 +1,60 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { get } from '@vercel/blob'
+
+export async function GET(request: NextRequest) {
+  try {
+    const token = request.cookies.get('supabase-auth-token')?.value
+
+    if (!token) {
+      return NextResponse.json(
+        { error: 'Não autenticado' },
+        { status: 401 }
+      )
+    }
+
+    const pathname = request.nextUrl.searchParams.get('pathname')
+
+    if (!pathname) {
+      return NextResponse.json(
+        { error: 'Pathname não fornecido' },
+        { status: 400 }
+      )
+    }
+
+    const result = await get(pathname, {
+      access: 'private',
+      ifNoneMatch: request.headers.get('if-none-match') ?? undefined,
+    })
+
+    if (!result) {
+      return NextResponse.json(
+        { error: 'Arquivo não encontrado' },
+        { status: 404 }
+      )
+    }
+
+    if (result.statusCode === 304) {
+      return new NextResponse(null, {
+        status: 304,
+        headers: {
+          ETag: result.blob.etag,
+          'Cache-Control': 'private, no-cache',
+        },
+      })
+    }
+
+    return new NextResponse(result.stream, {
+      headers: {
+        'Content-Type': result.blob.contentType,
+        ETag: result.blob.etag,
+        'Cache-Control': 'private, no-cache',
+      },
+    })
+  } catch (error) {
+    console.error('Selfie serve error:', error)
+    return NextResponse.json(
+      { error: 'Erro ao servir arquivo' },
+      { status: 500 }
+    )
+  }
+}

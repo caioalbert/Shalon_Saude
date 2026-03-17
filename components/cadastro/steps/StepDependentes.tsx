@@ -1,0 +1,315 @@
+'use client'
+
+import { CadastroFormData, DependenteFormData } from '@/lib/types'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
+import { useState } from 'react'
+
+interface StepDependentesProps {
+  data: Partial<CadastroFormData>
+  onUpdate: (data: Partial<CadastroFormData>) => void
+}
+
+export function StepDependentes({ data, onUpdate }: StepDependentesProps) {
+  const [tem_dependentes, setTemDependentes] = useState(data.tem_dependentes || false)
+  const [dependentes, setDependentes] = useState<DependenteFormData[]>(data.dependentes || [])
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [formData, setFormData] = useState<DependenteFormData>({
+    nome: '',
+    cpf: '',
+    data_nascimento: '',
+    relacao: '',
+    telefone_celular: '',
+    sexo: '',
+  })
+
+  const handleAddDependente = () => {
+    const dependente = {
+      ...formData,
+      nome: formData.nome.trim(),
+      telefone_celular: formatPhone(formData.telefone_celular),
+    }
+
+    if (!dependente.nome || !dependente.relacao || !dependente.telefone_celular || !dependente.sexo) {
+      return
+    }
+
+    const nextDependentes =
+      editingIndex !== null
+        ? dependentes.map((dep, index) => (index === editingIndex ? dependente : dep))
+        : [...dependentes, dependente]
+
+    setDependentes(nextDependentes)
+    onUpdate({ tem_dependentes, dependentes: nextDependentes })
+
+    setFormData({
+      nome: '',
+      cpf: '',
+      data_nascimento: '',
+      relacao: '',
+      telefone_celular: '',
+      sexo: '',
+    })
+
+    if (editingIndex !== null) {
+      setEditingIndex(null)
+    }
+  }
+
+  const handleRemoveDependente = (index: number) => {
+    const newDependentes = dependentes.filter((_, i) => i !== index)
+    setDependentes(newDependentes)
+    onUpdate({ tem_dependentes, dependentes: newDependentes })
+  }
+
+  const handleEditDependente = (index: number) => {
+    const dependente = dependentes[index]
+    setFormData({
+      ...dependente,
+      telefone_celular: dependente.telefone_celular || '',
+      sexo: dependente.sexo || '',
+    })
+    setEditingIndex(index)
+  }
+
+  const handleTemDependentesChange = (value: boolean) => {
+    setTemDependentes(value)
+    if (!value) {
+      setDependentes([])
+      setEditingIndex(null)
+      setFormData({
+        nome: '',
+        cpf: '',
+        data_nascimento: '',
+        relacao: '',
+        telefone_celular: '',
+        sexo: '',
+      })
+    }
+    onUpdate({ tem_dependentes: value, dependentes: value ? dependentes : [] })
+  }
+
+  const formatCPF = (value: string) => {
+    return value
+      .replace(/\D/g, '')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+      .substring(0, 14)
+  }
+
+  const formatPhone = (value: string) => {
+    const cleaned = value.replace(/\D/g, '')
+    return cleaned
+      .replace(/(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{5})(\d)/, '$1-$2')
+      .substring(0, 15)
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <label className="flex items-center space-x-3">
+          <input
+            type="checkbox"
+            checked={tem_dependentes}
+            onChange={(e) => handleTemDependentesChange(e.target.checked)}
+            className="w-4 h-4 text-blue-600 rounded cursor-pointer"
+          />
+          <span className="text-gray-700 font-medium">Tenho dependentes</span>
+        </label>
+        {tem_dependentes && (
+          <p className="mt-2 text-xs text-gray-500">
+            Para acesso à telemedicina, cada dependente deve ter celular e sexo informados.
+          </p>
+        )}
+      </div>
+
+      {tem_dependentes && (
+        <div className="space-y-6 border-t pt-6">
+          {/* Formulário de adição */}
+          <div className="bg-blue-50 p-6 rounded-lg space-y-4">
+            <h3 className="font-semibold text-gray-800">
+              {editingIndex !== null ? 'Editar Dependente' : 'Adicionar Dependente'}
+            </h3>
+
+            <div>
+              <Label htmlFor="dep_nome" className="text-gray-700 font-medium">
+                Nome *
+              </Label>
+              <Input
+                id="dep_nome"
+                type="text"
+                placeholder="Nome do dependente"
+                value={formData.nome}
+                onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                className="mt-2 border-gray-300"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="dep_cpf" className="text-gray-700 font-medium">
+                  CPF
+                </Label>
+                <Input
+                  id="dep_cpf"
+                  type="text"
+                  placeholder="000.000.000-00"
+                  value={formatCPF(formData.cpf)}
+                  onChange={(e) =>
+                    setFormData({ ...formData, cpf: formatCPF(e.target.value) })
+                  }
+                  className="mt-2 border-gray-300"
+                  maxLength={14}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="dep_data" className="text-gray-700 font-medium">
+                  Data de Nascimento
+                </Label>
+                <Input
+                  id="dep_data"
+                  type="date"
+                  value={formData.data_nascimento}
+                  onChange={(e) =>
+                    setFormData({ ...formData, data_nascimento: e.target.value })
+                  }
+                  className="mt-2 border-gray-300"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="dep_celular" className="text-gray-700 font-medium">
+                  Telefone Celular *
+                </Label>
+                <Input
+                  id="dep_celular"
+                  type="tel"
+                  placeholder="(11) 99999-9999"
+                  value={formatPhone(formData.telefone_celular)}
+                  onChange={(e) =>
+                    setFormData({ ...formData, telefone_celular: formatPhone(e.target.value) })
+                  }
+                  className="mt-2 border-gray-300"
+                  maxLength={15}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="dep_sexo" className="text-gray-700 font-medium">
+                  Sexo *
+                </Label>
+                <select
+                  id="dep_sexo"
+                  value={formData.sexo}
+                  onChange={(e) => setFormData({ ...formData, sexo: e.target.value })}
+                  className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Selecione...</option>
+                  <option value="Feminino">Feminino</option>
+                  <option value="Masculino">Masculino</option>
+                  <option value="Outro">Outro</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="dep_relacao" className="text-gray-700 font-medium">
+                Relação *
+              </Label>
+              <select
+                id="dep_relacao"
+                value={formData.relacao}
+                onChange={(e) => setFormData({ ...formData, relacao: e.target.value })}
+                className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Selecione...</option>
+                <option value="cônjuge">Cônjuge</option>
+                <option value="filho">Filho(a)</option>
+                <option value="enteado">Enteado(a)</option>
+                <option value="outro">Outro</option>
+              </select>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                onClick={handleAddDependente}
+                className="bg-blue-600 hover:bg-blue-700"
+                disabled={!formData.nome || !formData.relacao || !formData.telefone_celular || !formData.sexo}
+              >
+                {editingIndex !== null ? 'Atualizar' : 'Adicionar'}
+              </Button>
+              {editingIndex !== null && (
+                <Button
+                  onClick={() => {
+                    setEditingIndex(null)
+                    setFormData({
+                      nome: '',
+                      cpf: '',
+                      data_nascimento: '',
+                      relacao: '',
+                      telefone_celular: '',
+                      sexo: '',
+                    })
+                  }}
+                  variant="outline"
+                >
+                  Cancelar
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Lista de dependentes */}
+          {dependentes.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="font-semibold text-gray-800">Dependentes Adicionados</h3>
+              {dependentes.map((dep, index) => (
+                <div
+                  key={index}
+                  className="p-4 bg-gray-50 rounded-lg flex justify-between items-start"
+                >
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-800">{dep.nome}</p>
+                    <p className="text-sm text-gray-600">
+                      {dep.relacao && `Relação: ${dep.relacao}`}
+                    </p>
+                    {dep.sexo && (
+                      <p className="text-sm text-gray-600">Sexo: {dep.sexo}</p>
+                    )}
+                    {dep.telefone_celular && (
+                      <p className="text-sm text-gray-600">Celular: {dep.telefone_celular}</p>
+                    )}
+                    {dep.cpf && (
+                      <p className="text-sm text-gray-600">CPF: {dep.cpf}</p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => handleEditDependente(index)}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Editar
+                    </Button>
+                    <Button
+                      onClick={() => handleRemoveDependente(index)}
+                      variant="outline"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      Remover
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
