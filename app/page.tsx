@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function Home() {
   return (
@@ -8,10 +9,14 @@ export default function Home() {
       <nav className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
-              <span className="text-white font-bold">S</span>
-            </div>
-            <span className="text-xl font-bold text-gray-900">SHALON Saúde</span>
+            <Image
+              src="/logo-horizontal.svg"
+              alt="SHALON Saúde"
+              width={220}
+              height={64}
+              priority
+              className="h-10 w-auto"
+            />
           </div>
           <Link href="/admin/login">
             <Button variant="outline">Painel Admin</Button>
@@ -253,10 +258,13 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             <div>
               <div className="flex items-center space-x-2 mb-4">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
-                  <span className="text-white font-bold">S</span>
-                </div>
-                <span className="text-lg font-bold text-gray-900">SHALON Saúde</span>
+                <Image
+                  src="/logo-horizontal.svg"
+                  alt="SHALON Saúde"
+                  width={200}
+                  height={58}
+                  className="h-9 w-auto"
+                />
               </div>
               <p className="text-gray-600 text-sm">
                 Sistema de cadastro digital seguro
