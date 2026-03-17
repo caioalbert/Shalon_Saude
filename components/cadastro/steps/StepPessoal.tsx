@@ -1,6 +1,7 @@
 'use client'
 
 import { CadastroFormData } from '@/lib/types'
+import { isValidCPF } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useState } from 'react'
@@ -19,6 +20,7 @@ export function StepPessoal({ data, onUpdate }: StepPessoalProps) {
     telefone: data.telefone || '',
     sexo: data.sexo || '',
   })
+  const [cpfError, setCpfError] = useState<string | null>(null)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -33,6 +35,23 @@ export function StepPessoal({ data, onUpdate }: StepPessoalProps) {
   }
 
   const handleBlur = () => {
+    onUpdate(localData)
+  }
+
+  const handleCpfBlur = () => {
+    if (!localData.cpf) {
+      setCpfError('CPF é obrigatório')
+      onUpdate(localData)
+      return
+    }
+
+    if (!isValidCPF(localData.cpf)) {
+      setCpfError('CPF inválido')
+      onUpdate(localData)
+      return
+    }
+
+    setCpfError(null)
     onUpdate(localData)
   }
 
@@ -86,12 +105,14 @@ export function StepPessoal({ data, onUpdate }: StepPessoalProps) {
             onChange={(e) => {
               const formatted = formatCPF(e.target.value)
               setLocalData((prev) => ({ ...prev, cpf: formatted }))
+              setCpfError(null)
             }}
-            onBlur={handleBlur}
+            onBlur={handleCpfBlur}
             required
-            className="mt-2 border-gray-300"
+            className={`mt-2 ${cpfError ? 'border-red-300 focus:ring-red-500' : 'border-gray-300'}`}
             maxLength={14}
           />
+          {cpfError && <p className="mt-1 text-xs text-red-600">{cpfError}</p>}
         </div>
 
         <div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { CadastroFormData, DependenteFormData } from '@/lib/types'
+import { isValidCPF } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -15,6 +16,7 @@ export function StepDependentes({ data, onUpdate }: StepDependentesProps) {
   const [tem_dependentes, setTemDependentes] = useState(data.tem_dependentes || false)
   const [dependentes, setDependentes] = useState<DependenteFormData[]>(data.dependentes || [])
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [cpfError, setCpfError] = useState<string | null>(null)
   const [formData, setFormData] = useState<DependenteFormData>({
     nome: '',
     cpf: '',
@@ -34,6 +36,13 @@ export function StepDependentes({ data, onUpdate }: StepDependentesProps) {
     if (!dependente.nome || !dependente.relacao || !dependente.telefone_celular || !dependente.sexo) {
       return
     }
+
+    if (dependente.cpf && !isValidCPF(dependente.cpf)) {
+      setCpfError('CPF do dependente inválido')
+      return
+    }
+
+    setCpfError(null)
 
     const nextDependentes =
       editingIndex !== null
@@ -71,6 +80,7 @@ export function StepDependentes({ data, onUpdate }: StepDependentesProps) {
       sexo: dependente.sexo || '',
     })
     setEditingIndex(index)
+    setCpfError(null)
   }
 
   const handleTemDependentesChange = (value: boolean) => {
@@ -86,6 +96,7 @@ export function StepDependentes({ data, onUpdate }: StepDependentesProps) {
         telefone_celular: '',
         sexo: '',
       })
+      setCpfError(null)
     }
     onUpdate({ tem_dependentes: value, dependentes: value ? dependentes : [] })
   }
@@ -158,12 +169,22 @@ export function StepDependentes({ data, onUpdate }: StepDependentesProps) {
                   type="text"
                   placeholder="000.000.000-00"
                   value={formatCPF(formData.cpf)}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setFormData({ ...formData, cpf: formatCPF(e.target.value) })
-                  }
+                    setCpfError(null)
+                  }}
+                  onBlur={() => {
+                    if (!formData.cpf) {
+                      setCpfError(null)
+                      return
+                    }
+
+                    setCpfError(isValidCPF(formData.cpf) ? null : 'CPF do dependente inválido')
+                  }}
                   className="mt-2 border-gray-300"
                   maxLength={14}
                 />
+                {cpfError && <p className="mt-1 text-xs text-red-600">{cpfError}</p>}
               </div>
 
               <div>
@@ -254,6 +275,7 @@ export function StepDependentes({ data, onUpdate }: StepDependentesProps) {
                       telefone_celular: '',
                       sexo: '',
                     })
+                    setCpfError(null)
                   }}
                   variant="outline"
                 >

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { isValidCPF } from '@/lib/utils'
 import { put } from '@vercel/blob'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -53,6 +54,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (!isValidCPF(cpfValue)) {
+      return NextResponse.json(
+        { error: 'CPF do titular inválido' },
+        { status: 400 }
+      )
+    }
+
     let dependentes: Array<{
       nome: string
       cpf?: string
@@ -89,6 +97,17 @@ export async function POST(request: NextRequest) {
               error:
                 'Cada dependente precisa ter nome, relação, sexo e telefone celular para acesso à telemedicina',
             },
+            { status: 400 }
+          )
+        }
+
+        const invalidDependenteCpf = parsed.find(
+          (dep) => dep?.cpf && !isValidCPF(String(dep.cpf))
+        )
+
+        if (invalidDependenteCpf) {
+          return NextResponse.json(
+            { error: `CPF inválido para dependente: ${invalidDependenteCpf.nome || 'sem nome'}` },
             { status: 400 }
           )
         }

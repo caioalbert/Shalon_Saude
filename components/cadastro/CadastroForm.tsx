@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { CadastroFormData } from '@/lib/types'
+import { isValidCPF } from '@/lib/utils'
 import { StepPessoal } from './steps/StepPessoal'
 import { StepEndereco } from './steps/StepEndereco'
 import { StepDependentes } from './steps/StepDependentes'
@@ -67,6 +68,18 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
         !formData.data_nascimento
       ) {
         throw new Error('Dados pessoais incompletos')
+      }
+
+      if (!isValidCPF(formData.cpf)) {
+        throw new Error('CPF do titular inválido')
+      }
+
+      const invalidDependenteCpf = (formData.dependentes || []).find(
+        (dependente) => dependente.cpf && !isValidCPF(dependente.cpf)
+      )
+
+      if (invalidDependenteCpf) {
+        throw new Error(`CPF inválido para dependente: ${invalidDependenteCpf.nome}`)
       }
 
       if (
