@@ -2,14 +2,16 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import Image from 'next/image'
 import {
-  Activity,
   BadgeCheck,
+  Brain,
   Camera,
+  Clock3,
   FileCheck2,
+  FileText,
+  HeartPulse,
   Lock,
-  MonitorCheck,
   ShieldCheck,
-  UserCheck,
+  Stethoscope,
   Users,
 } from 'lucide-react'
 
@@ -40,17 +42,50 @@ const BENEFITS = [
   },
 ]
 
+const TELEMEDICINE_HIGHLIGHTS = [
+  {
+    title: 'Atendimento 24h e sem hora marcada',
+    icon: Clock3,
+  },
+  {
+    title: 'Receita médica digital',
+    icon: FileText,
+  },
+  {
+    title: 'Atestado digital',
+    icon: BadgeCheck,
+  },
+]
+
+const SPECIALTIES = [
+  'Cardiologia',
+  'Ortopedia',
+  'Otorrinolaringologia',
+  'Nutrição',
+  'Dermatologia',
+  'Geriatria',
+  'Neurologia',
+  'Psiquiatria',
+  'Traumatologia',
+  'Urologia',
+  'Psicologia',
+  'Endocrinologia',
+  'Ginecologia',
+  'Pediatria',
+]
+
 export default function Home() {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_center,_#ffffff_0%,_#f5fbf9_55%,_#ebf7f2_100%)]">
       <header className="fixed inset-x-0 top-0 z-50 border-b border-emerald-100 bg-white/85 backdrop-blur-md">
         <div className="mx-auto flex h-20 w-full max-w-7xl items-center justify-between px-6 sm:px-10 lg:px-16">
           <Image
-            src="/logo-horizontal.svg"
+            src="/logo-horizontal-v2.png"
             alt="SHALON Saúde"
             width={240}
-            height={70}
+            height={78}
             priority
+            unoptimized
             className="h-10 w-auto"
           />
 
@@ -76,11 +111,12 @@ export default function Home() {
           <div className="grid grid-cols-1 items-start gap-12 lg:grid-cols-5">
             <div className="space-y-8 lg:col-span-3">
               <Image
-                src="/logo-horizontal.svg"
+                src="/logo-horizontal-v2.png"
                 alt="SHALON Saúde"
-                width={460}
-                height={130}
+                width={520}
+                height={169}
                 priority
+                unoptimized
                 className="h-16 w-auto sm:h-20"
               />
 
@@ -129,71 +165,77 @@ export default function Home() {
             <div className="lg:col-span-2">
               <div className="rounded-3xl border border-emerald-100 bg-white/95 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] transition-transform duration-300 hover:-translate-y-1">
                 <div className="space-y-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                        Dashboard Simulado
-                      </p>
-                      <p className="text-lg font-bold text-gray-900">Experiência do Usuário</p>
-                    </div>
-                    <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                      Online
-                    </span>
-                  </div>
-
                   <div className="rounded-2xl border border-cyan-100 bg-cyan-50/80 p-4">
                     <div className="flex items-start gap-3">
                       <div className="rounded-xl bg-cyan-100 p-2 text-cyan-700">
-                        <MonitorCheck className="h-4 w-4" />
+                        <HeartPulse className="h-4 w-4" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-cyan-900">Sincronização Ativa</p>
-                        <p className="text-xs text-cyan-700">
-                          Dados e documentos atualizados em tempo real.
+                        <p className="text-sm font-semibold text-cyan-900">Telemedicina</p>
+                        <p className="text-xs font-medium text-cyan-800">O futuro da saúde é hoje</p>
+                        <p className="mt-1 text-xs text-cyan-700">
+                          É simples, rápido e prático para você e sua família.
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-gray-100 bg-white p-4">
-                    <div className="mb-3 flex items-center justify-between">
-                      <p className="text-sm font-semibold text-gray-900">Health Metrics</p>
-                      <span className="text-xs font-semibold text-emerald-700">+12%</span>
-                    </div>
-                    <svg viewBox="0 0 320 120" className="h-28 w-full" role="img" aria-label="Gráfico de saúde">
-                      <defs>
-                        <linearGradient id="metricLine" x1="0%" y1="0%" x2="100%" y2="0%">
-                          <stop offset="0%" stopColor="#0f766e" />
-                          <stop offset="100%" stopColor="#2563eb" />
-                        </linearGradient>
-                        <linearGradient id="metricArea" x1="0%" y1="0%" x2="0%" y2="100%">
-                          <stop offset="0%" stopColor="#14b8a6" stopOpacity="0.25" />
-                          <stop offset="100%" stopColor="#14b8a6" stopOpacity="0" />
-                        </linearGradient>
-                      </defs>
-                      <path d="M20 86 L70 78 L120 82 L170 55 L220 64 L270 40 L300 46" fill="none" stroke="url(#metricLine)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M20 86 L70 78 L120 82 L170 55 L220 64 L270 40 L300 46 L300 110 L20 110 Z" fill="url(#metricArea)" />
-                      <circle cx="170" cy="55" r="4.5" fill="#0f766e" />
-                      <circle cx="270" cy="40" r="4.5" fill="#2563eb" />
-                    </svg>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    {TELEMEDICINE_HIGHLIGHTS.map((item) => {
+                      const Icon = item.icon
+                      return (
+                        <div
+                          key={item.title}
+                          className="rounded-2xl border border-blue-100 bg-blue-50/80 p-3"
+                        >
+                          <div className="mb-2 inline-flex rounded-lg bg-blue-100 p-2 text-blue-700">
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <p className="text-xs font-semibold text-blue-900">{item.title}</p>
+                        </div>
+                      )
+                    })}
                   </div>
 
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-blue-100 bg-blue-50/80 p-4">
-                      <div className="mb-2 inline-flex rounded-xl bg-blue-100 p-2 text-blue-700">
-                        <ShieldCheck className="h-4 w-4" />
-                      </div>
-                      <p className="text-sm font-semibold text-blue-900">Cadastro Seguro</p>
-                      <p className="text-xs text-blue-700">Proteção de dados ponta a ponta.</p>
+                  <div className="rounded-2xl border border-blue-100 bg-white p-4">
+                    <div className="mb-3 flex items-center gap-2 text-blue-900">
+                      <Stethoscope className="h-4 w-4" />
+                      <p className="text-sm font-semibold">Especialidades</p>
                     </div>
-                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 p-4">
-                      <div className="mb-2 inline-flex rounded-xl bg-emerald-100 p-2 text-emerald-700">
-                        <UserCheck className="h-4 w-4" />
-                      </div>
-                      <p className="text-sm font-semibold text-emerald-900">Verificado</p>
-                      <p className="text-xs text-emerald-700">Identidade confirmada digitalmente.</p>
+                    <div className="flex flex-wrap gap-2">
+                      {SPECIALTIES.map((specialty) => (
+                        <span
+                          key={specialty}
+                          className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-medium text-gray-700"
+                        >
+                          {specialty}
+                        </span>
+                      ))}
                     </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 p-4">
+                    <div className="mb-2 flex items-center gap-2 text-emerald-900">
+                      <Brain className="h-4 w-4" />
+                      <p className="text-sm font-semibold">Saúde Mental</p>
+                    </div>
+                    <p className="text-xs text-emerald-800">
+                      Acesso ilimitado à equipe de psicólogos. Fortaleça o seu time com um plano
+                      de saúde que cuida da mente.
+                    </p>
+                    <p className="mt-2 text-xs text-emerald-800">
+                      Acesso rápido a psicólogos, reduzindo afastamentos e aumentando a
+                      performance. Investir em saúde mental é investir em resultados.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-amber-100 bg-amber-50/80 p-4">
+                    <p className="text-sm font-semibold text-amber-900">
+                      Assistência funeral pelo Grupo Zelo
+                    </p>
+                    <p className="mt-1 text-xs text-amber-800">
+                      Suporte especializado para sua família em momentos sensíveis.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -288,10 +330,11 @@ export default function Home() {
             <div>
               <div className="mb-4 flex items-center space-x-2">
                 <Image
-                  src="/logo-horizontal.svg"
+                  src="/logo-horizontal-v2.png"
                   alt="SHALON Saúde"
                   width={200}
-                  height={58}
+                  height={65}
+                  unoptimized
                   className="h-9 w-auto"
                 />
               </div>
