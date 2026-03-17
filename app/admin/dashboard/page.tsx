@@ -17,6 +17,7 @@ export default function AdminDashboard() {
   const [templateMessage, setTemplateMessage] = useState<string | null>(null)
   const [templateLoading, setTemplateLoading] = useState(false)
   const [hasCustomTemplate, setHasCustomTemplate] = useState(false)
+  const [exportLoading, setExportLoading] = useState(false)
 
   useEffect(() => {
     fetchCadastros()
@@ -63,6 +64,49 @@ export default function AdminDashboard() {
       router.push('/admin/login')
     } catch (err) {
       console.error('Logout error:', err)
+    }
+  }
+
+  const handleExportAllContracts = async () => {
+    try {
+      setExportLoading(true)
+      setError(null)
+
+      const response = await fetch('/api/admin/exportar-contratos')
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.push('/admin/login')
+          return
+        }
+
+        let message = 'Erro ao exportar contratos'
+        try {
+          const data = await response.json()
+          message = data.error || message
+        } catch {
+          // ignore parse error
+        }
+        throw new Error(message)
+      }
+
+      const blob = await response.blob()
+      const contentDisposition = response.headers.get('content-disposition')
+      const filenameMatch = contentDisposition?.match(/filename="?([^"]+)"?/)
+      const filename = filenameMatch?.[1] || 'contratos-shalon.zip'
+
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao exportar contratos')
+    } finally {
+      setExportLoading(false)
     }
   }
 
@@ -179,7 +223,7 @@ export default function AdminDashboard() {
 
         {/* Search */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <div className="flex gap-4">
+          <div className="flex flex-col lg:flex-row gap-4">
             <input
               type="text"
               placeholder="Pesquisar por nome, email ou CPF..."
@@ -187,9 +231,18 @@ export default function AdminDashboard() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <Button onClick={fetchCadastros} variant="outline">
-              Atualizar
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button onClick={fetchCadastros} variant="outline">
+                Atualizar
+              </Button>
+              <Button
+                onClick={handleExportAllContracts}
+                disabled={exportLoading || cadastros.length === 0}
+                className="bg-teal-700 hover:bg-teal-800"
+              >
+                {exportLoading ? 'Exportando...' : 'Exportar Contratos (.zip)'}
+              </Button>
+            </div>
           </div>
         </div>
 
