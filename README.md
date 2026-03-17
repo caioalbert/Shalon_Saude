@@ -113,6 +113,29 @@ npm run dev
 
 A aplicação estará disponível em `http://localhost:3000`
 
+## CI/CD na Vercel (GitHub Actions)
+
+Este repositório já possui workflow em `.github/workflows/vercel-deploy.yml` com o seguinte fluxo:
+
+- `pull_request` em `master/main`: roda lint + build e faz deploy Preview na Vercel.
+- `push` em `master/main`: roda lint + build e faz deploy de Produção na Vercel.
+
+### Secrets necessários no GitHub
+
+Configure os secrets do repositório em **Settings > Secrets and variables > Actions**:
+
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID`
+
+### Como obter os IDs da Vercel
+
+1. Rode `vercel link` localmente na raiz do projeto.
+2. Abra o arquivo `.vercel/project.json`.
+3. Copie:
+   - `orgId` para `VERCEL_ORG_ID`
+   - `projectId` para `VERCEL_PROJECT_ID`
+
 ## Estrutura do Projeto
 
 ```
