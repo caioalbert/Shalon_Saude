@@ -1,29 +1,35 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { isValidCPF } from '@/lib/utils'
 import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
+type RouteContext = { params: Promise<{ id: string }> }
+
+async function getValidatedId(context: RouteContext) {
+  const { id } = await context.params
+
+  if (!id) {
+    return null
+  }
+
+  return id
+}
+
+function isAuthenticated(request: NextRequest) {
+  return Boolean(request.cookies.get('supabase-auth-token')?.value)
+}
+
+export async function GET(request: NextRequest, context: RouteContext) {
   try {
-    const token = request.cookies.get('supabase-auth-token')?.value
-
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Não autenticado' },
-        { status: 401 }
-      )
+    if (!isAuthenticated(request)) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
     }
 
-    const supabase = await createClient()
-    const { id } = await context.params
-
+    const id = await getValidatedId(context)
     if (!id) {
-      return NextResponse.json(
-        { error: 'ID inválido' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
     }
+
+    const supabase = createAdminClient()
 
     // Buscar cadastro
     const { data: cadastro, error: cadastroError } = await supabase
@@ -41,10 +47,7 @@ export async function GET(
         )
       }
 
-      return NextResponse.json(
-        { error: 'Erro ao buscar cadastro' },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'Erro ao buscar cadastro' }, { status: 500 })
     }
 
     // Buscar dependentes
@@ -65,9 +68,145 @@ export async function GET(
     })
   } catch (error) {
     console.error('API error:', error)
-    return NextResponse.json(
-      { error: 'Erro ao processar requisição' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erro ao processar requisição' }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: NextRequest, context: RouteContext) {
+  try {
+    if (!isAuthenticated(request)) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    }
+
+    const id = await getValidatedId(context)
+    if (!id) {
+      return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
+    }
+
+    const body = await request.json()
+    const toValue = (value: unknown) =>
+      typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim()
+
+    const nome = toValue(body.nome)
+    const email = toValue(body.email)
+    const cpf = toValue(body.cpf)
+    const rg = toValue(body.rg)
+    const data_nascimento = toValue(body.data_nascimento)
+    const telefone = toValue(body.telefone)
+    const sexo = toValue(body.sexo)
+    const estado_civil = toValue(body.estado_civil)
+    const nome_conjuge = toValue(body.nome_conjuge)
+    const escolaridade = toValue(body.escolaridade)
+    const situacao_profissional = toValue(body.situacao_profissional)
+    const profissao = toValue(body.profissao)
+    const congregacao_atual = toValue(body.congregacao_atual)
+    const posicao_igreja = toValue(body.posicao_igreja)
+    const endereco = toValue(body.endereco)
+    const numero = toValue(body.numero)
+    const complemento = toValue(body.complemento)
+    const bairro = toValue(body.bairro)
+    const cidade = toValue(body.cidade)
+    const estado = toValue(body.estado)
+    const cep = toValue(body.cep)
+
+    if (
+      !nome ||
+      !email ||
+      !cpf ||
+      !rg ||
+      !data_nascimento ||
+      !telefone ||
+      !sexo ||
+      !estado_civil ||
+      !escolaridade ||
+      !situacao_profissional ||
+      !congregacao_atual ||
+      !posicao_igreja ||
+      !endereco ||
+      !numero ||
+      !bairro ||
+      !cidade ||
+      !estado ||
+      !cep
+    ) {
+      return NextResponse.json({ error: 'Preencha todos os campos obrigatórios.' }, { status: 400 })
+    }
+
+    if (estado_civil === 'Casado(a)' && !nome_conjuge) {
+      return NextResponse.json(
+        { error: 'Nome do cônjuge é obrigatório para estado civil casado(a).' },
+        { status: 400 }
+      )
+    }
+
+    if (!isValidCPF(cpf)) {
+      return NextResponse.json({ error: 'CPF inválido.' }, { status: 400 })
+    }
+
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from('cadastros')
+      .update({
+        nome,
+        email,
+        cpf,
+        rg,
+        data_nascimento,
+        telefone,
+        sexo,
+        estado_civil,
+        nome_conjuge: nome_conjuge || null,
+        escolaridade,
+        situacao_profissional,
+        profissao: profissao || null,
+        congregacao_atual,
+        posicao_igreja,
+        endereco,
+        numero,
+        complemento: complemento || null,
+        bairro,
+        cidade,
+        estado,
+        cep,
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Patch cadastro error:', error)
+      return NextResponse.json({ error: 'Erro ao atualizar cadastro' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, cadastro: data })
+  } catch (error) {
+    console.error('PATCH cadastro API error:', error)
+    return NextResponse.json({ error: 'Erro ao processar requisição' }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  try {
+    if (!isAuthenticated(request)) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    }
+
+    const id = await getValidatedId(context)
+    if (!id) {
+      return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
+    }
+
+    const supabase = createAdminClient()
+    const { error } = await supabase.from('cadastros').delete().eq('id', id)
+
+    if (error) {
+      console.error('Delete cadastro error:', error)
+      return NextResponse.json({ error: 'Erro ao excluir cadastro' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('DELETE cadastro API error:', error)
+    return NextResponse.json({ error: 'Erro ao processar requisição' }, { status: 500 })
   }
 }

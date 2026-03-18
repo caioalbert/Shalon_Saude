@@ -1,44 +1,111 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import {
+  Building2,
+  CalendarClock,
+  Download,
+  FileSignature,
+  ImageIcon,
+  RefreshCw,
+  Users,
+  type LucideIcon,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Cadastro } from '@/lib/types'
-import Link from 'next/link'
+
+type RankingItem = {
+  name: string
+  shortName: string
+  total: number
+}
+
+type KpiCardProps = {
+  title: string
+  value: number
+  subtitle: string
+  valueClassName: string
+  icon: LucideIcon
+  iconClassName: string
+}
+
+const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+
+function KpiCard({ title, value, subtitle, valueClassName, icon: Icon, iconClassName }: KpiCardProps) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-gray-600">{title}</p>
+          <p className={`mt-2 text-3xl font-bold ${valueClassName}`}>{value.toLocaleString('pt-BR')}</p>
+          <p className="mt-1 text-xs text-gray-500">{subtitle}</p>
+        </div>
+        <div className={`rounded-xl p-2.5 ${iconClassName}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function truncateLabel(value: string, maxLength = 20) {
+  if (value.length <= maxLength) {
+    return value
+  }
+
+  return `${value.slice(0, maxLength - 1)}…`
+}
+
+function parseDate(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  return date
+}
+
+function buildRanking(values: Array<string | undefined>, fallbackLabel: string): RankingItem[] {
+  const counts = new Map<string, number>()
+
+  values.forEach((rawValue) => {
+    const normalizedValue = rawValue?.trim() || fallbackLabel
+    counts.set(normalizedValue, (counts.get(normalizedValue) || 0) + 1)
+  })
+
+  return Array.from(counts.entries())
+    .map(([name, total]) => ({
+      name,
+      shortName: truncateLabel(name),
+      total,
+    }))
+    .sort((a, b) => b.total - a.total)
+}
 
 export default function AdminDashboard() {
   const router = useRouter()
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [templateFile, setTemplateFile] = useState<File | null>(null)
-  const [templateInputKey, setTemplateInputKey] = useState(0)
-  const [templateMessage, setTemplateMessage] = useState<string | null>(null)
-  const [templateLoading, setTemplateLoading] = useState(false)
-  const [hasCustomTemplate, setHasCustomTemplate] = useState(false)
   const [exportLoading, setExportLoading] = useState(false)
 
-  useEffect(() => {
-    fetchCadastros()
-    fetchTemplateInfo()
-  }, [])
-
-  const fetchTemplateInfo = async () => {
-    try {
-      const response = await fetch('/api/admin/termo-template')
-      if (!response.ok) return
-
-      const data = await response.json()
-      setHasCustomTemplate(Boolean(data.hasCustomTemplate))
-    } catch {
-      // ignore
-    }
-  }
-
-  const fetchCadastros = async () => {
+  const fetchCadastros = useCallback(async () => {
     try {
       setIsLoading(true)
+      setError(null)
       const response = await fetch('/api/admin/cadastros')
 
       if (!response.ok) {
@@ -56,7 +123,11 @@ export default function AdminDashboard() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [router])
+
+  useEffect(() => {
+    fetchCadastros()
+  }, [fetchCadastros])
 
   const handleLogout = async () => {
     try {
@@ -110,285 +181,394 @@ export default function AdminDashboard() {
     }
   }
 
-  const handleTemplateUpload = async () => {
-    if (!templateFile) {
-      setTemplateMessage('Selecione um arquivo .txt ou .md')
-      return
+  const summary = useMemo(() => {
+    const now = new Date()
+    const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const start7Days = new Date(startToday)
+    start7Days.setDate(startToday.getDate() - 6)
+
+    const start30Days = new Date(startToday)
+    start30Days.setDate(startToday.getDate() - 29)
+
+    const startMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+
+    let withSelfie = 0
+    let withDependentes = 0
+    let signedTerms = 0
+    let today = 0
+    let last7Days = 0
+    let last30Days = 0
+    let currentMonth = 0
+
+    cadastros.forEach((cadastro) => {
+      if (cadastro.selfie_path) withSelfie += 1
+      if (cadastro.tem_dependentes) withDependentes += 1
+      if (cadastro.termo_assinado_em) signedTerms += 1
+
+      const createdAt = parseDate(cadastro.created_at)
+      if (!createdAt) return
+
+      if (createdAt >= startToday) today += 1
+      if (createdAt >= start7Days) last7Days += 1
+      if (createdAt >= start30Days) last30Days += 1
+      if (createdAt >= startMonth) currentMonth += 1
+    })
+
+    return {
+      total: cadastros.length,
+      withSelfie,
+      withDependentes,
+      signedTerms,
+      today,
+      last7Days,
+      last30Days,
+      currentMonth,
     }
+  }, [cadastros])
 
-    try {
-      setTemplateLoading(true)
-      setTemplateMessage(null)
-
-      const formData = new FormData()
-      formData.append('template', templateFile)
-
-      const response = await fetch('/api/admin/termo-template', {
-        method: 'POST',
-        body: formData,
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao enviar template')
-      }
-
-      setTemplateMessage('Template salvo com sucesso. Novos PDFs já usarão este conteúdo.')
-      setTemplateFile(null)
-      setTemplateInputKey((prev) => prev + 1)
-      setHasCustomTemplate(true)
-    } catch (err) {
-      setTemplateMessage(err instanceof Error ? err.message : 'Erro ao enviar template')
-    } finally {
-      setTemplateLoading(false)
-    }
-  }
-
-  const handleTemplateReset = async () => {
-    try {
-      setTemplateLoading(true)
-      setTemplateMessage(null)
-
-      const response = await fetch('/api/admin/termo-template', {
-        method: 'DELETE',
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao restaurar template')
-      }
-
-      setTemplateMessage('Template padrão restaurado com sucesso.')
-      setTemplateFile(null)
-      setTemplateInputKey((prev) => prev + 1)
-      setHasCustomTemplate(false)
-    } catch (err) {
-      setTemplateMessage(err instanceof Error ? err.message : 'Erro ao restaurar template')
-    } finally {
-      setTemplateLoading(false)
-    }
-  }
-
-  const filteredCadastros = cadastros.filter(
-    (cadastro) =>
-      cadastro.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cadastro.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cadastro.cpf.includes(searchTerm)
+  const congregacaoRanking = useMemo(
+    () => buildRanking(cadastros.map((item) => item.congregacao_atual), 'Não informada'),
+    [cadastros]
   )
 
+  const posicaoRanking = useMemo(
+    () => buildRanking(cadastros.map((item) => item.posicao_igreja), 'Não informada'),
+    [cadastros]
+  )
+
+  const congregacoesAtivas = useMemo(
+    () => congregacaoRanking.filter((item) => item.name !== 'Não informada').length,
+    [congregacaoRanking]
+  )
+
+  const posicoesAtivas = useMemo(
+    () => posicaoRanking.filter((item) => item.name !== 'Não informada').length,
+    [posicaoRanking]
+  )
+
+  const signedRate = useMemo(() => {
+    if (summary.total === 0) return 0
+    return Math.round((summary.signedTerms / summary.total) * 100)
+  }, [summary.signedTerms, summary.total])
+
+  const monthlyTrendData = useMemo(() => {
+    const now = new Date()
+    const months = Array.from({ length: 6 }).map((_, index) => {
+      const monthDate = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1)
+      return {
+        key: `${monthDate.getFullYear()}-${monthDate.getMonth()}`,
+        monthLabel: `${MONTH_LABELS[monthDate.getMonth()]} ${String(monthDate.getFullYear()).slice(-2)}`,
+        total: 0,
+      }
+    })
+
+    const monthKeyToIndex = new Map(months.map((item, index) => [item.key, index]))
+
+    cadastros.forEach((cadastro) => {
+      const createdAt = parseDate(cadastro.created_at)
+      if (!createdAt) return
+
+      const key = `${createdAt.getFullYear()}-${createdAt.getMonth()}`
+      const monthIndex = monthKeyToIndex.get(key)
+
+      if (monthIndex !== undefined) {
+        months[monthIndex].total += 1
+      }
+    })
+
+    return months
+  }, [cadastros])
+
+  const periodChartData = useMemo(
+    () => [
+      { period: 'Hoje', total: summary.today },
+      { period: '7 dias', total: summary.last7Days },
+      { period: '30 dias', total: summary.last30Days },
+      { period: 'Mês atual', total: summary.currentMonth },
+    ],
+    [summary.currentMonth, summary.last30Days, summary.last7Days, summary.today]
+  )
+
+  const congregacaoChartData = useMemo(() => congregacaoRanking.slice(0, 8), [congregacaoRanking])
+  const posicaoChartData = useMemo(() => posicaoRanking.slice(0, 8), [posicaoRanking])
+
   return (
-    <main className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+    <main className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
+      <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">SHALON Saúde - Admin</h1>
-            <p className="text-sm text-gray-600">Painel de Gerenciamento de Cadastros</p>
+            <p className="text-sm text-gray-600">Dashboard de Cadastros e Indicadores</p>
           </div>
-          <Button onClick={handleLogout} variant="outline">
-            Sair
-          </Button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Link href="/admin/cadastros">
+              <Button variant="outline">Cadastros</Button>
+            </Link>
+            <Link href="/admin/termo-template">
+              <Button variant="outline">Atualizar Termo de Adesão</Button>
+            </Link>
+            <Button
+              onClick={handleExportAllContracts}
+              disabled={exportLoading || cadastros.length === 0}
+              className="bg-teal-700 hover:bg-teal-800"
+            >
+              {exportLoading ? 'Exportando...' : 'Exportar Contratos (.zip)'}
+            </Button>
+            <Button onClick={handleLogout} variant="outline">
+              Sair
+            </Button>
+          </div>
         </div>
       </header>
 
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <p className="text-sm font-medium text-gray-600">Total de Cadastros</p>
-            <p className="text-3xl font-bold text-gray-900 mt-2">{cadastros.length}</p>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <p className="text-sm font-medium text-gray-600">Com Selfie</p>
-            <p className="text-3xl font-bold text-blue-600 mt-2">
-              {cadastros.filter((c) => c.selfie_path).length}
-            </p>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <p className="text-sm font-medium text-gray-600">Com Dependentes</p>
-            <p className="text-3xl font-bold text-green-600 mt-2">
-              {cadastros.filter((c) => c.tem_dependentes).length}
-            </p>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <p className="text-sm font-medium text-gray-600">Termos Assinados</p>
-            <p className="text-3xl font-bold text-purple-600 mt-2">
-              {cadastros.filter((c) => c.termo_assinado_em).length}
-            </p>
-          </div>
+      <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-8 flex justify-end">
+          <Button onClick={fetchCadastros} variant="outline" className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Atualizar indicadores
+          </Button>
         </div>
 
-        {/* Search */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <div className="flex flex-col lg:flex-row gap-4">
-            <input
-              type="text"
-              placeholder="Pesquisar por nome, email ou CPF..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Button onClick={fetchCadastros} variant="outline">
-                Atualizar
-              </Button>
-              <Button
-                onClick={handleExportAllContracts}
-                disabled={exportLoading || cadastros.length === 0}
-                className="bg-teal-700 hover:bg-teal-800"
-              >
-                {exportLoading ? 'Exportando...' : 'Exportar Contratos (.zip)'}
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6 mb-8 space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Template do Termo (PDF)</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              Você pode enviar um arquivo para customizar o texto legal do termo sem editar código.
-            </p>
-          </div>
-
-          <div className="text-sm text-gray-700 space-y-1">
-            <p>Como carregar corretamente:</p>
-            <p>1. Use arquivo .txt ou .md em UTF-8.</p>
-            <p>2. Separe parágrafos com uma linha em branco.</p>
-            <p>3. Títulos em linha isolada (ex.: TELEMEDICINA, ASSISTÊNCIA FUNERÁRIA).</p>
-            <p>4. Tamanho máximo: 200KB.</p>
-          </div>
-
-          <div className="flex flex-col md:flex-row gap-3 md:items-center">
-            <input
-              key={templateInputKey}
-              type="file"
-              accept=".txt,.md,text/plain,text/markdown"
-              onChange={(event) => setTemplateFile(event.target.files?.[0] || null)}
-              className="block w-full text-sm text-gray-700 border border-gray-300 rounded-lg p-2"
-            />
-            <Button
-              onClick={handleTemplateUpload}
-              disabled={templateLoading || !templateFile}
-              className="md:w-auto"
-            >
-              {templateLoading ? 'Enviando...' : 'Enviar Template'}
-            </Button>
-            <Button
-              onClick={handleTemplateReset}
-              variant="outline"
-              disabled={templateLoading || !hasCustomTemplate}
-              className="md:w-auto"
-            >
-              Restaurar Padrão
-            </Button>
-          </div>
-
-          <p className="text-sm text-gray-600">
-            Template ativo: {hasCustomTemplate ? 'Personalizado' : 'Padrão do sistema'}
-          </p>
-
-          {templateMessage && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-sm text-blue-700">{templateMessage}</p>
-            </div>
-          )}
-        </div>
-
-        {/* Error */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8">
-            <p className="text-red-700 font-medium">{error}</p>
+          <div className="mb-8 rounded-lg border border-red-200 bg-red-50 p-4">
+            <p className="font-medium text-red-700">{error}</p>
           </div>
         )}
 
-        {/* Loading */}
         {isLoading ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
+          <div className="rounded-xl border border-gray-200 bg-white p-10 text-center shadow-sm">
             <p className="text-gray-600">Carregando cadastros...</p>
           </div>
-        ) : filteredCadastros.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <p className="text-gray-600">Nenhum cadastro encontrado</p>
-          </div>
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
-                      Nome
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
-                      Email
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
-                      CPF
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
-                      Data de Assinatura
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
-                      Ações
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredCadastros.map((cadastro) => (
-                    <tr key={cadastro.id} className="border-b border-gray-200 hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                        {cadastro.nome}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{cadastro.email}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 font-mono">{cadastro.cpf}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {cadastro.termo_assinado_em
-                          ? new Date(cadastro.termo_assinado_em).toLocaleDateString('pt-BR', {
-                              year: 'numeric',
-                              month: '2-digit',
-                              day: '2-digit',
-                            })
-                          : '-'}
-                      </td>
-                      <td className="px-6 py-4 text-sm">
-                        <div className="flex gap-1">
-                          {cadastro.selfie_path && (
-                            <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
-                              Selfie
-                            </span>
-                          )}
-                          {cadastro.tem_dependentes && (
-                            <span className="inline-block px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">
-                              Dependentes
-                            </span>
-                          )}
-                          {cadastro.termo_assinado_em && (
-                            <span className="inline-block px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium">
-                              Assinado
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm">
-                        <Link href={`/admin/cadastro/${cadastro.id}`}>
-                          <Button size="sm" variant="outline">
-                            Ver Detalhes
-                          </Button>
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <>
+            <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <KpiCard
+                title="Total de Cadastros"
+                value={summary.total}
+                subtitle="Base geral de contratantes"
+                valueClassName="text-gray-900"
+                icon={Users}
+                iconClassName="bg-slate-100 text-slate-700"
+              />
+              <KpiCard
+                title="Cadastros Hoje"
+                value={summary.today}
+                subtitle="Entradas registradas hoje"
+                valueClassName="text-cyan-700"
+                icon={CalendarClock}
+                iconClassName="bg-cyan-100 text-cyan-700"
+              />
+              <KpiCard
+                title="Últimos 7 Dias"
+                value={summary.last7Days}
+                subtitle="Volume da semana atual"
+                valueClassName="text-blue-700"
+                icon={RefreshCw}
+                iconClassName="bg-blue-100 text-blue-700"
+              />
+              <KpiCard
+                title="Mês Atual"
+                value={summary.currentMonth}
+                subtitle="Cadastros no mês corrente"
+                valueClassName="text-indigo-700"
+                icon={Download}
+                iconClassName="bg-indigo-100 text-indigo-700"
+              />
             </div>
-          </div>
+
+            <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <KpiCard
+                title="Com Selfie"
+                value={summary.withSelfie}
+                subtitle="Identidade validada"
+                valueClassName="text-violet-700"
+                icon={ImageIcon}
+                iconClassName="bg-violet-100 text-violet-700"
+              />
+              <KpiCard
+                title="Com Dependentes"
+                value={summary.withDependentes}
+                subtitle="Titulares com família vinculada"
+                valueClassName="text-green-700"
+                icon={Users}
+                iconClassName="bg-green-100 text-green-700"
+              />
+              <KpiCard
+                title="Termos Assinados"
+                value={summary.signedTerms}
+                subtitle={`Taxa atual: ${signedRate}%`}
+                valueClassName="text-purple-700"
+                icon={FileSignature}
+                iconClassName="bg-purple-100 text-purple-700"
+              />
+              <KpiCard
+                title="Congregações Ativas"
+                value={congregacoesAtivas}
+                subtitle={`Posições registradas: ${posicoesAtivas}`}
+                valueClassName="text-emerald-700"
+                icon={Building2}
+                iconClassName="bg-emerald-100 text-emerald-700"
+              />
+            </div>
+
+            <div className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-3">
+              <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm xl:col-span-2">
+                <div className="mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900">Cadastros por Período (6 meses)</h2>
+                  <p className="text-sm text-gray-600">Evolução mensal da base de adesões</p>
+                </div>
+
+                {summary.total === 0 ? (
+                  <div className="flex h-72 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
+                    Sem dados para exibir gráfico.
+                  </div>
+                ) : (
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={monthlyTrendData} margin={{ top: 8, right: 20, left: 0, bottom: 8 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="monthLabel" tickLine={false} axisLine={false} />
+                        <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                        <Tooltip
+                          formatter={(value: number | string) => [Number(value).toLocaleString('pt-BR'), 'Cadastros']}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="total"
+                          stroke="#0f766e"
+                          strokeWidth={3}
+                          dot={{ r: 4, strokeWidth: 2, fill: '#0f766e' }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </section>
+
+              <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                <div className="mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900">Recorte Rápido</h2>
+                  <p className="text-sm text-gray-600">Cadastros acumulados por janela de tempo</p>
+                </div>
+
+                {summary.total === 0 ? (
+                  <div className="flex h-72 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
+                    Sem dados para exibir gráfico.
+                  </div>
+                ) : (
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={periodChartData} margin={{ top: 8, right: 10, left: -15, bottom: 8 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="period" tickLine={false} axisLine={false} />
+                        <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                        <Tooltip
+                          formatter={(value: number | string) => [Number(value).toLocaleString('pt-BR'), 'Cadastros']}
+                        />
+                        <Bar dataKey="total" fill="#0284c7" radius={[8, 8, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </section>
+            </div>
+
+            <div className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Cadastros por Congregação</h2>
+                    <p className="text-sm text-gray-600">Top congregações por volume de adesão</p>
+                  </div>
+                  <div className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+                    {congregacaoRanking.length} categorias
+                  </div>
+                </div>
+
+                {congregacaoChartData.length === 0 ? (
+                  <div className="flex h-80 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
+                    Nenhuma congregação cadastrada.
+                  </div>
+                ) : (
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={congregacaoChartData}
+                        layout="vertical"
+                        margin={{ top: 8, right: 18, left: 18, bottom: 8 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                        <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
+                        <YAxis
+                          dataKey="shortName"
+                          type="category"
+                          width={140}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <Tooltip
+                          formatter={(value: number | string) => [Number(value).toLocaleString('pt-BR'), 'Cadastros']}
+                          labelFormatter={(label, payload) => {
+                            if (!payload || payload.length === 0) return label
+                            return payload[0].payload.name
+                          }}
+                        />
+                        <Bar dataKey="total" fill="#059669" radius={[0, 8, 8, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </section>
+
+              <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Cadastros por Posição</h2>
+                    <p className="text-sm text-gray-600">Distribuição por posição na igreja</p>
+                  </div>
+                  <div className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">
+                    {posicaoRanking.length} categorias
+                  </div>
+                </div>
+
+                {posicaoChartData.length === 0 ? (
+                  <div className="flex h-80 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
+                    Nenhuma posição cadastrada.
+                  </div>
+                ) : (
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={posicaoChartData}
+                        layout="vertical"
+                        margin={{ top: 8, right: 18, left: 18, bottom: 8 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                        <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
+                        <YAxis
+                          dataKey="shortName"
+                          type="category"
+                          width={140}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <Tooltip
+                          formatter={(value: number | string) => [Number(value).toLocaleString('pt-BR'), 'Cadastros']}
+                          labelFormatter={(label, payload) => {
+                            if (!payload || payload.length === 0) return label
+                            return payload[0].payload.name
+                          }}
+                        />
+                        <Bar dataKey="total" fill="#4f46e5" radius={[0, 8, 8, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </section>
+            </div>
+
+          </>
         )}
       </div>
     </main>
