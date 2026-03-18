@@ -180,6 +180,10 @@ export default function CadastroDetail() {
                     <p className="text-lg font-medium text-gray-900 font-mono">{cadastro.cpf}</p>
                   </div>
                   <div>
+                    <p className="text-xs text-gray-600 uppercase font-medium">RG</p>
+                    <p className="text-lg font-medium text-gray-900">{cadastro.rg || '-'}</p>
+                  </div>
+                  <div>
                     <p className="text-xs text-gray-600 uppercase font-medium">Email</p>
                     <p className="text-lg font-medium text-gray-900">{cadastro.email}</p>
                   </div>
@@ -198,6 +202,36 @@ export default function CadastroDetail() {
                   <div>
                     <p className="text-xs text-gray-600 uppercase font-medium">Sexo</p>
                     <p className="text-lg font-medium text-gray-900">{cadastro.sexo || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 uppercase font-medium">Estado Civil</p>
+                    <p className="text-lg font-medium text-gray-900">{cadastro.estado_civil || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 uppercase font-medium">Nome do Cônjuge</p>
+                    <p className="text-lg font-medium text-gray-900">{cadastro.nome_conjuge || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 uppercase font-medium">Escolaridade</p>
+                    <p className="text-lg font-medium text-gray-900">{cadastro.escolaridade || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 uppercase font-medium">Situação Profissional</p>
+                    <p className="text-lg font-medium text-gray-900">
+                      {cadastro.situacao_profissional || '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 uppercase font-medium">Profissão</p>
+                    <p className="text-lg font-medium text-gray-900">{cadastro.profissao || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 uppercase font-medium">Congregação Atual</p>
+                    <p className="text-lg font-medium text-gray-900">{cadastro.congregacao_atual || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 uppercase font-medium">Posição na Igreja</p>
+                    <p className="text-lg font-medium text-gray-900">{cadastro.posicao_igreja || '-'}</p>
                   </div>
                 </div>
               </div>

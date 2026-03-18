@@ -40,6 +40,10 @@ export function StepConfirmacao({
             <p className="font-medium text-gray-800">{data.cpf}</p>
           </div>
           <div>
+            <p className="text-xs text-gray-600">RG</p>
+            <p className="font-medium text-gray-800">{data.rg || 'Não informado'}</p>
+          </div>
+          <div>
             <p className="text-xs text-gray-600">Email</p>
             <p className="font-medium text-gray-800">{data.email}</p>
           </div>
@@ -58,6 +62,36 @@ export function StepConfirmacao({
           <div>
             <p className="text-xs text-gray-600">Sexo</p>
             <p className="font-medium text-gray-800">{data.sexo || 'Não informado'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-600">Estado Civil</p>
+            <p className="font-medium text-gray-800">{data.estado_civil || 'Não informado'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-600">Nome do Cônjuge</p>
+            <p className="font-medium text-gray-800">{data.nome_conjuge || 'Não informado'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-600">Escolaridade</p>
+            <p className="font-medium text-gray-800">{data.escolaridade || 'Não informada'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-600">Situação Profissional</p>
+            <p className="font-medium text-gray-800">
+              {data.situacao_profissional || 'Não informada'}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-600">Profissão</p>
+            <p className="font-medium text-gray-800">{data.profissao || 'Não informada'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-600">Congregação Atual</p>
+            <p className="font-medium text-gray-800">{data.congregacao_atual || 'Não informada'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-600">Posição na Igreja</p>
+            <p className="font-medium text-gray-800">{data.posicao_igreja || 'Não informada'}</p>
           </div>
           <div>
             <p className="text-xs text-gray-600">Selfie</p>

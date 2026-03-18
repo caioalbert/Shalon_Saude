@@ -31,8 +31,24 @@ export function StepTermo({ data }: StepTermoProps) {
           <p className="text-gray-700">
             <strong>Nome:</strong> {data.nome || '[Nome não preenchido]'} <br />
             <strong>CPF:</strong> {data.cpf || '[CPF não preenchido]'} <br />
+            <strong>RG:</strong> {data.rg || '[RG não preenchido]'} <br />
             <strong>Data de Nascimento:</strong> {data.data_nascimento || '[Data não preenchida]'} <br />
             <strong>Sexo:</strong> {data.sexo || '[Sexo não preenchido]'} <br />
+            <strong>Estado Civil:</strong> {data.estado_civil || '[Estado civil não preenchido]'} <br />
+            {data.estado_civil === 'Casado(a)' && (
+              <>
+                <strong>Nome do Cônjuge:</strong>{' '}
+                {data.nome_conjuge || '[Nome do cônjuge não preenchido]'} <br />
+              </>
+            )}
+            <strong>Escolaridade:</strong> {data.escolaridade || '[Escolaridade não preenchida]'} <br />
+            <strong>Situação Profissional:</strong>{' '}
+            {data.situacao_profissional || '[Situação profissional não preenchida]'} <br />
+            <strong>Profissão:</strong> {data.profissao || '[Não informada]'} <br />
+            <strong>Congregação Atual:</strong>{' '}
+            {data.congregacao_atual || '[Congregação não preenchida]'} <br />
+            <strong>Posição na Igreja:</strong>{' '}
+            {data.posicao_igreja || '[Posição na igreja não preenchida]'} <br />
             <strong>Email:</strong> {data.email || '[Email não preenchido]'} <br />
             <strong>Telefone:</strong> {data.telefone || '[Telefone não preenchido]'} <br />
           </p>

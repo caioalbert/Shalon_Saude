@@ -8,6 +8,7 @@ import { useState } from 'react'
 interface StepEnderecoProps {
   data: Partial<CadastroFormData>
   onUpdate: (data: Partial<CadastroFormData>) => void
+  showValidation?: boolean
 }
 
 const ESTADOS = [
@@ -16,7 +17,7 @@ const ESTADOS = [
   'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
 ]
 
-export function StepEndereco({ data, onUpdate }: StepEnderecoProps) {
+export function StepEndereco({ data, onUpdate, showValidation = false }: StepEnderecoProps) {
   const [localData, setLocalData] = useState({
     endereco: data.endereco || '',
     numero: data.numero || '',
@@ -29,7 +30,9 @@ export function StepEndereco({ data, onUpdate }: StepEnderecoProps) {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
-    setLocalData((prev) => ({ ...prev, [name]: value }))
+    const next = { ...localData, [name]: value }
+    setLocalData(next)
+    onUpdate(next)
   }
 
   const handleBlur = () => {
@@ -39,6 +42,12 @@ export function StepEndereco({ data, onUpdate }: StepEnderecoProps) {
   const formatCEP = (value: string) => {
     return value.replace(/\D/g, '').replace(/(\d{5})(\d)/, '$1-$2').substring(0, 9)
   }
+
+  const isMissingField = (field: keyof typeof localData) =>
+    showValidation && !String(localData[field] || '').trim()
+
+  const inputClass = (field: keyof typeof localData) =>
+    `mt-2 ${isMissingField(field) ? 'border-red-400 focus-visible:ring-red-500' : 'border-gray-300'}`
 
   return (
     <div className="space-y-6">
@@ -55,7 +64,7 @@ export function StepEndereco({ data, onUpdate }: StepEnderecoProps) {
           onChange={handleChange}
           onBlur={handleBlur}
           required
-          className="mt-2 border-gray-300"
+          className={inputClass('endereco')}
         />
       </div>
 
@@ -73,7 +82,7 @@ export function StepEndereco({ data, onUpdate }: StepEnderecoProps) {
             onChange={handleChange}
             onBlur={handleBlur}
             required
-            className="mt-2 border-gray-300"
+            className={inputClass('numero')}
           />
         </div>
 
@@ -108,7 +117,7 @@ export function StepEndereco({ data, onUpdate }: StepEnderecoProps) {
             onChange={handleChange}
             onBlur={handleBlur}
             required
-            className="mt-2 border-gray-300"
+            className={inputClass('bairro')}
           />
         </div>
 
@@ -124,11 +133,13 @@ export function StepEndereco({ data, onUpdate }: StepEnderecoProps) {
             value={formatCEP(localData.cep)}
             onChange={(e) => {
               const formatted = formatCEP(e.target.value)
-              setLocalData((prev) => ({ ...prev, cep: formatted }))
+              const next = { ...localData, cep: formatted }
+              setLocalData(next)
+              onUpdate(next)
             }}
             onBlur={handleBlur}
             required
-            className="mt-2 border-gray-300"
+            className={inputClass('cep')}
             maxLength={9}
           />
         </div>
@@ -148,7 +159,7 @@ export function StepEndereco({ data, onUpdate }: StepEnderecoProps) {
             onChange={handleChange}
             onBlur={handleBlur}
             required
-            className="mt-2 border-gray-300"
+            className={inputClass('cidade')}
           />
         </div>
 
@@ -163,7 +174,11 @@ export function StepEndereco({ data, onUpdate }: StepEnderecoProps) {
             onChange={handleChange}
             onBlur={handleBlur}
             required
-            className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={`mt-2 w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+              isMissingField('estado')
+                ? 'border-red-400 focus:ring-red-500'
+                : 'border-gray-300 focus:ring-blue-500'
+            }`}
           >
             <option value="">Selecione...</option>
             {ESTADOS.map((estado) => (

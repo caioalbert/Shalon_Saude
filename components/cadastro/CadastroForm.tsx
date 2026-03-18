@@ -26,6 +26,7 @@ interface CadastroFormProps {
 
 export function CadastroForm({ onSuccess }: CadastroFormProps) {
   const [step, setStep] = useState(0)
+  const [validationStep, setValidationStep] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [aceiteTermos, setAceiteTermos] = useState(false)
@@ -36,9 +37,17 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
   })
 
   const handleNext = () => {
+    const stepError = getStepValidationError(step)
+    if (stepError) {
+      setError(stepError)
+      setValidationStep(step)
+      return
+    }
+
     if (step < STEPS.length - 1) {
       setStep(step + 1)
       setError(null)
+      setValidationStep(null)
     }
   }
 
@@ -46,11 +55,90 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
     if (step > 0) {
       setStep(step - 1)
       setError(null)
+      setValidationStep(null)
     }
   }
 
   const updateFormData = (data: Partial<CadastroFormData>) => {
     setFormData((prev) => ({ ...prev, ...data }))
+    if (error) {
+      setError(null)
+    }
+  }
+
+  const hasValue = (value?: string) => Boolean(value?.trim())
+
+  const getStepValidationError = (currentStep: number) => {
+    if (currentStep === 0) {
+      if (
+        !hasValue(formData.nome) ||
+        !hasValue(formData.cpf) ||
+        !hasValue(formData.rg) ||
+        !hasValue(formData.email) ||
+        !hasValue(formData.telefone) ||
+        !hasValue(formData.sexo) ||
+        !hasValue(formData.data_nascimento) ||
+        !hasValue(formData.estado_civil) ||
+        !hasValue(formData.escolaridade) ||
+        !hasValue(formData.situacao_profissional) ||
+        !hasValue(formData.congregacao_atual) ||
+        !hasValue(formData.posicao_igreja)
+      ) {
+        return 'Preencha todos os campos obrigatórios dos dados pessoais para continuar.'
+      }
+
+      if (formData.estado_civil === 'Casado(a)' && !hasValue(formData.nome_conjuge)) {
+        return 'Informe o nome do cônjuge para continuar.'
+      }
+
+      if (formData.cpf && !isValidCPF(formData.cpf)) {
+        return 'CPF do titular inválido.'
+      }
+    }
+
+    if (currentStep === 1) {
+      if (
+        !hasValue(formData.endereco) ||
+        !hasValue(formData.numero) ||
+        !hasValue(formData.bairro) ||
+        !hasValue(formData.cidade) ||
+        !hasValue(formData.estado) ||
+        !hasValue(formData.cep)
+      ) {
+        return 'Preencha todos os campos obrigatórios do endereço para continuar.'
+      }
+    }
+
+    if (currentStep === 2 && formData.tem_dependentes) {
+      const dependentes = formData.dependentes || []
+
+      if (dependentes.length === 0) {
+        return 'Adicione ao menos um dependente para continuar.'
+      }
+
+      const invalidDependente = dependentes.find(
+        (dep) =>
+          !hasValue(dep.nome) ||
+          !hasValue(dep.relacao) ||
+          !hasValue(dep.telefone_celular) ||
+          !hasValue(dep.sexo)
+      )
+
+      if (invalidDependente) {
+        return 'Cada dependente precisa ter nome, relação, sexo e telefone celular.'
+      }
+
+      const invalidDependenteCpf = dependentes.find((dep) => dep.cpf && !isValidCPF(dep.cpf))
+      if (invalidDependenteCpf) {
+        return `CPF inválido para dependente: ${invalidDependenteCpf.nome || 'sem nome'}.`
+      }
+    }
+
+    if (currentStep === 3 && !formData.selfie_blob) {
+      return 'Capture ou envie uma selfie para continuar.'
+    }
+
+    return null
   }
 
   const handleSubmit = async () => {
@@ -62,12 +150,22 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
       if (
         !formData.nome ||
         !formData.cpf ||
+        !formData.rg ||
         !formData.email ||
         !formData.telefone ||
         !formData.sexo ||
-        !formData.data_nascimento
+        !formData.data_nascimento ||
+        !formData.estado_civil ||
+        !formData.escolaridade ||
+        !formData.situacao_profissional ||
+        !formData.congregacao_atual ||
+        !formData.posicao_igreja
       ) {
         throw new Error('Dados pessoais incompletos')
+      }
+
+      if (formData.estado_civil === 'Casado(a)' && !formData.nome_conjuge?.trim()) {
+        throw new Error('Nome do cônjuge é obrigatório para estado civil casado(a)')
       }
 
       if (!isValidCPF(formData.cpf)) {
@@ -101,10 +199,18 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
       const submitData = new FormData()
       submitData.append('nome', formData.nome)
       submitData.append('cpf', formData.cpf)
+      submitData.append('rg', formData.rg)
       submitData.append('email', formData.email)
       submitData.append('data_nascimento', formData.data_nascimento || '')
       submitData.append('telefone', formData.telefone || '')
       submitData.append('sexo', formData.sexo || '')
+      submitData.append('estado_civil', formData.estado_civil || '')
+      submitData.append('nome_conjuge', formData.nome_conjuge || '')
+      submitData.append('escolaridade', formData.escolaridade || '')
+      submitData.append('situacao_profissional', formData.situacao_profissional || '')
+      submitData.append('profissao', formData.profissao || '')
+      submitData.append('congregacao_atual', formData.congregacao_atual || '')
+      submitData.append('posicao_igreja', formData.posicao_igreja || '')
       submitData.append('endereco', formData.endereco || '')
       submitData.append('numero', formData.numero || '')
       submitData.append('complemento', formData.complemento || '')
@@ -141,13 +247,37 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
   const renderStep = () => {
     switch (step) {
       case 0:
-        return <StepPessoal data={formData} onUpdate={updateFormData} />
+        return (
+          <StepPessoal
+            data={formData}
+            onUpdate={updateFormData}
+            showValidation={validationStep === 0}
+          />
+        )
       case 1:
-        return <StepEndereco data={formData} onUpdate={updateFormData} />
+        return (
+          <StepEndereco
+            data={formData}
+            onUpdate={updateFormData}
+            showValidation={validationStep === 1}
+          />
+        )
       case 2:
-        return <StepDependentes data={formData} onUpdate={updateFormData} />
+        return (
+          <StepDependentes
+            data={formData}
+            onUpdate={updateFormData}
+            showValidation={validationStep === 2}
+          />
+        )
       case 3:
-        return <StepSelfie data={formData} onUpdate={updateFormData} />
+        return (
+          <StepSelfie
+            data={formData}
+            onUpdate={updateFormData}
+            showValidation={validationStep === 3}
+          />
+        )
       case 4:
         return <StepTermo data={formData} />
       case 5:
@@ -185,37 +315,40 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
 
       {/* Step Content */}
       <div className="min-h-96">
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-700 text-sm font-medium">{error}</p>
-          </div>
-        )}
         {renderStep()}
       </div>
 
       {/* Navigation Buttons */}
-      <div className="flex justify-between pt-6 border-t border-gray-200">
-        <Button
-          onClick={handlePrev}
-          disabled={step === 0 || isLoading}
-          variant="outline"
-        >
-          Voltar
-        </Button>
-
-        {step === STEPS.length - 1 ? (
-          <Button
-            onClick={handleSubmit}
-            disabled={isLoading || !aceiteTermos || !aceitePrivacidade}
-            className="bg-green-600 hover:bg-green-700"
-          >
-            {isLoading ? 'Enviando...' : 'Concluir Cadastro'}
-          </Button>
-        ) : (
-          <Button onClick={handleNext} disabled={isLoading}>
-            Próximo
-          </Button>
+      <div className="pt-6 border-t border-gray-200 space-y-4">
+        {error && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg" role="alert">
+            <p className="text-red-700 text-sm font-medium">{error}</p>
+          </div>
         )}
+
+        <div className="flex justify-between">
+          <Button
+            onClick={handlePrev}
+            disabled={step === 0 || isLoading}
+            variant="outline"
+          >
+            Voltar
+          </Button>
+
+          {step === STEPS.length - 1 ? (
+            <Button
+              onClick={handleSubmit}
+              disabled={isLoading || !aceiteTermos || !aceitePrivacidade}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isLoading ? 'Enviando...' : 'Concluir Cadastro'}
+            </Button>
+          ) : (
+            <Button onClick={handleNext} disabled={isLoading}>
+              Próximo
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   )

@@ -4,9 +4,17 @@ CREATE TABLE IF NOT EXISTS cadastros (
   email TEXT NOT NULL,
   nome TEXT NOT NULL,
   cpf TEXT NOT NULL,
+  rg TEXT,
   data_nascimento DATE NOT NULL,
   telefone TEXT,
   sexo TEXT,
+  estado_civil TEXT,
+  nome_conjuge TEXT,
+  escolaridade TEXT,
+  situacao_profissional TEXT,
+  profissao TEXT,
+  congregacao_atual TEXT,
+  posicao_igreja TEXT,
   endereco TEXT,
   numero TEXT,
   complemento TEXT,
@@ -43,7 +51,15 @@ CREATE TABLE IF NOT EXISTS dependentes (
 
 -- Compatibilidade com bancos já existentes
 ALTER TABLE cadastros
-  ADD COLUMN IF NOT EXISTS sexo TEXT;
+  ADD COLUMN IF NOT EXISTS sexo TEXT,
+  ADD COLUMN IF NOT EXISTS rg TEXT,
+  ADD COLUMN IF NOT EXISTS estado_civil TEXT,
+  ADD COLUMN IF NOT EXISTS nome_conjuge TEXT,
+  ADD COLUMN IF NOT EXISTS escolaridade TEXT,
+  ADD COLUMN IF NOT EXISTS situacao_profissional TEXT,
+  ADD COLUMN IF NOT EXISTS profissao TEXT,
+  ADD COLUMN IF NOT EXISTS congregacao_atual TEXT,
+  ADD COLUMN IF NOT EXISTS posicao_igreja TEXT;
 
 ALTER TABLE dependentes
   ADD COLUMN IF NOT EXISTS telefone_celular TEXT,

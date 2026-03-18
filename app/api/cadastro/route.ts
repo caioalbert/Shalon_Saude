@@ -3,6 +3,47 @@ import { isValidCPF } from '@/lib/utils'
 import { put } from '@vercel/blob'
 import { NextRequest, NextResponse } from 'next/server'
 
+function normalizeIp(rawIp: string | null | undefined) {
+  if (!rawIp) return null
+
+  // x-forwarded-for pode vir como lista: "ip1, ip2"
+  const first = rawIp.split(',')[0]?.trim()
+  if (!first) return null
+
+  // Remove porta em casos IPv4 "1.2.3.4:1234"
+  const withoutPort = first.includes(':') && !first.includes('::') && first.split(':').length === 2
+    ? first.split(':')[0]
+    : first
+
+  // IPv6-mapped IPv4
+  const normalized = withoutPort.replace(/^::ffff:/i, '')
+
+  // Valores locais comuns
+  if (normalized === '::1' || normalized === '127.0.0.1' || normalized === 'localhost') {
+    return 'localhost'
+  }
+
+  return normalized
+}
+
+function getClientIp(request: NextRequest) {
+  const headerCandidates = [
+    request.headers.get('x-forwarded-for'),
+    request.headers.get('x-real-ip'),
+    request.headers.get('cf-connecting-ip'),
+    request.headers.get('x-vercel-forwarded-for'),
+    request.headers.get('fly-client-ip'),
+    request.headers.get('true-client-ip'),
+  ]
+
+  for (const candidate of headerCandidates) {
+    const ip = normalizeIp(candidate)
+    if (ip) return ip
+  }
+
+  return 'unknown'
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
@@ -11,9 +52,17 @@ export async function POST(request: NextRequest) {
     const nome = formData.get('nome') as string
     const email = formData.get('email') as string
     const cpf = formData.get('cpf') as string
+    const rg = formData.get('rg') as string
     const data_nascimento = formData.get('data_nascimento') as string
     const telefone = formData.get('telefone') as string
     const sexo = formData.get('sexo') as string
+    const estado_civil = formData.get('estado_civil') as string
+    const nome_conjuge = formData.get('nome_conjuge') as string
+    const escolaridade = formData.get('escolaridade') as string
+    const situacao_profissional = formData.get('situacao_profissional') as string
+    const profissao = formData.get('profissao') as string
+    const congregacao_atual = formData.get('congregacao_atual') as string
+    const posicao_igreja = formData.get('posicao_igreja') as string
     const endereco = formData.get('endereco') as string
     const numero = formData.get('numero') as string
     const complemento = formData.get('complemento') as string
@@ -28,9 +77,17 @@ export async function POST(request: NextRequest) {
     const nomeValue = nome?.trim()
     const emailValue = email?.trim()
     const cpfValue = cpf?.trim()
+    const rgValue = rg?.trim()
     const dataNascimentoValue = data_nascimento?.trim()
     const telefoneValue = telefone?.trim()
     const sexoValue = sexo?.trim()
+    const estadoCivilValue = estado_civil?.trim()
+    const nomeConjugeValue = nome_conjuge?.trim()
+    const escolaridadeValue = escolaridade?.trim()
+    const situacaoProfissionalValue = situacao_profissional?.trim()
+    const profissaoValue = profissao?.trim()
+    const congregacaoAtualValue = congregacao_atual?.trim()
+    const posicaoIgrejaValue = posicao_igreja?.trim()
     const enderecoValue = endereco?.trim()
     const numeroValue = numero?.trim()
     const complementoValue = complemento?.trim()
@@ -40,9 +97,29 @@ export async function POST(request: NextRequest) {
     const cepValue = cep?.trim()
 
     // Validação básica
-    if (!nomeValue || !emailValue || !cpfValue || !telefoneValue || !sexoValue || !dataNascimentoValue) {
+    if (
+      !nomeValue ||
+      !emailValue ||
+      !cpfValue ||
+      !rgValue ||
+      !telefoneValue ||
+      !sexoValue ||
+      !dataNascimentoValue ||
+      !estadoCivilValue ||
+      !escolaridadeValue ||
+      !situacaoProfissionalValue ||
+      !congregacaoAtualValue ||
+      !posicaoIgrejaValue
+    ) {
       return NextResponse.json(
         { error: 'Dados pessoais obrigatórios faltando' },
+        { status: 400 }
+      )
+    }
+
+    if (estadoCivilValue === 'Casado(a)' && !nomeConjugeValue) {
+      return NextResponse.json(
+        { error: 'Nome do cônjuge é obrigatório para estado civil casado(a)' },
         { status: 400 }
       )
     }
@@ -146,9 +223,17 @@ export async function POST(request: NextRequest) {
           nome: nomeValue,
           email: emailValue,
           cpf: cpfValue,
+          rg: rgValue,
           data_nascimento: dataNascimentoValue,
           telefone: telefoneValue,
           sexo: sexoValue,
+          estado_civil: estadoCivilValue,
+          nome_conjuge: nomeConjugeValue || null,
+          escolaridade: escolaridadeValue,
+          situacao_profissional: situacaoProfissionalValue,
+          profissao: profissaoValue || null,
+          congregacao_atual: congregacaoAtualValue,
+          posicao_igreja: posicaoIgrejaValue,
           endereco: enderecoValue,
           numero: numeroValue,
           complemento: complementoValue || null,
@@ -159,7 +244,7 @@ export async function POST(request: NextRequest) {
           tem_dependentes,
           selfie_path,
           termo_assinado_em: new Date().toISOString(),
-          ip_assinante: request.headers.get('x-forwarded-for') || 'unknown',
+          ip_assinante: getClientIp(request),
         },
       ])
       .select()
@@ -167,11 +252,15 @@ export async function POST(request: NextRequest) {
 
     if (cadastroError) {
       const details = `${cadastroError.message || ''} ${cadastroError.details || ''}`
-      if (/column .*sexo|sexo .*column|telefone_celular/i.test(details)) {
+      if (
+        /column .*sexo|sexo .*column|telefone_celular|estado_civil|nome_conjuge|escolaridade|situacao_profissional|profissao|congregacao_atual|posicao_igreja|rg/i.test(
+          details
+        )
+      ) {
         return NextResponse.json(
           {
             error:
-              'Banco desatualizado. Execute novamente o script scripts/001_create_tables.sql no Supabase SQL Editor para adicionar as novas colunas (sexo e telefone_celular).',
+              'Banco desatualizado. Execute novamente o script scripts/001_create_tables.sql no Supabase SQL Editor para adicionar as novas colunas.',
           },
           { status: 500 }
         )

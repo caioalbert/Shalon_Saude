@@ -78,17 +78,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_center,_#ffffff_0%,_#f5fbf9_55%,_#ebf7f2_100%)]">
       <header className="fixed inset-x-0 top-0 z-50 border-b border-emerald-100 bg-white/85 backdrop-blur-md">
-        <div className="mx-auto flex h-20 w-full max-w-7xl items-center justify-between px-6 sm:px-10 lg:px-16">
-          <Image
-            src="/logo-horizontal-v2.png"
-            alt="SHALON Saúde"
-            width={240}
-            height={78}
-            priority
-            unoptimized
-            className="h-10 w-auto"
-          />
-
+        <div className="mx-auto flex h-20 w-full max-w-7xl items-center justify-end px-6 sm:px-10 lg:px-16">
           <nav className="hidden items-center gap-7 text-sm font-medium text-gray-500 md:flex">
             <Link href="#inicio" className="transition-colors hover:text-gray-800">
               Home
@@ -110,15 +100,27 @@ export default function Home() {
         <div className="mx-auto w-full max-w-7xl px-6 sm:px-10 lg:px-16">
           <div className="grid grid-cols-1 items-start gap-12 lg:grid-cols-5">
             <div className="space-y-8 lg:col-span-3">
-              <Image
-                src="/logo-horizontal-v2.png"
-                alt="SHALON Saúde"
-                width={520}
-                height={169}
-                priority
-                unoptimized
-                className="h-16 w-auto sm:h-20"
-              />
+              <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+                <Image
+                  src="/logo-horizontal-v2.png"
+                  alt="SHALON Saúde"
+                  width={520}
+                  height={169}
+                  priority
+                  unoptimized
+                  className="h-16 w-auto sm:h-20"
+                />
+                <span className="hidden text-lg font-semibold text-gray-300 sm:inline">×</span>
+                <Image
+                  src="/Logo-igreja.png"
+                  alt="Logo da Igreja Parceira"
+                  width={220}
+                  height={220}
+                  priority
+                  unoptimized
+                  className="h-32 w-auto object-contain sm:h-44"
+                />
+              </div>
 
               <div className="max-w-2xl space-y-5 text-left">
                 <div className="flex items-center gap-3 text-sm font-medium text-gray-400">
@@ -328,7 +330,7 @@ export default function Home() {
         <div className="mx-auto w-full max-w-7xl px-6 py-12 sm:px-10 lg:px-16">
           <div className="mb-8 grid grid-cols-1 gap-8 md:grid-cols-4">
             <div>
-              <div className="mb-4 flex items-center space-x-2">
+              <div className="mb-4 flex items-center gap-3">
                 <Image
                   src="/logo-horizontal-v2.png"
                   alt="SHALON Saúde"
@@ -336,6 +338,15 @@ export default function Home() {
                   height={65}
                   unoptimized
                   className="h-9 w-auto"
+                />
+                <span className="text-sm font-semibold text-gray-300">×</span>
+                <Image
+                  src="/Logo-igreja.png"
+                  alt="Logo da Igreja Parceira"
+                  width={180}
+                  height={180}
+                  unoptimized
+                  className="h-20 w-auto object-contain"
                 />
               </div>
               <p className="text-sm text-gray-600">Sistema de cadastro digital seguro</p>

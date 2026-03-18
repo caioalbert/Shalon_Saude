@@ -52,10 +52,18 @@ const styles = StyleSheet.create({
 type CadastroPdfData = {
   nome: string
   cpf: string
+  rg?: string | null
   email: string
   telefone?: string | null
   sexo?: string | null
   data_nascimento?: string | null
+  estado_civil?: string | null
+  nome_conjuge?: string | null
+  escolaridade?: string | null
+  situacao_profissional?: string | null
+  profissao?: string | null
+  congregacao_atual?: string | null
+  posicao_igreja?: string | null
   endereco?: string | null
   numero?: string | null
   complemento?: string | null
@@ -128,10 +136,21 @@ export function TermoAdesaoPDF({ data, dependentes, termoBodyText }: TermoAdesao
         <Text style={styles.row}>Endereço: {formatAddress(data)}</Text>
         <Text style={styles.row}>CEP: {data.cep || ''}</Text>
         <Text style={styles.row}>Email: {data.email || ''}</Text>
-        <Text style={styles.row}>CPF: {data.cpf || ''}   Telefone: {data.telefone || ''}</Text>
+        <Text style={styles.row}>CPF: {data.cpf || ''}   RG: {data.rg || ''}</Text>
+        <Text style={styles.row}>Telefone: {data.telefone || ''}</Text>
         <Text style={styles.row}>
           Data de Nascimento: {formatDate(data.data_nascimento)}   Sexo: {data.sexo || 'Não informado'}
         </Text>
+        <Text style={styles.row}>Estado Civil: {data.estado_civil || ''}</Text>
+        {data.nome_conjuge ? (
+          <Text style={styles.row}>Nome do Cônjuge: {data.nome_conjuge}</Text>
+        ) : null}
+        <Text style={styles.row}>Escolaridade: {data.escolaridade || ''}</Text>
+        <Text style={styles.row}>
+          Situação Profissional: {data.situacao_profissional || ''}   Profissão: {data.profissao || ''}
+        </Text>
+        <Text style={styles.row}>Congregação Atual: {data.congregacao_atual || ''}</Text>
+        <Text style={styles.row}>Posição na Igreja: {data.posicao_igreja || ''}</Text>
 
         <Text style={styles.sectionTitle}>Dados dos Dependentes</Text>
         {dependentesRows.length > 0 ? (

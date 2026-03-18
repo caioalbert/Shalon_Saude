@@ -3,9 +3,17 @@ export interface Cadastro {
   email: string
   nome: string
   cpf: string
+  rg?: string
   data_nascimento: string
   telefone?: string
   sexo?: string
+  estado_civil?: string
+  nome_conjuge?: string
+  escolaridade?: string
+  situacao_profissional?: string
+  profissao?: string
+  congregacao_atual?: string
+  posicao_igreja?: string
   endereco?: string
   numero?: string
   complemento?: string
@@ -39,9 +47,17 @@ export interface CadastroFormData {
   // Dados pessoais
   nome: string
   cpf: string
+  rg: string
   data_nascimento: string
   telefone: string
   sexo: string
+  estado_civil: string
+  nome_conjuge: string
+  escolaridade: string
+  situacao_profissional: string
+  profissao: string
+  congregacao_atual: string
+  posicao_igreja: string
   
   // Endereço
   endereco: string

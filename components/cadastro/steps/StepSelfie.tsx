@@ -7,9 +7,10 @@ import { useRef, useState, useEffect } from 'react'
 interface StepSelfieProps {
   data: Partial<CadastroFormData>
   onUpdate: (data: Partial<CadastroFormData>) => void
+  showValidation?: boolean
 }
 
-export function StepSelfie({ data, onUpdate }: StepSelfieProps) {
+export function StepSelfie({ data, onUpdate, showValidation = false }: StepSelfieProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -223,6 +224,14 @@ export function StepSelfie({ data, onUpdate }: StepSelfieProps) {
       {error && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
           <p className="text-red-700 text-sm">{error}</p>
+        </div>
+      )}
+
+      {showValidation && !selfiePreview && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-700 text-sm font-medium">
+            Capture ou envie uma selfie para continuar.
+          </p>
         </div>
       )}
 

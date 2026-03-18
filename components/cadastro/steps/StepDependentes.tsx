@@ -10,9 +10,10 @@ import { useState } from 'react'
 interface StepDependentesProps {
   data: Partial<CadastroFormData>
   onUpdate: (data: Partial<CadastroFormData>) => void
+  showValidation?: boolean
 }
 
-export function StepDependentes({ data, onUpdate }: StepDependentesProps) {
+export function StepDependentes({ data, onUpdate, showValidation = false }: StepDependentesProps) {
   const [tem_dependentes, setTemDependentes] = useState(data.tem_dependentes || false)
   const [dependentes, setDependentes] = useState<DependenteFormData[]>(data.dependentes || [])
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
@@ -118,6 +119,8 @@ export function StepDependentes({ data, onUpdate }: StepDependentesProps) {
       .substring(0, 15)
   }
 
+  const highlightRequired = showValidation && tem_dependentes && dependentes.length === 0
+
   return (
     <div className="space-y-6">
       <div>
@@ -155,7 +158,11 @@ export function StepDependentes({ data, onUpdate }: StepDependentesProps) {
                 placeholder="Nome do dependente"
                 value={formData.nome}
                 onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                className="mt-2 border-gray-300"
+                className={`mt-2 ${
+                  highlightRequired && !formData.nome.trim()
+                    ? 'border-red-400 focus-visible:ring-red-500'
+                    : 'border-gray-300'
+                }`}
               />
             </div>
 
@@ -214,7 +221,11 @@ export function StepDependentes({ data, onUpdate }: StepDependentesProps) {
                   onChange={(e) =>
                     setFormData({ ...formData, telefone_celular: formatPhone(e.target.value) })
                   }
-                  className="mt-2 border-gray-300"
+                  className={`mt-2 ${
+                    highlightRequired && !formData.telefone_celular.trim()
+                      ? 'border-red-400 focus-visible:ring-red-500'
+                      : 'border-gray-300'
+                  }`}
                   maxLength={15}
                 />
               </div>
@@ -227,7 +238,11 @@ export function StepDependentes({ data, onUpdate }: StepDependentesProps) {
                   id="dep_sexo"
                   value={formData.sexo}
                   onChange={(e) => setFormData({ ...formData, sexo: e.target.value })}
-                  className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`mt-2 w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                    highlightRequired && !formData.sexo
+                      ? 'border-red-400 focus:ring-red-500'
+                      : 'border-gray-300 focus:ring-blue-500'
+                  }`}
                 >
                   <option value="">Selecione...</option>
                   <option value="Feminino">Feminino</option>
@@ -245,7 +260,11 @@ export function StepDependentes({ data, onUpdate }: StepDependentesProps) {
                 id="dep_relacao"
                 value={formData.relacao}
                 onChange={(e) => setFormData({ ...formData, relacao: e.target.value })}
-                className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`mt-2 w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                  highlightRequired && !formData.relacao
+                    ? 'border-red-400 focus:ring-red-500'
+                    : 'border-gray-300 focus:ring-blue-500'
+                }`}
               >
                 <option value="">Selecione...</option>
                 <option value="cônjuge">Cônjuge</option>
