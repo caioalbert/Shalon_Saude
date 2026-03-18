@@ -51,13 +51,63 @@ const POSICAO_IGREJA_OPTIONS = [
   'Missionário(a)',
 ]
 
+function formatDateInput(value: string) {
+  return value
+    .replace(/\D/g, '')
+    .slice(0, 8)
+    .replace(/(\d{2})(\d)/, '$1/$2')
+    .replace(/(\d{2})(\d)/, '$1/$2')
+}
+
+function parseDateInputToISO(value: string) {
+  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return null
+
+  const [dayString, monthString, yearString] = value.split('/')
+  const day = Number(dayString)
+  const month = Number(monthString)
+  const year = Number(yearString)
+
+  if (day < 1 || month < 1 || month > 12 || year < 1900 || year > 2100) return null
+
+  const date = new Date(year, month - 1, day)
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null
+  }
+
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+function formatISOToDateInput(value: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split('-')
+    return `${day}/${month}/${year}`
+  }
+
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+    return value
+  }
+
+  return ''
+}
+
+function normalizeDateToISO(value: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  return parseDateInputToISO(value) || ''
+}
+
 export function StepPessoal({ data, onUpdate, showValidation = false }: StepPessoalProps) {
+  const initialIsoDate = normalizeDateToISO(data.data_nascimento || '')
+
   const [localData, setLocalData] = useState({
     nome: data.nome || '',
     email: data.email || '',
     cpf: data.cpf || '',
     rg: data.rg || '',
-    data_nascimento: data.data_nascimento || '',
+    data_nascimento: initialIsoDate,
     telefone: data.telefone || '',
     sexo: data.sexo || '',
     estado_civil: data.estado_civil || '',
@@ -68,7 +118,9 @@ export function StepPessoal({ data, onUpdate, showValidation = false }: StepPess
     congregacao_atual: data.congregacao_atual || '',
     posicao_igreja: data.posicao_igreja || '',
   })
+  const [dataNascimentoInput, setDataNascimentoInput] = useState(formatISOToDateInput(initialIsoDate))
   const [cpfError, setCpfError] = useState<string | null>(null)
+  const [dataNascimentoError, setDataNascimentoError] = useState<string | null>(null)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -90,6 +142,44 @@ export function StepPessoal({ data, onUpdate, showValidation = false }: StepPess
 
   const handleBlur = () => {
     onUpdate(localData)
+  }
+
+  const handleDataNascimentoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatDateInput(e.target.value)
+    setDataNascimentoInput(formatted)
+    setDataNascimentoError(null)
+
+    const isoDate = parseDateInputToISO(formatted)
+    const next = {
+      ...localData,
+      data_nascimento: isoDate || '',
+    }
+    setLocalData(next)
+    onUpdate(next)
+  }
+
+  const handleDataNascimentoBlur = () => {
+    if (!dataNascimentoInput.trim()) {
+      setDataNascimentoError('Data de nascimento é obrigatória')
+      const next = { ...localData, data_nascimento: '' }
+      setLocalData(next)
+      onUpdate(next)
+      return
+    }
+
+    const isoDate = parseDateInputToISO(dataNascimentoInput)
+    if (!isoDate) {
+      setDataNascimentoError('Digite uma data válida no formato DD/MM/AAAA')
+      const next = { ...localData, data_nascimento: '' }
+      setLocalData(next)
+      onUpdate(next)
+      return
+    }
+
+    setDataNascimentoError(null)
+    const next = { ...localData, data_nascimento: isoDate }
+    setLocalData(next)
+    onUpdate(next)
   }
 
   const handleCpfBlur = () => {
@@ -212,13 +302,25 @@ export function StepPessoal({ data, onUpdate, showValidation = false }: StepPess
           <Input
             id="data_nascimento"
             name="data_nascimento"
-            type="date"
-            value={localData.data_nascimento}
-            onChange={handleChange}
-            onBlur={handleBlur}
+            type="text"
+            inputMode="numeric"
+            placeholder="DD/MM/AAAA"
+            value={dataNascimentoInput}
+            onChange={handleDataNascimentoChange}
+            onBlur={handleDataNascimentoBlur}
             required
-            className={inputClass('data_nascimento')}
+            maxLength={10}
+            className={`mt-2 ${
+              dataNascimentoError || isMissingField('data_nascimento')
+                ? 'border-red-400 focus-visible:ring-red-500'
+                : 'border-gray-300'
+            }`}
           />
+          {dataNascimentoError ? (
+            <p className="mt-1 text-xs text-red-600">{dataNascimentoError}</p>
+          ) : (
+            <p className="mt-1 text-xs text-gray-500">Digite no formato DD/MM/AAAA.</p>
+          )}
         </div>
 
         <div>
