@@ -136,6 +136,20 @@ Configure os secrets do repositório em **Settings > Secrets and variables > Act
    - `orgId` para `VERCEL_ORG_ID`
    - `projectId` para `VERCEL_PROJECT_ID`
 
+## Observabilidade (Vercel)
+
+Este projeto já está preparado com observabilidade nativa da Vercel:
+
+- **Web Analytics**: via `@vercel/analytics` em `app/layout.tsx`
+- **Speed Insights**: via `@vercel/speed-insights` em `app/layout.tsx`
+- **Tracing (OpenTelemetry)**: via `instrumentation.ts` com `@vercel/otel`
+
+Depois do deploy, verifique no painel da Vercel:
+
+1. **Analytics** para métricas de tráfego
+2. **Speed Insights** para Core Web Vitals
+3. **Observability / Traces** para rastrear execução de rotas e APIs
+
 ## Estrutura do Projeto
 
 ```
