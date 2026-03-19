@@ -29,9 +29,36 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    const cadastroIds = (cadastros || []).map((cadastro) => cadastro.id)
+    let dependentesSemRgByCadastroId = new Map<string, number>()
+
+    if (cadastroIds.length > 0) {
+      const { data: dependentes, error: dependentesError } = await supabase
+        .from('dependentes')
+        .select('cadastro_id, rg')
+        .in('cadastro_id', cadastroIds)
+
+      if (dependentesError) {
+        console.error('Dependentes lookup error:', dependentesError)
+      } else {
+        dependentesSemRgByCadastroId = (dependentes || []).reduce((acc, dependente) => {
+          if (!String(dependente.rg || '').trim()) {
+            const current = acc.get(dependente.cadastro_id) || 0
+            acc.set(dependente.cadastro_id, current + 1)
+          }
+          return acc
+        }, new Map<string, number>())
+      }
+    }
+
+    const cadastrosComIndicadores = (cadastros || []).map((cadastro) => ({
+      ...cadastro,
+      dependentes_sem_rg_count: dependentesSemRgByCadastroId.get(cadastro.id) || 0,
+    }))
+
     return NextResponse.json({
       success: true,
-      cadastros: cadastros || [],
+      cadastros: cadastrosComIndicadores,
     })
   } catch (error) {
     console.error('API error:', error)

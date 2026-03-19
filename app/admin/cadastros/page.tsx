@@ -3,8 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { CheckCircle2, Eye, Loader2, Pencil, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
+import { CheckCircle2, Eye, Loader2, Mail, Pencil, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Cadastro } from '@/lib/types'
 
 const REQUIRED_CADASTRO_FIELDS: Array<{ key: keyof Cadastro; label: string }> = [
@@ -37,6 +45,15 @@ function getMissingCadastroFields(cadastro: Cadastro) {
     missing.push('Nome do cônjuge')
   }
 
+  const dependentesSemRgCount = cadastro.dependentes_sem_rg_count || 0
+  if (cadastro.tem_dependentes && dependentesSemRgCount > 0) {
+    missing.push(
+      dependentesSemRgCount === 1
+        ? 'RG de 1 dependente'
+        : `RG de ${dependentesSemRgCount} dependentes`
+    )
+  }
+
   return missing
 }
 
@@ -48,11 +65,18 @@ export default function AdminCadastrosPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [exportLoading, setExportLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [resendingId, setResendingId] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [missingFieldsDialog, setMissingFieldsDialog] = useState<{
+    cadastroNome: string
+    fields: string[]
+  } | null>(null)
 
   const fetchCadastros = useCallback(async () => {
     try {
       setIsLoading(true)
       setError(null)
+      setSuccessMessage(null)
       const response = await fetch('/api/admin/cadastros')
 
       if (!response.ok) {
@@ -89,6 +113,7 @@ export default function AdminCadastrosPage() {
     try {
       setExportLoading(true)
       setError(null)
+      setSuccessMessage(null)
 
       const response = await fetch('/api/admin/exportar-contratos')
 
@@ -138,6 +163,7 @@ export default function AdminCadastrosPage() {
     try {
       setDeletingId(cadastro.id)
       setError(null)
+      setSuccessMessage(null)
 
       const response = await fetch(`/api/admin/cadastro/${cadastro.id}`, {
         method: 'DELETE',
@@ -158,6 +184,51 @@ export default function AdminCadastrosPage() {
       setError(err instanceof Error ? err.message : 'Erro ao excluir cadastro')
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  const handleResendTerm = async (cadastro: Cadastro) => {
+    if (!cadastro.termo_assinado_em) {
+      setError('Este cadastro ainda não possui termo assinado para reenvio.')
+      return
+    }
+
+    try {
+      setResendingId(cadastro.id)
+      setError(null)
+      setSuccessMessage(null)
+
+      const response = await fetch('/api/enviar-termo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cadastroId: cadastro.id }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.push('/admin/login')
+          return
+        }
+        throw new Error(data.error || 'Erro ao reenviar termo')
+      }
+
+      setSuccessMessage(`Termo reenviado com sucesso para ${cadastro.email}.`)
+      setCadastros((prev) =>
+        prev.map((item) =>
+          item.id === cadastro.id
+            ? {
+                ...item,
+                email_enviado_em: new Date().toISOString(),
+              }
+            : item
+        )
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao reenviar termo')
+    } finally {
+      setResendingId(null)
     }
   }
 
@@ -183,6 +254,16 @@ export default function AdminCadastrosPage() {
       ),
     [cadastros, searchTerm]
   )
+
+  const openMissingFieldsDialog = (cadastro: Cadastro) => {
+    const missingFields = getMissingCadastroFields(cadastro)
+    if (missingFields.length === 0) return
+
+    setMissingFieldsDialog({
+      cadastroNome: cadastro.nome,
+      fields: missingFields,
+    })
+  }
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -256,6 +337,12 @@ export default function AdminCadastrosPage() {
         {error && (
           <div className="mb-8 rounded-lg border border-red-200 bg-red-50 p-4">
             <p className="font-medium text-red-700">{error}</p>
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="mb-8 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+            <p className="font-medium text-emerald-700">{successMessage}</p>
           </div>
         )}
 
@@ -339,12 +426,14 @@ export default function AdminCadastrosPage() {
                             }
 
                             return (
-                              <span
-                                title={`Campos faltantes: ${missingFields.join(', ')}`}
-                                className="inline-flex items-center gap-1 rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-700"
+                              <button
+                                type="button"
+                                onClick={() => openMissingFieldsDialog(cadastro)}
+                                title="Clique para ver os dados pendentes"
+                                className="inline-flex cursor-pointer items-center gap-1 rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-1"
                               >
                                 Dados faltantes ({missingFields.length})
-                              </span>
+                              </button>
                             )
                           })()}
                         </div>
@@ -361,6 +450,24 @@ export default function AdminCadastrosPage() {
                               <Pencil className="h-4 w-4" />
                             </Button>
                           </Link>
+                          <Button
+                            size="icon-sm"
+                            variant="outline"
+                            onClick={() => handleResendTerm(cadastro)}
+                            disabled={resendingId === cadastro.id || !cadastro.termo_assinado_em}
+                            aria-label="Reenviar termo"
+                            title={
+                              cadastro.termo_assinado_em
+                                ? 'Reenviar termo por email'
+                                : 'Termo ainda não assinado'
+                            }
+                          >
+                            {resendingId === cadastro.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Mail className="h-4 w-4" />
+                            )}
+                          </Button>
                           <Button
                             size="icon-sm"
                             variant="destructive"
@@ -385,6 +492,38 @@ export default function AdminCadastrosPage() {
           </div>
         )}
       </div>
+
+      <Dialog
+        open={Boolean(missingFieldsDialog)}
+        onOpenChange={(open) => {
+          if (!open) setMissingFieldsDialog(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Dados pendentes do cadastro</DialogTitle>
+            <DialogDescription>
+              {missingFieldsDialog
+                ? `Campos pendentes para ${missingFieldsDialog.cadastroNome}:`
+                : 'Campos pendentes do cadastro selecionado.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-lg border border-red-100 bg-red-50 p-3">
+            <ul className="list-disc space-y-1 pl-5 text-sm text-red-700">
+              {(missingFieldsDialog?.fields || []).map((field) => (
+                <li key={field}>{field}</li>
+              ))}
+            </ul>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMissingFieldsDialog(null)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   )
 }
