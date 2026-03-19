@@ -1,6 +1,21 @@
 import { createClient } from '@/lib/supabase/server'
+import { getTermoBodyText } from '@/lib/termo-template'
 import { NextRequest, NextResponse } from 'next/server'
+import { renderToBuffer } from '@react-pdf/renderer'
+import type { DocumentProps } from '@react-pdf/renderer'
+import React from 'react'
 import { Resend } from 'resend'
+import { TermoAdesaoPDF } from '../admin/gerar-pdf/TermoAdesaoPDF'
+
+function sanitizeFileName(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9\s_-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .toLowerCase()
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,6 +69,43 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const { data: dependentes, error: dependentesError } = await supabase
+      .from('dependentes')
+      .select('*')
+      .eq('cadastro_id', cadastroId)
+
+    if (dependentesError) {
+      const details = `${dependentesError.message || ''} ${dependentesError.details || ''}`
+      if (/fetch failed|enotfound|getaddrinfo|network/i.test(details)) {
+        return NextResponse.json(
+          {
+            error:
+              'Falha ao conectar no Supabase. Verifique NEXT_PUBLIC_SUPABASE_URL e as chaves no arquivo .env/.env.local.',
+          },
+          { status: 503 }
+        )
+      }
+
+      return NextResponse.json(
+        { error: 'Erro ao buscar dependentes para anexar o termo.' },
+        { status: 500 }
+      )
+    }
+
+    const termoBodyText = await getTermoBodyText()
+    const pdfDocument = React.createElement(TermoAdesaoPDF, {
+      data: cadastro,
+      dependentes: dependentes || [],
+      termoBodyText,
+    }) as unknown as React.ReactElement<DocumentProps>
+    const pdfBuffer = await renderToBuffer(pdfDocument)
+
+    const safeName = sanitizeFileName(cadastro.nome || '')
+    const fallbackId = String(cadastro.cpf || cadastroId)
+      .replace(/\D/g, '')
+      .slice(-11)
+    const attachmentFileName = `termo-adesao-${safeName || fallbackId || 'assinado'}.pdf`
+
     // Verificar se Resend está configurado
     if (!process.env.RESEND_API_KEY) {
       console.warn('RESEND_API_KEY não configurado. Email não será enviado.')
@@ -68,12 +120,21 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL?.trim() || 'onboarding@resend.dev'
     const resend = new Resend(process.env.RESEND_API_KEY)
 
     const { error: emailError } = await resend.emails.send({
-      from: 'SHALON Saúde <noreply@shalonsamaritano.com.br>',
+      from: `SHALON Saúde <${fromEmail}>`,
       to: cadastro.email,
       subject: 'Seu Termo de Adesão - SHALON Saúde',
+      attachments: [
+        {
+          filename: attachmentFileName,
+          content: pdfBuffer,
+          contentType: 'application/pdf',
+        },
+      ],
       html: `
         <!DOCTYPE html>
         <html>
@@ -94,7 +155,7 @@ export async function POST(request: NextRequest) {
                 <tr><td style="padding: 6px 0; color: #6b7280; font-size: 13px;">Assinado em:</td><td style="padding: 6px 0; font-weight: 500; font-size: 13px;">${new Date(cadastro.termo_assinado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td></tr>
               </table>
             </div>
-            <p style="font-size: 13px; color: #6b7280;">Para acessar seu termo assinado ou fazer download do PDF, entre em contato com nossa equipe.</p>
+            <p style="font-size: 13px; color: #6b7280;">Seu termo assinado segue em anexo neste email em formato PDF.</p>
             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
             <p style="font-size: 12px; color: #9ca3af; margin: 0;">Este é um email automático do sistema SHALON Saúde. Não responda a este email.</p>
           </div>
@@ -104,7 +165,12 @@ export async function POST(request: NextRequest) {
     })
 
     if (emailError) {
-      console.error('Resend error:', emailError)
+      console.error('Resend error:', {
+        to: cadastro.email,
+        fromEmail,
+        attachmentFileName,
+        error: emailError,
+      })
       return NextResponse.json(
         { error: 'Erro ao enviar email' },
         { status: 500 }
@@ -119,7 +185,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Email enviado com sucesso',
+      message: 'Email enviado com sucesso com contrato em anexo',
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

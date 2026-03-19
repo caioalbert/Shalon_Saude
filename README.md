@@ -81,6 +81,7 @@ Edite `.env.local` com:
 
 #### Resend (Opcional)
 - `RESEND_API_KEY` - Chave API Resend para envio de emails
+- `RESEND_FROM_EMAIL` - Email remetente (deve estar verificado no Resend em produção)
 
 #### Aplicação
 - `NEXT_PUBLIC_APP_URL` - URL da aplicação (ex: http://localhost:3000)

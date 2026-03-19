@@ -18,7 +18,7 @@ Edite `.env.local` e adicione suas chaves:
 
 - **Supabase**: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
 - **Vercel Blob**: BLOB_READ_WRITE_TOKEN
-- **Resend** (opcional): RESEND_API_KEY
+- **Resend** (opcional): RESEND_API_KEY, RESEND_FROM_EMAIL
 
 ### 3. Criar Banco de Dados
 
@@ -95,7 +95,7 @@ Acesse: http://localhost:3000
 
 ## Próximos Passos
 
-1. **Resend**: Se quiser emails, configure RESEND_API_KEY
+1. **Resend**: Se quiser emails, configure RESEND_API_KEY e RESEND_FROM_EMAIL
 2. **Email em Produção**: Ajuste templates em `/api/enviar-termo`
 3. **SSL em Produção**: Necessário para câmera funcionar
 4. **Backup**: Configure backups Supabase
