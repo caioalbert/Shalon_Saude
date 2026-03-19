@@ -121,8 +121,8 @@ export function StepConfirmacao({
             <div className="space-y-2">
               {data.dependentes.map((dep, index) => (
                 <p key={index} className="text-sm text-gray-700">
-                  {index + 1}. {dep.nome} - {dep.relacao} | Sexo: {dep.sexo || '-'} | Celular:{' '}
-                  {dep.telefone_celular || '-'}
+                  {index + 1}. {dep.nome} - {dep.relacao} | RG: {dep.rg || '-'} | Sexo:{' '}
+                  {dep.sexo || '-'} | Celular: {dep.telefone_celular || '-'}
                 </p>
               ))}
             </div>

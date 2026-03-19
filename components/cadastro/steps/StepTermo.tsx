@@ -75,6 +75,7 @@ export function StepTermo({ data }: StepTermoProps) {
               {data.dependentes.map((dep, index) => (
                 <p key={index} className="text-gray-700">
                   {index + 1}. {dep.nome} - {dep.relacao} {dep.cpf && `(CPF: ${dep.cpf})`}{' '}
+                  {dep.rg && `(RG: ${dep.rg})`}{' '}
                   {dep.sexo && `(Sexo: ${dep.sexo})`} {dep.telefone_celular && `(Celular: ${dep.telefone_celular})`}
                 </p>
               ))}

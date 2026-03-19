@@ -27,6 +27,7 @@ export interface Cadastro {
   termo_assinado_em?: string
   ip_assinante?: string
   email_enviado_em?: string
+  dependentes_sem_rg_count?: number
   created_at: string
   updated_at: string
 }
@@ -35,6 +36,7 @@ export interface Dependente {
   id: string
   cadastro_id: string
   nome: string
+  rg?: string
   cpf?: string
   data_nascimento?: string
   relacao: string
@@ -81,6 +83,7 @@ export interface CadastroFormData {
 
 export interface DependenteFormData {
   nome: string
+  rg: string
   cpf: string
   data_nascimento: string
   relacao: string

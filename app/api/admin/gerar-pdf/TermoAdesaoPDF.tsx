@@ -52,6 +52,7 @@ const styles = StyleSheet.create({
 type CadastroPdfData = {
   nome: string
   cpf: string
+  termo_assinado_em?: string | null
   rg?: string | null
   email: string
   telefone?: string | null
@@ -76,6 +77,7 @@ type CadastroPdfData = {
 type DependentePdfData = {
   nome?: string | null
   relacao?: string | null
+  rg?: string | null
   cpf?: string | null
   data_nascimento?: string | null
   telefone_celular?: string | null
@@ -124,7 +126,7 @@ export function TermoAdesaoPDF({ data, dependentes, termoBodyText }: TermoAdesao
   const templateBlocks = splitTemplateBlocks(termoBodyText || DEFAULT_TERMO_BODY)
   const cidadeAssinatura = data.cidade || 'Belo Horizonte'
   const estadoAssinatura = data.estado || 'MG'
-  const dataAssinatura = new Date().toLocaleDateString('pt-BR')
+  const dataAssinatura = formatDate(data.termo_assinado_em) || new Date().toLocaleDateString('pt-BR')
 
   return (
     <Document>
@@ -158,7 +160,7 @@ export function TermoAdesaoPDF({ data, dependentes, termoBodyText }: TermoAdesao
             <View key={`dep-${index}`} style={styles.smallGap}>
               <Text>Nome: {dep.nome || ''}</Text>
               <Text>
-                CPF: {dep.cpf || ''}   Nascimento: {formatDate(dep.data_nascimento)}   Sexo: {dep.sexo || 'Não informado'}
+                RG: {dep.rg || ''}   CPF: {dep.cpf || ''}   Nascimento: {formatDate(dep.data_nascimento)}   Sexo: {dep.sexo || 'Não informado'}
               </Text>
               <Text>Celular: {dep.telefone_celular || ''}</Text>
             </View>

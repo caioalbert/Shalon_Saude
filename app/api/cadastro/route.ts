@@ -44,6 +44,12 @@ function getClientIp(request: NextRequest) {
   return 'unknown'
 }
 
+function getAppBaseUrl(request: NextRequest) {
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()
+  if (envUrl) return envUrl.replace(/\/$/, '')
+  return request.nextUrl.origin
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
@@ -140,6 +146,7 @@ export async function POST(request: NextRequest) {
 
     let dependentes: Array<{
       nome: string
+      rg: string
       cpf?: string
       data_nascimento?: string
       relacao: string
@@ -164,22 +171,32 @@ export async function POST(request: NextRequest) {
           )
         }
 
+        const toTrimmed = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
+
         const invalidDependente = parsed.find(
-          (dep) => !dep?.nome || !dep?.relacao || !dep?.telefone_celular || !dep?.sexo
+          (dep) =>
+            !toTrimmed(dep?.nome) ||
+            !toTrimmed(dep?.rg) ||
+            !toTrimmed(dep?.relacao) ||
+            !toTrimmed(dep?.telefone_celular) ||
+            !toTrimmed(dep?.sexo)
         )
 
         if (invalidDependente) {
           return NextResponse.json(
             {
               error:
-                'Cada dependente precisa ter nome, relação, sexo e telefone celular para acesso à telemedicina',
+                'Cada dependente precisa ter nome, RG, relação, sexo e telefone celular para acesso à telemedicina',
             },
             { status: 400 }
           )
         }
 
         const invalidDependenteCpf = parsed.find(
-          (dep) => dep?.cpf && !isValidCPF(String(dep.cpf))
+          (dep) => {
+            const cpf = toTrimmed(dep?.cpf)
+            return cpf && !isValidCPF(cpf)
+          }
         )
 
         if (invalidDependenteCpf) {
@@ -189,7 +206,15 @@ export async function POST(request: NextRequest) {
           )
         }
 
-        dependentes = parsed
+        dependentes = parsed.map((dep) => ({
+          nome: toTrimmed(dep?.nome),
+          rg: toTrimmed(dep?.rg),
+          cpf: toTrimmed(dep?.cpf) || undefined,
+          data_nascimento: toTrimmed(dep?.data_nascimento) || undefined,
+          relacao: toTrimmed(dep?.relacao),
+          telefone_celular: toTrimmed(dep?.telefone_celular),
+          sexo: toTrimmed(dep?.sexo),
+        }))
       } catch {
         return NextResponse.json(
           { error: 'Formato inválido de dependentes' },
@@ -288,6 +313,7 @@ export async function POST(request: NextRequest) {
       const dependentesComCadastroId = dependentes.map((dep) => ({
         cadastro_id: cadastroData.id,
         nome: dep.nome,
+        rg: dep.rg,
         cpf: dep.cpf || null,
         data_nascimento: dep.data_nascimento || null,
         relacao: dep.relacao,
@@ -311,11 +337,21 @@ export async function POST(request: NextRequest) {
 
     // Enviar email com termo de adesão
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/enviar-termo`, {
+      const appBaseUrl = getAppBaseUrl(request)
+      const emailResponse = await fetch(`${appBaseUrl}/api/enviar-termo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cadastroId: cadastroData.id }),
       })
+
+      if (!emailResponse.ok) {
+        const responseText = await emailResponse.text()
+        console.error('Email API returned non-200', {
+          cadastroId: cadastroData.id,
+          status: emailResponse.status,
+          body: responseText,
+        })
+      }
     } catch (emailError) {
       console.error('Error sending email:', emailError)
       // Não falhar o cadastro se o email falhar

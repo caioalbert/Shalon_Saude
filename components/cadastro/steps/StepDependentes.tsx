@@ -20,6 +20,7 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
   const [cpfError, setCpfError] = useState<string | null>(null)
   const [formData, setFormData] = useState<DependenteFormData>({
     nome: '',
+    rg: '',
     cpf: '',
     data_nascimento: '',
     relacao: '',
@@ -31,10 +32,17 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
     const dependente = {
       ...formData,
       nome: formData.nome.trim(),
+      rg: formData.rg.trim(),
       telefone_celular: formatPhone(formData.telefone_celular),
     }
 
-    if (!dependente.nome || !dependente.relacao || !dependente.telefone_celular || !dependente.sexo) {
+    if (
+      !dependente.nome ||
+      !dependente.rg ||
+      !dependente.relacao ||
+      !dependente.telefone_celular ||
+      !dependente.sexo
+    ) {
       return
     }
 
@@ -55,6 +63,7 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
 
     setFormData({
       nome: '',
+      rg: '',
       cpf: '',
       data_nascimento: '',
       relacao: '',
@@ -77,6 +86,7 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
     const dependente = dependentes[index]
     setFormData({
       ...dependente,
+      rg: dependente.rg || '',
       telefone_celular: dependente.telefone_celular || '',
       sexo: dependente.sexo || '',
     })
@@ -91,6 +101,7 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
       setEditingIndex(null)
       setFormData({
         nome: '',
+        rg: '',
         cpf: '',
         data_nascimento: '',
         relacao: '',
@@ -135,7 +146,7 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
         </label>
         {tem_dependentes && (
           <p className="mt-2 text-xs text-gray-500">
-            Para acesso à telemedicina, cada dependente deve ter celular e sexo informados.
+            Para acesso à telemedicina, cada dependente deve ter RG, celular e sexo informados.
           </p>
         )}
       </div>
@@ -167,6 +178,24 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="dep_rg" className="text-gray-700 font-medium">
+                  RG *
+                </Label>
+                <Input
+                  id="dep_rg"
+                  type="text"
+                  placeholder="RG do dependente"
+                  value={formData.rg}
+                  onChange={(e) => setFormData({ ...formData, rg: e.target.value })}
+                  className={`mt-2 ${
+                    highlightRequired && !formData.rg.trim()
+                      ? 'border-red-400 focus-visible:ring-red-500'
+                      : 'border-gray-300'
+                  }`}
+                />
+              </div>
+
               <div>
                 <Label htmlFor="dep_cpf" className="text-gray-700 font-medium">
                   CPF
@@ -278,7 +307,13 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
               <Button
                 onClick={handleAddDependente}
                 className="bg-blue-600 hover:bg-blue-700"
-                disabled={!formData.nome || !formData.relacao || !formData.telefone_celular || !formData.sexo}
+                disabled={
+                  !formData.nome ||
+                  !formData.rg ||
+                  !formData.relacao ||
+                  !formData.telefone_celular ||
+                  !formData.sexo
+                }
               >
                 {editingIndex !== null ? 'Atualizar' : 'Adicionar'}
               </Button>
@@ -288,6 +323,7 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
                     setEditingIndex(null)
                     setFormData({
                       nome: '',
+                      rg: '',
                       cpf: '',
                       data_nascimento: '',
                       relacao: '',
@@ -326,6 +362,9 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
                     )}
                     {dep.cpf && (
                       <p className="text-sm text-gray-600">CPF: {dep.cpf}</p>
+                    )}
+                    {dep.rg && (
+                      <p className="text-sm text-gray-600">RG: {dep.rg}</p>
                     )}
                   </div>
                   <div className="flex gap-2">

@@ -119,13 +119,14 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
       const invalidDependente = dependentes.find(
         (dep) =>
           !hasValue(dep.nome) ||
+          !hasValue(dep.rg) ||
           !hasValue(dep.relacao) ||
           !hasValue(dep.telefone_celular) ||
           !hasValue(dep.sexo)
       )
 
       if (invalidDependente) {
-        return 'Cada dependente precisa ter nome, relação, sexo e telefone celular.'
+        return 'Cada dependente precisa ter nome, RG, relação, sexo e telefone celular.'
       }
 
       const invalidDependenteCpf = dependentes.find((dep) => dep.cpf && !isValidCPF(dep.cpf))
@@ -170,6 +171,21 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
 
       if (!isValidCPF(formData.cpf)) {
         throw new Error('CPF do titular inválido')
+      }
+
+      const invalidDependente = (formData.dependentes || []).find(
+        (dependente) =>
+          !dependente.nome?.trim() ||
+          !dependente.rg?.trim() ||
+          !dependente.relacao?.trim() ||
+          !dependente.telefone_celular?.trim() ||
+          !dependente.sexo?.trim()
+      )
+
+      if (formData.tem_dependentes && invalidDependente) {
+        throw new Error(
+          `Cada dependente precisa ter nome, RG, relação, sexo e telefone celular (${invalidDependente.nome || 'sem nome'}).`
+        )
       }
 
       const invalidDependenteCpf = (formData.dependentes || []).find(

@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS dependentes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   cadastro_id UUID NOT NULL REFERENCES cadastros(id) ON DELETE CASCADE,
   nome TEXT NOT NULL,
+  rg TEXT,
   cpf TEXT,
   data_nascimento DATE,
   relacao TEXT,
@@ -62,6 +63,7 @@ ALTER TABLE cadastros
   ADD COLUMN IF NOT EXISTS posicao_igreja TEXT;
 
 ALTER TABLE dependentes
+  ADD COLUMN IF NOT EXISTS rg TEXT,
   ADD COLUMN IF NOT EXISTS telefone_celular TEXT,
   ADD COLUMN IF NOT EXISTS sexo TEXT;
 

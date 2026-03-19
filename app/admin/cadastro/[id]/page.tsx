@@ -282,6 +282,9 @@ export default function CadastroDetail() {
                         {dep.cpf && (
                           <p className="text-sm text-gray-600 font-mono">CPF: {dep.cpf}</p>
                         )}
+                        {dep.rg && (
+                          <p className="text-sm text-gray-600">RG: {dep.rg}</p>
+                        )}
                         {dep.data_nascimento && (
                           <p className="text-sm text-gray-600">
                             Data de Nascimento:{' '}
