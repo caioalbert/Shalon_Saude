@@ -2,7 +2,7 @@
 
 Sistema completo de cadastro, adesão e gerenciamento de termos digitais para o SHALON Saúde. Inclui formulário multi-step, captura de selfie, geração de PDF dinâmico e painel administrativo.
 
-## Funcionalidades
+## Funcionalidades:
 
 ✅ **Formulário de Cadastro Multi-Step**
 - 6 etapas intuitivas: Dados Pessoais, Endereço, Dependentes, Selfie, Termo, Confirmação
