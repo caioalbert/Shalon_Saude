@@ -110,16 +110,6 @@ export default function Home() {
                   unoptimized
                   className="h-16 w-auto sm:h-20"
                 />
-                <span className="hidden text-lg font-semibold text-gray-300 sm:inline">×</span>
-                <Image
-                  src="/Logo-igreja.png"
-                  alt="Logo da Igreja Parceira"
-                  width={220}
-                  height={220}
-                  priority
-                  unoptimized
-                  className="h-32 w-auto object-contain sm:h-44"
-                />
               </div>
 
               <div className="max-w-2xl space-y-5 text-left">
@@ -338,15 +328,6 @@ export default function Home() {
                   height={65}
                   unoptimized
                   className="h-9 w-auto"
-                />
-                <span className="text-sm font-semibold text-gray-300">×</span>
-                <Image
-                  src="/Logo-igreja.png"
-                  alt="Logo da Igreja Parceira"
-                  width={180}
-                  height={180}
-                  unoptimized
-                  className="h-20 w-auto object-contain"
                 />
               </div>
               <p className="text-sm text-gray-600">Sistema de cadastro digital seguro</p>

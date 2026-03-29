@@ -50,16 +50,6 @@ export default function AdminLogin() {
 
           <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-col justify-between p-10 text-white xl:p-14">
             <div className="flex items-center gap-4">
-              <div className="rounded-2xl bg-white/95 p-3 shadow-lg">
-                <Image
-                  src="/Logo-igreja.png"
-                  alt="Igreja parceira"
-                  width={88}
-                  height={88}
-                  className="h-16 w-16 object-contain"
-                  unoptimized
-                />
-              </div>
               <div className="rounded-2xl bg-white/95 px-4 py-3 shadow-lg">
                 <Image
                   src="/logo-horizontal-v2.png"
@@ -115,14 +105,6 @@ export default function AdminLogin() {
             <div className="px-6 pb-6 pt-8 sm:px-8">
               <div className="mb-6 lg:hidden">
                 <div className="flex flex-wrap items-center gap-3">
-                  <Image
-                    src="/Logo-igreja.png"
-                    alt="Igreja parceira"
-                    width={64}
-                    height={64}
-                    className="h-14 w-14 rounded-xl object-contain"
-                    unoptimized
-                  />
                   <Image
                     src="/logo-horizontal-v2.png"
                     alt="SHALON Saúde"
