@@ -36,6 +36,7 @@ export function StepConfirmacao({
   const [isDrawing, setIsDrawing] = useState(false)
   const [isSigningMode, setIsSigningMode] = useState(false)
   const [hasCurrentStroke, setHasCurrentStroke] = useState(false)
+  const [isPortraitMobile, setIsPortraitMobile] = useState(false)
 
   useEffect(() => {
     assinaturaRef.current = assinaturaDataUrl
@@ -95,10 +96,17 @@ export function StepConfirmacao({
     image.src = dataUrl
   }, [])
 
+  const syncSigningOrientation = useCallback(() => {
+    const isSmallScreen = window.matchMedia('(max-width: 1024px)').matches
+    const isPortrait = window.matchMedia('(orientation: portrait)').matches
+    setIsPortraitMobile(isSmallScreen && isPortrait)
+  }, [])
+
   useEffect(() => {
     if (!isSigningMode) return
 
     const frameId = requestAnimationFrame(() => {
+      syncSigningOrientation()
       setupCanvas()
       if (assinaturaRef.current) {
         drawFromDataUrl(assinaturaRef.current)
@@ -106,6 +114,7 @@ export function StepConfirmacao({
     })
 
     const handleResize = () => {
+      syncSigningOrientation()
       setupCanvas()
       if (assinaturaRef.current) {
         drawFromDataUrl(assinaturaRef.current)
@@ -113,6 +122,7 @@ export function StepConfirmacao({
     }
 
     window.addEventListener('resize', handleResize)
+    window.addEventListener('orientationchange', handleResize)
 
     const requestFullScreen = async () => {
       const element = overlayRef.current
@@ -124,16 +134,52 @@ export function StepConfirmacao({
       }
     }
 
-    void requestFullScreen()
+    const lockLandscapeIfMobile = async () => {
+      const isSmallScreen = window.matchMedia('(max-width: 1024px)').matches
+      if (!isSmallScreen) return
+
+      if (!window.screen.orientation || typeof window.screen.orientation.lock !== 'function') {
+        return
+      }
+
+      try {
+        await window.screen.orientation.lock('landscape')
+      } catch {
+        // alguns navegadores (ex: iOS Safari) não permitem lock programático
+      }
+    }
+
+    void requestFullScreen().then(lockLandscapeIfMobile)
 
     return () => {
       cancelAnimationFrame(frameId)
       window.removeEventListener('resize', handleResize)
+      window.removeEventListener('orientationchange', handleResize)
+      if (window.screen.orientation && typeof window.screen.orientation.unlock === 'function') {
+        try {
+          window.screen.orientation.unlock()
+        } catch {
+          // noop
+        }
+      }
       if (document.fullscreenElement && typeof document.exitFullscreen === 'function') {
         void document.exitFullscreen().catch(() => {})
       }
     }
-  }, [drawFromDataUrl, isSigningMode, setupCanvas])
+  }, [drawFromDataUrl, isSigningMode, setupCanvas, syncSigningOrientation])
+
+  useEffect(() => {
+    if (!isSigningMode || isPortraitMobile) return
+
+    const frameId = requestAnimationFrame(() => {
+      setupCanvas()
+      if (assinaturaRef.current) {
+        drawFromDataUrl(assinaturaRef.current)
+      }
+    })
+
+    return () => cancelAnimationFrame(frameId)
+  }, [drawFromDataUrl, isPortraitMobile, isSigningMode, setupCanvas])
 
   const getCanvasPoint = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
@@ -509,27 +555,35 @@ export function StepConfirmacao({
             </div>
 
             <div className="flex-1 p-3 sm:p-6">
-              <div className="flex h-full items-center justify-center rounded-xl border border-white/20 bg-white/5">
-                <div className="flex h-full w-full items-center justify-center p-2 sm:p-4">
-                  <div className="flex h-full w-full items-center justify-center rounded-lg border border-slate-300 bg-white">
-                    <div data-signature-host className="relative flex h-full w-full items-center justify-center">
-                      <canvas
-                        ref={canvasRef}
-                        onPointerDown={handlePointerDown}
-                        onPointerMove={handlePointerMove}
-                        onPointerUp={finishDrawing}
-                        onPointerLeave={finishDrawing}
-                        className="touch-none rounded-md"
-                      />
-                      <div
-                        aria-hidden
-                        className="pointer-events-none absolute left-0 right-0 border-t border-slate-400"
-                        style={{ top: `${SIGNATURE_BASELINE_RATIO * 100}%` }}
-                      />
-                    </div>
+              {isPortraitMobile ? (
+                <div className="flex h-full items-center justify-center rounded-xl border border-white/20 bg-white/5 p-6 text-center">
+                  <div className="max-w-sm space-y-3">
+                    <h5 className="text-xl font-semibold">Gire o celular para horizontal</h5>
+                    <p className="text-sm text-slate-300">
+                      Para assinar com conforto e manter a assinatura na linha do termo, use o aparelho na posição
+                      deitada.
+                    </p>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="flex h-full items-center justify-center rounded-xl border border-white/20 bg-white p-1 sm:p-3">
+                  <div data-signature-host className="relative flex h-full w-full items-center justify-center">
+                    <canvas
+                      ref={canvasRef}
+                      onPointerDown={handlePointerDown}
+                      onPointerMove={handlePointerMove}
+                      onPointerUp={finishDrawing}
+                      onPointerLeave={finishDrawing}
+                      className="touch-none rounded-md"
+                    />
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute left-0 right-0 border-t border-slate-500"
+                      style={{ top: `${SIGNATURE_BASELINE_RATIO * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="border-t border-white/15 px-4 py-4 sm:px-6">
@@ -549,19 +603,25 @@ export function StepConfirmacao({
                     variant="outline"
                     onClick={handleClearSignature}
                     className="border-slate-300 bg-white text-slate-900 hover:bg-slate-100 hover:text-slate-900"
+                    disabled={isPortraitMobile}
                   >
                     Limpar
                   </Button>
                   <Button
                     type="button"
                     onClick={handleAdvanceSignature}
-                    disabled={!canAdvanceSignature}
+                    disabled={!canAdvanceSignature || isPortraitMobile}
                     className="bg-emerald-600 hover:bg-emerald-700"
                   >
                     Avançar
                   </Button>
                 </div>
               </div>
+              {isPortraitMobile ? (
+                <p className="mt-2 text-xs text-slate-300">
+                  A assinatura fica habilitada quando o celular estiver na horizontal.
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
