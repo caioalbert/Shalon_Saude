@@ -534,12 +534,22 @@ export function StepConfirmacao({
 
             <div className="border-t border-white/15 px-4 py-4 sm:px-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <Button type="button" variant="outline" onClick={handleCloseSigningMode}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCloseSigningMode}
+                  className="border-slate-300 bg-white text-slate-900 hover:bg-slate-100 hover:text-slate-900"
+                >
                   Cancelar
                 </Button>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button type="button" variant="outline" onClick={handleClearSignature}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleClearSignature}
+                    className="border-slate-300 bg-white text-slate-900 hover:bg-slate-100 hover:text-slate-900"
+                  >
                     Limpar
                   </Button>
                   <Button

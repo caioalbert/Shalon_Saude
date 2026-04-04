@@ -16,9 +16,66 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  gitleaks:
+    name: Security - Gitleaks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan for hardcoded secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  owasp-dependency-check:
+    name: Security - OWASP Dependency Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Dependency-Check data
+        uses: actions/cache@v4
+        with:
+          path: .dependency-check-data
+          key: dependency-check-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            dependency-check-${{ runner.os }}-
+
+      - name: Run OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: SHALON_SAUDE
+          path: .
+          format: HTML
+          out: reports
+          args: >
+            --failOnCVSS 7
+            --enableRetired
+            --data .dependency-check-data
+            --exclude "**/.next/**"
+            --exclude "**/node_modules/**"
+
+      - name: Upload OWASP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: owasp-dependency-check-report
+          path: reports
+
   ci:
     name: Lint and Build
     runs-on: ubuntu-latest
+    needs:
+      - gitleaks
+      - owasp-dependency-check
     steps:
       - name: Checkout
         uses: actions/checkout@v4
