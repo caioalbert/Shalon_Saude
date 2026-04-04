@@ -99,17 +99,12 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-sm text-blue-900">
-                <strong>Próximos passos:</strong> Você pode acessar o painel administrativo para
-                visualizar seu cadastro e fazer download do termo de adesão a qualquer momento.
+                <strong>Próximos passos:</strong> Verifique seu email para receber e acessar seu
+                termo de adesão assinado.
               </p>
             </div>
 
             <div className="flex flex-col gap-3">
-              <Link href="/admin/login" className="w-full">
-                <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                  Ir para Painel Admin
-                </Button>
-              </Link>
               <Link href="/" className="w-full">
                 <Button variant="outline" className="w-full">
                   Voltar para Início

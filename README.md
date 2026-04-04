@@ -8,6 +8,7 @@ Sistema completo de cadastro, adesão e gerenciamento de termos digitais para o 
 - 6 etapas intuitivas: Dados Pessoais, Endereço, Dependentes, Selfie, Termo, Confirmação
 - Validação de entrada em tempo real
 - Formatação automática de CPF, CEP e Telefone
+- Dependentes com email obrigatório (menores podem usar email do titular)
 
 ✅ **Captura de Selfie**
 - Acesso direto à câmera do navegador
@@ -94,7 +95,9 @@ Acesse o SQL Editor do Supabase e execute o script em `scripts/001_create_tables
 -- Copie o conteúdo do arquivo scripts/001_create_tables.sql e execute
 ```
 
-Se o banco já existia antes, execute esse script novamente para aplicar novos campos com `IF NOT EXISTS`.
+Se o banco já existia antes, execute também `scripts/002_add_campos_cadastro.sql` para:
+- adicionar `email` em dependentes;
+- remover campos de igreja do cadastro.
 
 ### 5. Criar usuário admin (opcional)
 
@@ -259,6 +262,7 @@ Depois do deploy, verifique no painel da Vercel:
 | cpf | TEXT |
 | data_nascimento | DATE |
 | relacao | TEXT |
+| email | TEXT |
 | telefone_celular | TEXT |
 | sexo | TEXT |
 | created_at | TIMESTAMP |

@@ -5,6 +5,7 @@ import { renderToBuffer } from '@react-pdf/renderer'
 import type { DocumentProps } from '@react-pdf/renderer'
 import JSZip from 'jszip'
 import React from 'react'
+import { get } from '@vercel/blob'
 import { TermoAdesaoPDF } from '../gerar-pdf/TermoAdesaoPDF'
 
 function sanitizeFileName(value: string) {
@@ -26,6 +27,11 @@ function getUniqueFileName(baseName: string, usedNames: Map<string, number>) {
   }
 
   return `${baseName}-${count + 1}`
+}
+
+async function streamToBuffer(stream: ReadableStream<Uint8Array>) {
+  const arrayBuffer = await new Response(stream).arrayBuffer()
+  return Buffer.from(arrayBuffer)
 }
 
 export async function GET(request: NextRequest) {
@@ -82,13 +88,35 @@ export async function GET(request: NextRequest) {
     const usedNames = new Map<string, number>()
 
     for (const cadastro of cadastros) {
-      const pdfDocument = React.createElement(TermoAdesaoPDF, {
-        data: cadastro,
-        dependentes: dependentesByCadastroId.get(cadastro.id) || [],
-        termoBodyText,
-      }) as unknown as React.ReactElement<DocumentProps>
+      let pdfBuffer: Buffer | null = null
 
-      const pdfBuffer = await renderToBuffer(pdfDocument)
+      if (cadastro.termo_pdf_path) {
+        try {
+          const storedPdf = await get(cadastro.termo_pdf_path, { access: 'private' })
+          if (!storedPdf?.stream) {
+            throw new Error('Stored PDF not found')
+          }
+
+          pdfBuffer = await streamToBuffer(storedPdf.stream)
+        } catch (storedPdfError) {
+          console.warn('Could not read stored PDF, regenerating...', {
+            cadastroId: cadastro.id,
+            termo_pdf_path: cadastro.termo_pdf_path,
+            error: storedPdfError,
+          })
+        }
+      }
+
+      if (!pdfBuffer) {
+        const pdfDocument = React.createElement(TermoAdesaoPDF, {
+          data: cadastro,
+          dependentes: dependentesByCadastroId.get(cadastro.id) || [],
+          termoBodyText,
+        }) as unknown as React.ReactElement<DocumentProps>
+
+        const generatedBuffer = await renderToBuffer(pdfDocument)
+        pdfBuffer = Buffer.from(generatedBuffer)
+      }
 
       const safeName = sanitizeFileName(cadastro.nome || '')
       const baseFileName = safeName || 'contrato'

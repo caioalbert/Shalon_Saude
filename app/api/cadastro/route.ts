@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { isValidCPF } from '@/lib/utils'
+import { getAgeFromIsoDate, isValidCPF, isValidEmail } from '@/lib/utils'
 import { put } from '@vercel/blob'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -67,8 +67,6 @@ export async function POST(request: NextRequest) {
     const escolaridade = formData.get('escolaridade') as string
     const situacao_profissional = formData.get('situacao_profissional') as string
     const profissao = formData.get('profissao') as string
-    const congregacao_atual = formData.get('congregacao_atual') as string
-    const posicao_igreja = formData.get('posicao_igreja') as string
     const endereco = formData.get('endereco') as string
     const numero = formData.get('numero') as string
     const complemento = formData.get('complemento') as string
@@ -78,6 +76,7 @@ export async function POST(request: NextRequest) {
     const cep = formData.get('cep') as string
     const tem_dependentes = formData.get('tem_dependentes') === 'true'
     const dependentes_json = formData.get('dependentes') as string
+    const assinatura_data_url = formData.get('assinatura_data_url') as string
     const selfie = formData.get('selfie') as File | null
 
     const nomeValue = nome?.trim()
@@ -92,8 +91,6 @@ export async function POST(request: NextRequest) {
     const escolaridadeValue = escolaridade?.trim()
     const situacaoProfissionalValue = situacao_profissional?.trim()
     const profissaoValue = profissao?.trim()
-    const congregacaoAtualValue = congregacao_atual?.trim()
-    const posicaoIgrejaValue = posicao_igreja?.trim()
     const enderecoValue = endereco?.trim()
     const numeroValue = numero?.trim()
     const complementoValue = complemento?.trim()
@@ -101,6 +98,7 @@ export async function POST(request: NextRequest) {
     const cidadeValue = cidade?.trim()
     const estadoValue = estado?.trim()
     const cepValue = cep?.trim()
+    const assinaturaDataUrlValue = assinatura_data_url?.trim()
 
     // Validação básica
     if (
@@ -113,9 +111,7 @@ export async function POST(request: NextRequest) {
       !dataNascimentoValue ||
       !estadoCivilValue ||
       !escolaridadeValue ||
-      !situacaoProfissionalValue ||
-      !congregacaoAtualValue ||
-      !posicaoIgrejaValue
+      !situacaoProfissionalValue
     ) {
       return NextResponse.json(
         { error: 'Dados pessoais obrigatórios faltando' },
@@ -137,9 +133,39 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (!assinaturaDataUrlValue) {
+      return NextResponse.json(
+        { error: 'Assinatura eletrônica obrigatória' },
+        { status: 400 }
+      )
+    }
+
+    if (!/^data:image\/(png|jpeg);base64,/.test(assinaturaDataUrlValue)) {
+      return NextResponse.json(
+        { error: 'Formato de assinatura inválido' },
+        { status: 400 }
+      )
+    }
+
+    const assinaturaBase64 = assinaturaDataUrlValue.split(',')[1] || ''
+    const assinaturaBytes = Math.ceil((assinaturaBase64.length * 3) / 4)
+    if (assinaturaBytes > 1024 * 1024) {
+      return NextResponse.json(
+        { error: 'Assinatura muito grande. Refaça a assinatura.' },
+        { status: 400 }
+      )
+    }
+
     if (!isValidCPF(cpfValue)) {
       return NextResponse.json(
         { error: 'CPF do titular inválido' },
+        { status: 400 }
+      )
+    }
+
+    if (!isValidEmail(emailValue)) {
+      return NextResponse.json(
+        { error: 'Email do titular inválido' },
         { status: 400 }
       )
     }
@@ -150,6 +176,7 @@ export async function POST(request: NextRequest) {
       cpf?: string
       data_nascimento?: string
       relacao: string
+      email: string
       telefone_celular: string
       sexo: string
     }> = []
@@ -178,6 +205,7 @@ export async function POST(request: NextRequest) {
             !toTrimmed(dep?.nome) ||
             !toTrimmed(dep?.rg) ||
             !toTrimmed(dep?.relacao) ||
+            !toTrimmed(dep?.email) ||
             !toTrimmed(dep?.telefone_celular) ||
             !toTrimmed(dep?.sexo)
         )
@@ -186,7 +214,34 @@ export async function POST(request: NextRequest) {
           return NextResponse.json(
             {
               error:
-                'Cada dependente precisa ter nome, RG, relação, sexo e telefone celular para acesso à telemedicina',
+                'Cada dependente precisa ter nome, RG, relação, email, sexo e telefone celular para acesso à telemedicina',
+            },
+            { status: 400 }
+          )
+        }
+
+        const invalidDependenteEmail = parsed.find((dep) => !isValidEmail(toTrimmed(dep?.email)))
+
+        if (invalidDependenteEmail) {
+          return NextResponse.json(
+            { error: `Email inválido para dependente: ${invalidDependenteEmail.nome || 'sem nome'}` },
+            { status: 400 }
+          )
+        }
+
+        const titularEmail = emailValue.toLowerCase()
+        const dependenteComMesmoEmailTitularSemRegra = parsed.find((dep) => {
+          const dependenteEmail = toTrimmed(dep?.email).toLowerCase()
+          if (!titularEmail || dependenteEmail !== titularEmail) return false
+
+          const age = getAgeFromIsoDate(toTrimmed(dep?.data_nascimento))
+          return age === null || age >= 18
+        })
+
+        if (dependenteComMesmoEmailTitularSemRegra) {
+          return NextResponse.json(
+            {
+              error: `Dependente ${dependenteComMesmoEmailTitularSemRegra.nome || 'sem nome'} só pode usar email do titular se for menor de idade`,
             },
             { status: 400 }
           )
@@ -212,6 +267,7 @@ export async function POST(request: NextRequest) {
           cpf: toTrimmed(dep?.cpf) || undefined,
           data_nascimento: toTrimmed(dep?.data_nascimento) || undefined,
           relacao: toTrimmed(dep?.relacao),
+          email: toTrimmed(dep?.email),
           telefone_celular: toTrimmed(dep?.telefone_celular),
           sexo: toTrimmed(dep?.sexo),
         }))
@@ -257,8 +313,6 @@ export async function POST(request: NextRequest) {
           escolaridade: escolaridadeValue,
           situacao_profissional: situacaoProfissionalValue,
           profissao: profissaoValue || null,
-          congregacao_atual: congregacaoAtualValue,
-          posicao_igreja: posicaoIgrejaValue,
           endereco: enderecoValue,
           numero: numeroValue,
           complemento: complementoValue || null,
@@ -277,8 +331,23 @@ export async function POST(request: NextRequest) {
 
     if (cadastroError) {
       const details = `${cadastroError.message || ''} ${cadastroError.details || ''}`
+
+      if (/duplicate key|cadastros_cpf|cadastros_cpf_idx/i.test(details)) {
+        return NextResponse.json(
+          { error: 'CPF já identificado na nossa base de cadastrados.' },
+          { status: 409 }
+        )
+      }
+
+      if (/duplicate key|cadastros_email|cadastros_email_idx/i.test(details)) {
+        return NextResponse.json(
+          { error: 'Email já identificado na nossa base de cadastrados.' },
+          { status: 409 }
+        )
+      }
+
       if (
-        /column .*sexo|sexo .*column|telefone_celular|estado_civil|nome_conjuge|escolaridade|situacao_profissional|profissao|congregacao_atual|posicao_igreja|rg/i.test(
+        /column .*sexo|sexo .*column|telefone_celular|estado_civil|nome_conjuge|escolaridade|situacao_profissional|profissao|rg/i.test(
           details
         )
       ) {
@@ -317,6 +386,7 @@ export async function POST(request: NextRequest) {
         cpf: dep.cpf || null,
         data_nascimento: dep.data_nascimento || null,
         relacao: dep.relacao,
+        email: dep.email,
         telefone_celular: dep.telefone_celular,
         sexo: dep.sexo,
       }))
@@ -326,6 +396,18 @@ export async function POST(request: NextRequest) {
         .insert(dependentesComCadastroId)
 
       if (dependentesError) {
+        const details = `${dependentesError.message || ''} ${dependentesError.details || ''}`
+        if (/column .*email|email .*column/i.test(details)) {
+          await supabase.from('cadastros').delete().eq('id', cadastroData.id)
+          return NextResponse.json(
+            {
+              error:
+                'Banco desatualizado. Execute novamente o script scripts/001_create_tables.sql e depois scripts/002_add_campos_cadastro.sql para adicionar email em dependentes.',
+            },
+            { status: 500 }
+          )
+        }
+
         console.error('Dependentes error:', dependentesError)
         await supabase.from('cadastros').delete().eq('id', cadastroData.id)
         return NextResponse.json(
@@ -341,7 +423,10 @@ export async function POST(request: NextRequest) {
       const emailResponse = await fetch(`${appBaseUrl}/api/enviar-termo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cadastroId: cadastroData.id }),
+        body: JSON.stringify({
+          cadastroId: cadastroData.id,
+          assinaturaDataUrl: assinaturaDataUrlValue,
+        }),
       })
 
       if (!emailResponse.ok) {

@@ -5,6 +5,7 @@ import { renderToBuffer } from '@react-pdf/renderer'
 import type { DocumentProps } from '@react-pdf/renderer'
 import React from 'react'
 import { Resend } from 'resend'
+import { get, put } from '@vercel/blob'
 import { TermoAdesaoPDF } from '../admin/gerar-pdf/TermoAdesaoPDF'
 
 function sanitizeFileName(value: string) {
@@ -17,15 +18,45 @@ function sanitizeFileName(value: string) {
     .toLowerCase()
 }
 
+function isValidSignatureDataUrl(value: string) {
+  return /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(value)
+}
+
+async function streamToBuffer(stream: ReadableStream<Uint8Array>) {
+  const arrayBuffer = await new Response(stream).arrayBuffer()
+  return Buffer.from(arrayBuffer)
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { cadastroId } = await request.json()
+    const body = await request.json()
+    const cadastroId = body?.cadastroId
+    const assinaturaDataUrlRaw =
+      typeof body?.assinaturaDataUrl === 'string' ? body.assinaturaDataUrl.trim() : ''
 
     if (!cadastroId) {
       return NextResponse.json(
         { error: 'cadastroId é obrigatório' },
         { status: 400 }
       )
+    }
+
+    if (assinaturaDataUrlRaw && !isValidSignatureDataUrl(assinaturaDataUrlRaw)) {
+      return NextResponse.json(
+        { error: 'Formato de assinatura inválido' },
+        { status: 400 }
+      )
+    }
+
+    if (assinaturaDataUrlRaw) {
+      const assinaturaBase64 = assinaturaDataUrlRaw.split(',')[1] || ''
+      const assinaturaBytes = Math.ceil((assinaturaBase64.length * 3) / 4)
+      if (assinaturaBytes > 1024 * 1024) {
+        return NextResponse.json(
+          { error: 'Assinatura muito grande. Refaça a assinatura.' },
+          { status: 400 }
+        )
+      }
     }
 
     const supabase = await createClient()
@@ -92,13 +123,58 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const termoBodyText = await getTermoBodyText()
-    const pdfDocument = React.createElement(TermoAdesaoPDF, {
-      data: cadastro,
-      dependentes: dependentes || [],
-      termoBodyText,
-    }) as unknown as React.ReactElement<DocumentProps>
-    const pdfBuffer = await renderToBuffer(pdfDocument)
+    let pdfBuffer: Buffer | null = null
+
+    // Reenvio: reaproveita o contrato já assinado salvo
+    if (cadastro.termo_pdf_path && !assinaturaDataUrlRaw) {
+      try {
+        const existingPdf = await get(cadastro.termo_pdf_path, { access: 'private' })
+        if (!existingPdf?.stream) {
+          throw new Error('Stored PDF not found')
+        }
+
+        pdfBuffer = await streamToBuffer(existingPdf.stream)
+      } catch (readStoredPdfError) {
+        console.warn('Could not read stored PDF, regenerating...', {
+          cadastroId,
+          termo_pdf_path: cadastro.termo_pdf_path,
+          error: readStoredPdfError,
+        })
+      }
+    }
+
+    // Primeiro envio: gera e salva PDF final assinado
+    if (!pdfBuffer) {
+      const termoBodyText = await getTermoBodyText()
+      const pdfDocument = React.createElement(TermoAdesaoPDF, {
+        data: cadastro,
+        dependentes: dependentes || [],
+        termoBodyText,
+        assinaturaDataUrl: assinaturaDataUrlRaw || undefined,
+      }) as unknown as React.ReactElement<DocumentProps>
+
+      const generatedBuffer = await renderToBuffer(pdfDocument)
+      pdfBuffer = Buffer.from(generatedBuffer)
+
+      const safeName = sanitizeFileName(cadastro.nome || '')
+      const fallbackId = String(cadastro.cpf || cadastroId)
+        .replace(/\D/g, '')
+        .slice(-11)
+
+      const pdfBlob = await put(
+        `termos/${Date.now()}-${safeName || fallbackId || 'assinado'}.pdf`,
+        pdfBuffer,
+        {
+          access: 'private',
+          contentType: 'application/pdf',
+        }
+      )
+
+      await supabase
+        .from('cadastros')
+        .update({ termo_pdf_path: pdfBlob.pathname })
+        .eq('id', cadastroId)
+    }
 
     const safeName = sanitizeFileName(cadastro.nome || '')
     const fallbackId = String(cadastro.cpf || cadastroId)
@@ -152,7 +228,7 @@ export async function POST(request: NextRequest) {
                 <tr><td style="padding: 6px 0; color: #6b7280; font-size: 13px; width: 40%;">Nome:</td><td style="padding: 6px 0; font-weight: 500; font-size: 13px;">${cadastro.nome}</td></tr>
                 <tr><td style="padding: 6px 0; color: #6b7280; font-size: 13px;">CPF:</td><td style="padding: 6px 0; font-weight: 500; font-size: 13px;">${cadastro.cpf}</td></tr>
                 <tr><td style="padding: 6px 0; color: #6b7280; font-size: 13px;">Email:</td><td style="padding: 6px 0; font-weight: 500; font-size: 13px;">${cadastro.email}</td></tr>
-                <tr><td style="padding: 6px 0; color: #6b7280; font-size: 13px;">Assinado em:</td><td style="padding: 6px 0; font-weight: 500; font-size: 13px;">${new Date(cadastro.termo_assinado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td></tr>
+                <tr><td style="padding: 6px 0; color: #6b7280; font-size: 13px;">Assinado em:</td><td style="padding: 6px 0; font-weight: 500; font-size: 13px;">${cadastro.termo_assinado_em ? new Date(cadastro.termo_assinado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}</td></tr>
               </table>
             </div>
             <p style="font-size: 13px; color: #6b7280;">Seu termo assinado segue em anexo neste email em formato PDF.</p>

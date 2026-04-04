@@ -26,8 +26,6 @@ const REQUIRED_CADASTRO_FIELDS: Array<{ key: keyof Cadastro; label: string }> = 
   { key: 'estado_civil', label: 'Estado civil' },
   { key: 'escolaridade', label: 'Escolaridade' },
   { key: 'situacao_profissional', label: 'Situação profissional' },
-  { key: 'congregacao_atual', label: 'Congregação atual' },
-  { key: 'posicao_igreja', label: 'Posição na igreja' },
   { key: 'endereco', label: 'Endereço' },
   { key: 'numero', label: 'Número' },
   { key: 'bairro', label: 'Bairro' },
@@ -51,6 +49,15 @@ function getMissingCadastroFields(cadastro: Cadastro) {
       dependentesSemRgCount === 1
         ? 'RG de 1 dependente'
         : `RG de ${dependentesSemRgCount} dependentes`
+    )
+  }
+
+  const dependentesSemEmailCount = cadastro.dependentes_sem_email_count || 0
+  if (cadastro.tem_dependentes && dependentesSemEmailCount > 0) {
+    missing.push(
+      dependentesSemEmailCount === 1
+        ? 'Email de 1 dependente'
+        : `Email de ${dependentesSemEmailCount} dependentes`
     )
   }
 
@@ -375,10 +382,6 @@ export default function AdminCadastrosPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">Email</th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">CPF</th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">
-                      Congregação
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">Posição</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">
                       Data de Assinatura
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">Status</th>
@@ -391,8 +394,6 @@ export default function AdminCadastrosPage() {
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">{cadastro.nome}</td>
                       <td className="px-6 py-4 text-sm text-gray-600">{cadastro.email}</td>
                       <td className="px-6 py-4 text-sm font-mono text-gray-600">{cadastro.cpf}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{cadastro.congregacao_atual || '-'}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{cadastro.posicao_igreja || '-'}</td>
                       <td className="px-6 py-4 text-sm text-gray-600">
                         {cadastro.termo_assinado_em
                           ? new Date(cadastro.termo_assinado_em).toLocaleDateString('pt-BR', {

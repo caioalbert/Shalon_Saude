@@ -25,7 +25,8 @@ Edite `.env.local` e adicione suas chaves:
 1. Vá ao SQL Editor do Supabase
 2. Copie o conteúdo de `scripts/001_create_tables.sql`
 3. Execute no SQL Editor
-4. ✅ Tabelas criadas!
+4. Se seu banco já existia antes, execute também `scripts/002_add_campos_cadastro.sql`
+5. ✅ Tabelas criadas!
 
 ### 4. Criar Usuário Admin (Opcional)
 
@@ -77,7 +78,7 @@ Acesse: http://localhost:3000
 - Logradouro, Número, Complemento, Bairro, Cidade, Estado, CEP
 
 ### Dependentes
-- Nome, CPF, Data Nascimento, Relação (cônjuge, filho, etc)
+- Nome, CPF, Data Nascimento, Relação, Email, Telefone e Sexo
 
 ### Termo
 - Gerado automaticamente com dados do cadastro

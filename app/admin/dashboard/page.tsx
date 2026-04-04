@@ -15,7 +15,6 @@ import {
   YAxis,
 } from 'recharts'
 import {
-  Building2,
   CalendarClock,
   Download,
   FileSignature,
@@ -226,24 +225,24 @@ export default function AdminDashboard() {
     }
   }, [cadastros])
 
-  const congregacaoRanking = useMemo(
-    () => buildRanking(cadastros.map((item) => item.congregacao_atual), 'Não informada'),
+  const estadoCivilRanking = useMemo(
+    () => buildRanking(cadastros.map((item) => item.estado_civil), 'Não informado'),
     [cadastros]
   )
 
-  const posicaoRanking = useMemo(
-    () => buildRanking(cadastros.map((item) => item.posicao_igreja), 'Não informada'),
+  const situacaoProfissionalRanking = useMemo(
+    () => buildRanking(cadastros.map((item) => item.situacao_profissional), 'Não informada'),
     [cadastros]
   )
 
-  const congregacoesAtivas = useMemo(
-    () => congregacaoRanking.filter((item) => item.name !== 'Não informada').length,
-    [congregacaoRanking]
+  const perfisCivisAtivos = useMemo(
+    () => estadoCivilRanking.filter((item) => item.name !== 'Não informado').length,
+    [estadoCivilRanking]
   )
 
-  const posicoesAtivas = useMemo(
-    () => posicaoRanking.filter((item) => item.name !== 'Não informada').length,
-    [posicaoRanking]
+  const situacoesProfissionaisAtivas = useMemo(
+    () => situacaoProfissionalRanking.filter((item) => item.name !== 'Não informada').length,
+    [situacaoProfissionalRanking]
   )
 
   const signedRate = useMemo(() => {
@@ -289,8 +288,11 @@ export default function AdminDashboard() {
     [summary.currentMonth, summary.last30Days, summary.last7Days, summary.today]
   )
 
-  const congregacaoChartData = useMemo(() => congregacaoRanking.slice(0, 8), [congregacaoRanking])
-  const posicaoChartData = useMemo(() => posicaoRanking.slice(0, 8), [posicaoRanking])
+  const estadoCivilChartData = useMemo(() => estadoCivilRanking.slice(0, 8), [estadoCivilRanking])
+  const situacaoProfissionalChartData = useMemo(
+    () => situacaoProfissionalRanking.slice(0, 8),
+    [situacaoProfissionalRanking]
+  )
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
@@ -402,11 +404,11 @@ export default function AdminDashboard() {
                 iconClassName="bg-purple-100 text-purple-700"
               />
               <KpiCard
-                title="Congregações Ativas"
-                value={congregacoesAtivas}
-                subtitle={`Posições registradas: ${posicoesAtivas}`}
+                title="Perfis Civis Ativos"
+                value={perfisCivisAtivos}
+                subtitle={`Situações profissionais: ${situacoesProfissionaisAtivas}`}
                 valueClassName="text-emerald-700"
-                icon={Building2}
+                icon={Users}
                 iconClassName="bg-emerald-100 text-emerald-700"
               />
             </div>
@@ -478,23 +480,23 @@ export default function AdminDashboard() {
               <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900">Cadastros por Congregação</h2>
-                    <p className="text-sm text-gray-600">Top congregações por volume de adesão</p>
+                    <h2 className="text-lg font-semibold text-gray-900">Cadastros por Estado Civil</h2>
+                    <p className="text-sm text-gray-600">Distribuição dos perfis civis cadastrados</p>
                   </div>
                   <div className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
-                    {congregacaoRanking.length} categorias
+                    {estadoCivilRanking.length} categorias
                   </div>
                 </div>
 
-                {congregacaoChartData.length === 0 ? (
+                {estadoCivilChartData.length === 0 ? (
                   <div className="flex h-80 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
-                    Nenhuma congregação cadastrada.
+                    Nenhum dado de estado civil cadastrado.
                   </div>
                 ) : (
                   <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
-                        data={congregacaoChartData}
+                        data={estadoCivilChartData}
                         layout="vertical"
                         margin={{ top: 8, right: 18, left: 18, bottom: 8 }}
                       >
@@ -524,23 +526,23 @@ export default function AdminDashboard() {
               <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900">Cadastros por Posição</h2>
-                    <p className="text-sm text-gray-600">Distribuição por posição na igreja</p>
+                    <h2 className="text-lg font-semibold text-gray-900">Cadastros por Situação Profissional</h2>
+                    <p className="text-sm text-gray-600">Distribuição por vínculo profissional</p>
                   </div>
                   <div className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">
-                    {posicaoRanking.length} categorias
+                    {situacaoProfissionalRanking.length} categorias
                   </div>
                 </div>
 
-                {posicaoChartData.length === 0 ? (
+                {situacaoProfissionalChartData.length === 0 ? (
                   <div className="flex h-80 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
-                    Nenhuma posição cadastrada.
+                    Nenhuma situação profissional cadastrada.
                   </div>
                 ) : (
                   <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
-                        data={posicaoChartData}
+                        data={situacaoProfissionalChartData}
                         layout="vertical"
                         margin={{ top: 8, right: 18, left: 18, bottom: 8 }}
                       >

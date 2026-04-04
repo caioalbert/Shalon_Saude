@@ -12,8 +12,6 @@ export interface Cadastro {
   escolaridade?: string
   situacao_profissional?: string
   profissao?: string
-  congregacao_atual?: string
-  posicao_igreja?: string
   endereco?: string
   numero?: string
   complemento?: string
@@ -28,6 +26,7 @@ export interface Cadastro {
   ip_assinante?: string
   email_enviado_em?: string
   dependentes_sem_rg_count?: number
+  dependentes_sem_email_count?: number
   created_at: string
   updated_at: string
 }
@@ -40,6 +39,7 @@ export interface Dependente {
   cpf?: string
   data_nascimento?: string
   relacao: string
+  email: string
   telefone_celular?: string
   sexo?: string
   created_at: string
@@ -58,8 +58,6 @@ export interface CadastroFormData {
   escolaridade: string
   situacao_profissional: string
   profissao: string
-  congregacao_atual: string
-  posicao_igreja: string
   
   // Endereço
   endereco: string
@@ -76,6 +74,7 @@ export interface CadastroFormData {
   
   // Selfie
   selfie_blob?: Blob
+  assinatura_data_url: string
   
   // Email para contato
   email: string
@@ -87,6 +86,7 @@ export interface DependenteFormData {
   cpf: string
   data_nascimento: string
   relacao: string
+  email: string
   telefone_celular: string
   sexo: string
 }

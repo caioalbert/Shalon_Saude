@@ -225,14 +225,6 @@ export default function CadastroDetail() {
                     <p className="text-xs text-gray-600 uppercase font-medium">Profissão</p>
                     <p className="text-lg font-medium text-gray-900">{cadastro.profissao || '-'}</p>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-600 uppercase font-medium">Congregação Atual</p>
-                    <p className="text-lg font-medium text-gray-900">{cadastro.congregacao_atual || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600 uppercase font-medium">Posição na Igreja</p>
-                    <p className="text-lg font-medium text-gray-900">{cadastro.posicao_igreja || '-'}</p>
-                  </div>
                 </div>
               </div>
 
@@ -281,6 +273,9 @@ export default function CadastroDetail() {
                         </p>
                         {dep.cpf && (
                           <p className="text-sm text-gray-600 font-mono">CPF: {dep.cpf}</p>
+                        )}
+                        {dep.email && (
+                          <p className="text-sm text-gray-600">Email: {dep.email}</p>
                         )}
                         {dep.rg && (
                           <p className="text-sm text-gray-600">RG: {dep.rg}</p>

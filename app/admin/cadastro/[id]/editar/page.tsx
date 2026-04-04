@@ -17,36 +17,6 @@ const ESCOLARIDADE_OPTIONS = [
   'Ensino Superior - Completo',
 ]
 
-const CONGREGACAO_OPTIONS = [
-  'Sede',
-  'Alquiraz',
-  'Eusébio',
-  'Barra do Ceará',
-  'Aldemir Martins',
-  'Jabuti',
-  'Capuan',
-  'Lagoa Redonda',
-  'Maraponga',
-  'Metrópole',
-  'Maracanaú',
-  'Ocara',
-  'São Cristóvão',
-  'Aracati',
-]
-
-const POSICAO_IGREJA_OPTIONS = [
-  'Novo(a) Convertido(a)',
-  'Juvenil (Menor)',
-  'Jovem',
-  'Membro',
-  'Obreiro(a) cooperador',
-  'Diácono',
-  'Evangelista',
-  'Presbítero',
-  'Pastor',
-  'Missionário(a)',
-]
-
 const ESTADOS = [
   'AC',
   'AL',
@@ -90,8 +60,6 @@ type FormData = {
   escolaridade: string
   situacao_profissional: string
   profissao: string
-  congregacao_atual: string
-  posicao_igreja: string
   endereco: string
   numero: string
   complemento: string
@@ -114,8 +82,6 @@ const EMPTY_FORM: FormData = {
   escolaridade: '',
   situacao_profissional: '',
   profissao: '',
-  congregacao_atual: '',
-  posicao_igreja: '',
   endereco: '',
   numero: '',
   complemento: '',
@@ -171,8 +137,6 @@ export default function AdminCadastroEditPage() {
           escolaridade: cadastro.escolaridade || '',
           situacao_profissional: cadastro.situacao_profissional || '',
           profissao: cadastro.profissao || '',
-          congregacao_atual: cadastro.congregacao_atual || '',
-          posicao_igreja: cadastro.posicao_igreja || '',
           endereco: cadastro.endereco || '',
           numero: cadastro.numero || '',
           complemento: cadastro.complemento || '',
@@ -204,8 +168,6 @@ export default function AdminCadastroEditPage() {
           form.estado_civil.trim() &&
           form.escolaridade.trim() &&
           form.situacao_profissional.trim() &&
-          form.congregacao_atual.trim() &&
-          form.posicao_igreja.trim() &&
           form.endereco.trim() &&
           form.numero.trim() &&
           form.bairro.trim() &&
@@ -419,44 +381,6 @@ export default function AdminCadastroEditPage() {
               <div>
                 <Label htmlFor="profissao">Profissão</Label>
                 <Input id="profissao" name="profissao" value={form.profissao} onChange={handleChange} className="mt-2" />
-              </div>
-
-              <div>
-                <Label htmlFor="congregacao_atual">Congregação Atual *</Label>
-                <select
-                  id="congregacao_atual"
-                  name="congregacao_atual"
-                  value={form.congregacao_atual}
-                  onChange={handleChange}
-                  required
-                  className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2"
-                >
-                  <option value="">Selecione...</option>
-                  {CONGREGACAO_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <Label htmlFor="posicao_igreja">Posição na Igreja *</Label>
-                <select
-                  id="posicao_igreja"
-                  name="posicao_igreja"
-                  value={form.posicao_igreja}
-                  onChange={handleChange}
-                  required
-                  className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2"
-                >
-                  <option value="">Selecione...</option>
-                  {POSICAO_IGREJA_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
               </div>
             </div>
           </div>

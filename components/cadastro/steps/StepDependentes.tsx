@@ -1,7 +1,7 @@
 'use client'
 
 import { CadastroFormData, DependenteFormData } from '@/lib/types'
-import { isValidCPF } from '@/lib/utils'
+import { getAgeFromIsoDate, isValidCPF, isValidEmail } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -18,12 +18,14 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
   const [dependentes, setDependentes] = useState<DependenteFormData[]>(data.dependentes || [])
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [cpfError, setCpfError] = useState<string | null>(null)
+  const [emailError, setEmailError] = useState<string | null>(null)
   const [formData, setFormData] = useState<DependenteFormData>({
     nome: '',
     rg: '',
     cpf: '',
     data_nascimento: '',
     relacao: '',
+    email: '',
     telefone_celular: '',
     sexo: '',
   })
@@ -33,6 +35,7 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
       ...formData,
       nome: formData.nome.trim(),
       rg: formData.rg.trim(),
+      email: formData.email.trim(),
       telefone_celular: formatPhone(formData.telefone_celular),
     }
 
@@ -40,6 +43,7 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
       !dependente.nome ||
       !dependente.rg ||
       !dependente.relacao ||
+      !dependente.email ||
       !dependente.telefone_celular ||
       !dependente.sexo
     ) {
@@ -51,7 +55,30 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
       return
     }
 
+    if (!isValidEmail(dependente.email)) {
+      setEmailError('Email do dependente inválido')
+      return
+    }
+
+    const titularEmail = String(data.email || '').trim().toLowerCase()
+    const dependenteEmail = dependente.email.toLowerCase()
+    const isSameAsTitular = titularEmail && dependenteEmail === titularEmail
+
+    if (isSameAsTitular) {
+      const age = getAgeFromIsoDate(dependente.data_nascimento || '')
+      if (age === null) {
+        setEmailError('Para usar o email do titular, informe a data de nascimento do dependente.')
+        return
+      }
+
+      if (age >= 18) {
+        setEmailError('Dependente maior de idade deve possuir email próprio.')
+        return
+      }
+    }
+
     setCpfError(null)
+    setEmailError(null)
 
     const nextDependentes =
       editingIndex !== null
@@ -67,6 +94,7 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
       cpf: '',
       data_nascimento: '',
       relacao: '',
+      email: '',
       telefone_celular: '',
       sexo: '',
     })
@@ -87,11 +115,13 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
     setFormData({
       ...dependente,
       rg: dependente.rg || '',
+      email: dependente.email || '',
       telefone_celular: dependente.telefone_celular || '',
       sexo: dependente.sexo || '',
     })
     setEditingIndex(index)
     setCpfError(null)
+    setEmailError(null)
   }
 
   const handleTemDependentesChange = (value: boolean) => {
@@ -105,10 +135,12 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
         cpf: '',
         data_nascimento: '',
         relacao: '',
+        email: '',
         telefone_celular: '',
         sexo: '',
       })
       setCpfError(null)
+      setEmailError(null)
     }
     onUpdate({ tem_dependentes: value, dependentes: value ? dependentes : [] })
   }
@@ -146,7 +178,7 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
         </label>
         {tem_dependentes && (
           <p className="mt-2 text-xs text-gray-500">
-            Para acesso à telemedicina, cada dependente deve ter RG, celular e sexo informados.
+            Cada dependente deve ter email. Se for menor de idade, pode usar o mesmo email do titular.
           </p>
         )}
       </div>
@@ -239,6 +271,36 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
               </div>
 
               <div>
+                <Label htmlFor="dep_email" className="text-gray-700 font-medium">
+                  Email *
+                </Label>
+                <Input
+                  id="dep_email"
+                  type="email"
+                  placeholder="dependente@email.com"
+                  value={formData.email}
+                  onChange={(e) => {
+                    setFormData({ ...formData, email: e.target.value })
+                    setEmailError(null)
+                  }}
+                  onBlur={() => {
+                    if (!formData.email.trim()) {
+                      setEmailError(null)
+                      return
+                    }
+
+                    setEmailError(isValidEmail(formData.email) ? null : 'Email do dependente inválido')
+                  }}
+                  className={`mt-2 ${
+                    (highlightRequired && !formData.email.trim()) || emailError
+                      ? 'border-red-400 focus-visible:ring-red-500'
+                      : 'border-gray-300'
+                  }`}
+                />
+                {emailError && <p className="mt-1 text-xs text-red-600">{emailError}</p>}
+              </div>
+
+              <div>
                 <Label htmlFor="dep_celular" className="text-gray-700 font-medium">
                   Telefone Celular *
                 </Label>
@@ -311,6 +373,7 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
                   !formData.nome ||
                   !formData.rg ||
                   !formData.relacao ||
+                  !formData.email ||
                   !formData.telefone_celular ||
                   !formData.sexo
                 }
@@ -327,10 +390,12 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
                       cpf: '',
                       data_nascimento: '',
                       relacao: '',
+                      email: '',
                       telefone_celular: '',
                       sexo: '',
                     })
                     setCpfError(null)
+                    setEmailError(null)
                   }}
                   variant="outline"
                 >
@@ -362,6 +427,9 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
                     )}
                     {dep.cpf && (
                       <p className="text-sm text-gray-600">CPF: {dep.cpf}</p>
+                    )}
+                    {dep.email && (
+                      <p className="text-sm text-gray-600">Email: {dep.email}</p>
                     )}
                     {dep.rg && (
                       <p className="text-sm text-gray-600">RG: {dep.rg}</p>

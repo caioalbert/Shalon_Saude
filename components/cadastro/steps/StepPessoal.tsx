@@ -21,36 +21,6 @@ const ESCOLARIDADE_OPTIONS = [
   'Ensino Superior - Completo',
 ]
 
-const CONGREGACAO_OPTIONS = [
-  'Sede',
-  'Alquiraz',
-  'Eusébio',
-  'Barra do Ceará',
-  'Aldemir Martins',
-  'Jabuti',
-  'Capuan',
-  'Lagoa Redonda',
-  'Maraponga',
-  'Metrópole',
-  'Maracanaú',
-  'Ocara',
-  'São Cristóvão',
-  'Aracati',
-]
-
-const POSICAO_IGREJA_OPTIONS = [
-  'Novo(a) Convertido(a)',
-  'Juvenil (Menor)',
-  'Jovem',
-  'Membro',
-  'Obreiro(a) cooperador',
-  'Diácono',
-  'Evangelista',
-  'Presbítero',
-  'Pastor',
-  'Missionário(a)',
-]
-
 function formatDateInput(value: string) {
   return value
     .replace(/\D/g, '')
@@ -115,11 +85,10 @@ export function StepPessoal({ data, onUpdate, showValidation = false }: StepPess
     escolaridade: data.escolaridade || '',
     situacao_profissional: data.situacao_profissional || '',
     profissao: data.profissao || '',
-    congregacao_atual: data.congregacao_atual || '',
-    posicao_igreja: data.posicao_igreja || '',
   })
   const [dataNascimentoInput, setDataNascimentoInput] = useState(formatISOToDateInput(initialIsoDate))
   const [cpfError, setCpfError] = useState<string | null>(null)
+  const [isCheckingCpf, setIsCheckingCpf] = useState(false)
   const [dataNascimentoError, setDataNascimentoError] = useState<string | null>(null)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -182,7 +151,7 @@ export function StepPessoal({ data, onUpdate, showValidation = false }: StepPess
     onUpdate(next)
   }
 
-  const handleCpfBlur = () => {
+  const handleCpfBlur = async () => {
     if (!localData.cpf) {
       setCpfError('CPF é obrigatório')
       onUpdate(localData)
@@ -195,8 +164,31 @@ export function StepPessoal({ data, onUpdate, showValidation = false }: StepPess
       return
     }
 
-    setCpfError(null)
-    onUpdate(localData)
+    try {
+      setIsCheckingCpf(true)
+      const response = await fetch(`/api/cadastro/verificar-cpf?cpf=${encodeURIComponent(localData.cpf)}`)
+      const payload = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        setCpfError(payload.error || 'Não foi possível validar o CPF agora. Tente novamente.')
+        onUpdate(localData)
+        return
+      }
+
+      if (payload.exists) {
+        setCpfError('CPF já identificado na nossa base de cadastrados.')
+        onUpdate(localData)
+        return
+      }
+
+      setCpfError(null)
+      onUpdate(localData)
+    } catch {
+      setCpfError('Não foi possível validar o CPF agora. Tente novamente.')
+      onUpdate(localData)
+    } finally {
+      setIsCheckingCpf(false)
+    }
   }
 
   const formatCPF = (value: string) => {
@@ -276,6 +268,9 @@ export function StepPessoal({ data, onUpdate, showValidation = false }: StepPess
             maxLength={14}
           />
           {cpfError && <p className="mt-1 text-xs text-red-600">{cpfError}</p>}
+          {!cpfError && isCheckingCpf && (
+            <p className="mt-1 text-xs text-gray-500">Validando CPF...</p>
+          )}
         </div>
 
         <div>
@@ -446,49 +441,6 @@ export function StepPessoal({ data, onUpdate, showValidation = false }: StepPess
           />
         </div>
 
-        <div className="sm:col-span-2">
-          <Label htmlFor="congregacao_atual" className="text-gray-700 font-medium">
-            Congregação Atual *
-          </Label>
-          <select
-            id="congregacao_atual"
-            name="congregacao_atual"
-            value={localData.congregacao_atual}
-            onChange={handleSelectChange}
-            onBlur={handleBlur}
-            required
-            className={selectClass('congregacao_atual')}
-          >
-            <option value="">Selecione...</option>
-            {CONGREGACAO_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="sm:col-span-2">
-          <Label htmlFor="posicao_igreja" className="text-gray-700 font-medium">
-            Posição na Igreja *
-          </Label>
-          <select
-            id="posicao_igreja"
-            name="posicao_igreja"
-            value={localData.posicao_igreja}
-            onChange={handleSelectChange}
-            onBlur={handleBlur}
-            required
-            className={selectClass('posicao_igreja')}
-          >
-            <option value="">Selecione...</option>
-            {POSICAO_IGREJA_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </div>
       </div>
 
       <div>

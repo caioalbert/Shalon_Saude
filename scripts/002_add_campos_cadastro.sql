@@ -1,12 +1,16 @@
 -- Migração incremental para bancos já existentes
--- Adiciona campos de perfil pessoal/eclesiástico no cadastro
+-- Remove campos de igreja e adiciona email dos dependentes
+
+ALTER TABLE dependentes
+  ADD COLUMN IF NOT EXISTS email TEXT;
+
+-- Preencher emails antigos com o email do titular para evitar dependentes sem contato
+UPDATE dependentes AS dep
+SET email = cad.email
+FROM cadastros AS cad
+WHERE dep.cadastro_id = cad.id
+  AND (dep.email IS NULL OR trim(dep.email) = '');
 
 ALTER TABLE cadastros
-  ADD COLUMN IF NOT EXISTS rg TEXT,
-  ADD COLUMN IF NOT EXISTS estado_civil TEXT,
-  ADD COLUMN IF NOT EXISTS nome_conjuge TEXT,
-  ADD COLUMN IF NOT EXISTS escolaridade TEXT,
-  ADD COLUMN IF NOT EXISTS situacao_profissional TEXT,
-  ADD COLUMN IF NOT EXISTS profissao TEXT,
-  ADD COLUMN IF NOT EXISTS congregacao_atual TEXT,
-  ADD COLUMN IF NOT EXISTS posicao_igreja TEXT;
+  DROP COLUMN IF EXISTS congregacao_atual,
+  DROP COLUMN IF EXISTS posicao_igreja;

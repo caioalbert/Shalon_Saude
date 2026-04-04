@@ -45,10 +45,6 @@ export function StepTermo({ data }: StepTermoProps) {
             <strong>Situação Profissional:</strong>{' '}
             {data.situacao_profissional || '[Situação profissional não preenchida]'} <br />
             <strong>Profissão:</strong> {data.profissao || '[Não informada]'} <br />
-            <strong>Congregação Atual:</strong>{' '}
-            {data.congregacao_atual || '[Congregação não preenchida]'} <br />
-            <strong>Posição na Igreja:</strong>{' '}
-            {data.posicao_igreja || '[Posição na igreja não preenchida]'} <br />
             <strong>Email:</strong> {data.email || '[Email não preenchido]'} <br />
             <strong>Telefone:</strong> {data.telefone || '[Telefone não preenchido]'} <br />
           </p>
@@ -75,7 +71,7 @@ export function StepTermo({ data }: StepTermoProps) {
               {data.dependentes.map((dep, index) => (
                 <p key={index} className="text-gray-700">
                   {index + 1}. {dep.nome} - {dep.relacao} {dep.cpf && `(CPF: ${dep.cpf})`}{' '}
-                  {dep.rg && `(RG: ${dep.rg})`}{' '}
+                  {dep.rg && `(RG: ${dep.rg})`} {dep.email && `(Email: ${dep.email})`}{' '}
                   {dep.sexo && `(Sexo: ${dep.sexo})`} {dep.telefone_celular && `(Celular: ${dep.telefone_celular})`}
                 </p>
               ))}

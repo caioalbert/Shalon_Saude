@@ -13,8 +13,6 @@ CREATE TABLE IF NOT EXISTS cadastros (
   escolaridade TEXT,
   situacao_profissional TEXT,
   profissao TEXT,
-  congregacao_atual TEXT,
-  posicao_igreja TEXT,
   endereco TEXT,
   numero TEXT,
   complemento TEXT,
@@ -45,6 +43,7 @@ CREATE TABLE IF NOT EXISTS dependentes (
   cpf TEXT,
   data_nascimento DATE,
   relacao TEXT,
+  email TEXT NOT NULL,
   telefone_celular TEXT,
   sexo TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -58,11 +57,10 @@ ALTER TABLE cadastros
   ADD COLUMN IF NOT EXISTS nome_conjuge TEXT,
   ADD COLUMN IF NOT EXISTS escolaridade TEXT,
   ADD COLUMN IF NOT EXISTS situacao_profissional TEXT,
-  ADD COLUMN IF NOT EXISTS profissao TEXT,
-  ADD COLUMN IF NOT EXISTS congregacao_atual TEXT,
-  ADD COLUMN IF NOT EXISTS posicao_igreja TEXT;
+  ADD COLUMN IF NOT EXISTS profissao TEXT;
 
 ALTER TABLE dependentes
+  ADD COLUMN IF NOT EXISTS email TEXT,
   ADD COLUMN IF NOT EXISTS rg TEXT,
   ADD COLUMN IF NOT EXISTS telefone_celular TEXT,
   ADD COLUMN IF NOT EXISTS sexo TEXT;
@@ -76,11 +74,13 @@ ALTER TABLE dependentes ENABLE ROW LEVEL SECURITY;
 
 -- Políticas RLS para cadastros
 -- Permitir inserção pública (qualquer pessoa pode se cadastrar)
+DROP POLICY IF EXISTS "cadastros_insert_public" ON cadastros;
 CREATE POLICY "cadastros_insert_public" ON cadastros
   FOR INSERT
   WITH CHECK (true);
 
 -- Permitir que o próprio usuário veja seu cadastro pelo email
+DROP POLICY IF EXISTS "cadastros_select_own" ON cadastros;
 CREATE POLICY "cadastros_select_own" ON cadastros
   FOR SELECT
   USING (true);
@@ -89,10 +89,12 @@ CREATE POLICY "cadastros_select_own" ON cadastros
 -- A verificação real de admin será feita no middleware/API
 
 -- Políticas RLS para dependentes
+DROP POLICY IF EXISTS "dependentes_insert_public" ON dependentes;
 CREATE POLICY "dependentes_insert_public" ON dependentes
   FOR INSERT
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "dependentes_select_public" ON dependentes;
 CREATE POLICY "dependentes_select_public" ON dependentes
   FOR SELECT
   USING (true);

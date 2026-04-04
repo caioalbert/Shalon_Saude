@@ -1,5 +1,12 @@
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
+/* eslint-disable jsx-a11y/alt-text */
+
+import { Document, Image, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 import { DEFAULT_TERMO_BODY } from '@/lib/termo-template'
+
+const SIGNATURE_FRAME_WIDTH = 210
+const SIGNATURE_FRAME_HEIGHT = 70
+const SIGNATURE_BASELINE_RATIO = 0.72
+const SIGNATURE_BASELINE_TOP = Math.round(SIGNATURE_FRAME_HEIGHT * SIGNATURE_BASELINE_RATIO)
 
 const styles = StyleSheet.create({
   page: {
@@ -37,14 +44,39 @@ const styles = StyleSheet.create({
     marginTop: 14,
     alignItems: 'center',
   },
+  signatureFrame: {
+    marginTop: 6,
+    width: SIGNATURE_FRAME_WIDTH,
+    height: SIGNATURE_FRAME_HEIGHT,
+    position: 'relative',
+  },
+  signatureGuideLine: {
+    position: 'absolute',
+    top: SIGNATURE_BASELINE_TOP,
+    left: 0,
+    right: 0,
+    borderTopWidth: 1,
+    borderTopColor: '#111827',
+  },
   signatureInk: {
-    marginTop: 10,
-    marginBottom: -2,
+    position: 'absolute',
+    top: SIGNATURE_BASELINE_TOP - 18,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
     fontFamily: 'Times-Italic',
     fontSize: 16,
   },
-  signatureLine: {
-    marginTop: 2,
+  signatureImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: SIGNATURE_FRAME_WIDTH,
+    height: SIGNATURE_FRAME_HEIGHT,
+    objectFit: 'contain',
+  },
+  signerName: {
+    marginTop: 4,
     marginBottom: 2,
   },
 })
@@ -63,8 +95,6 @@ type CadastroPdfData = {
   escolaridade?: string | null
   situacao_profissional?: string | null
   profissao?: string | null
-  congregacao_atual?: string | null
-  posicao_igreja?: string | null
   endereco?: string | null
   numero?: string | null
   complemento?: string | null
@@ -80,6 +110,7 @@ type DependentePdfData = {
   rg?: string | null
   cpf?: string | null
   data_nascimento?: string | null
+  email?: string | null
   telefone_celular?: string | null
   sexo?: string | null
 }
@@ -88,6 +119,7 @@ type TermoAdesaoPDFProps = {
   data: CadastroPdfData
   dependentes: DependentePdfData[]
   termoBodyText?: string
+  assinaturaDataUrl?: string
 }
 
 function formatDate(value?: string | null) {
@@ -121,7 +153,7 @@ function isHeadingBlock(block: string) {
   return /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9\s]+$/.test(block) && block.length <= 80
 }
 
-export function TermoAdesaoPDF({ data, dependentes, termoBodyText }: TermoAdesaoPDFProps) {
+export function TermoAdesaoPDF({ data, dependentes, termoBodyText, assinaturaDataUrl }: TermoAdesaoPDFProps) {
   const dependentesRows = dependentes.filter((dep) => dep && dep.nome)
   const templateBlocks = splitTemplateBlocks(termoBodyText || DEFAULT_TERMO_BODY)
   const cidadeAssinatura = data.cidade || 'Belo Horizonte'
@@ -151,8 +183,6 @@ export function TermoAdesaoPDF({ data, dependentes, termoBodyText }: TermoAdesao
         <Text style={styles.row}>
           Situação Profissional: {data.situacao_profissional || ''}   Profissão: {data.profissao || ''}
         </Text>
-        <Text style={styles.row}>Congregação Atual: {data.congregacao_atual || ''}</Text>
-        <Text style={styles.row}>Posição na Igreja: {data.posicao_igreja || ''}</Text>
 
         <Text style={styles.sectionTitle}>Dados dos Dependentes</Text>
         {dependentesRows.length > 0 ? (
@@ -162,6 +192,7 @@ export function TermoAdesaoPDF({ data, dependentes, termoBodyText }: TermoAdesao
               <Text>
                 RG: {dep.rg || ''}   CPF: {dep.cpf || ''}   Nascimento: {formatDate(dep.data_nascimento)}   Sexo: {dep.sexo || 'Não informado'}
               </Text>
+              <Text>Email: {dep.email || ''}</Text>
               <Text>Celular: {dep.telefone_celular || ''}</Text>
             </View>
           ))
@@ -189,9 +220,15 @@ export function TermoAdesaoPDF({ data, dependentes, termoBodyText }: TermoAdesao
           <Text>
             {cidadeAssinatura}/{estadoAssinatura}, {dataAssinatura}
           </Text>
-          <Text style={styles.signatureInk}>{data.nome || ''}</Text>
-          <Text style={styles.signatureLine}>________________________________________________</Text>
-          <Text>{data.nome || 'CONTRATANTE'}</Text>
+          <View style={styles.signatureFrame}>
+            {assinaturaDataUrl ? (
+              <Image src={assinaturaDataUrl} style={styles.signatureImage} />
+            ) : (
+              <Text style={styles.signatureInk}>{data.nome || ''}</Text>
+            )}
+            <View style={styles.signatureGuideLine} />
+          </View>
+          <Text style={styles.signerName}>{data.nome || 'CONTRATANTE'}</Text>
           <Text>CONTRATANTE</Text>
         </View>
       </Page>

@@ -34,3 +34,41 @@ export function isValidCPF(value: string) {
 
   return checkDigit === Number(cpf.charAt(10))
 }
+
+export function isValidEmail(value: string) {
+  const email = String(value || '').trim()
+  if (!email) return false
+
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+export function getAgeFromIsoDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+
+  const [yearString, monthString, dayString] = value.split('-')
+  const year = Number(yearString)
+  const month = Number(monthString)
+  const day = Number(dayString)
+
+  if (!year || !month || !day) return null
+
+  const birthDate = new Date(year, month - 1, day)
+  if (
+    birthDate.getFullYear() !== year ||
+    birthDate.getMonth() !== month - 1 ||
+    birthDate.getDate() !== day
+  ) {
+    return null
+  }
+
+  const now = new Date()
+  let age = now.getFullYear() - year
+  const beforeBirthday =
+    now.getMonth() < month - 1 || (now.getMonth() === month - 1 && now.getDate() < day)
+
+  if (beforeBirthday) {
+    age -= 1
+  }
+
+  return age
+}

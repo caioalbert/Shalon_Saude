@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { CadastroFormData } from '@/lib/types'
-import { isValidCPF } from '@/lib/utils'
+import { getAgeFromIsoDate, isValidCPF, isValidEmail } from '@/lib/utils'
 import { StepPessoal } from './steps/StepPessoal'
 import { StepEndereco } from './steps/StepEndereco'
 import { StepDependentes } from './steps/StepDependentes'
@@ -28,20 +28,56 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
   const [step, setStep] = useState(0)
   const [validationStep, setValidationStep] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isCheckingCpf, setIsCheckingCpf] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [aceiteTermos, setAceiteTermos] = useState(false)
   const [aceitePrivacidade, setAceitePrivacidade] = useState(false)
   const [formData, setFormData] = useState<Partial<CadastroFormData>>({
     dependentes: [],
     tem_dependentes: false,
+    assinatura_data_url: '',
   })
 
-  const handleNext = () => {
+  const checkCpfAlreadyRegistered = async (cpf: string) => {
+    const response = await fetch(`/api/cadastro/verificar-cpf?cpf=${encodeURIComponent(cpf)}`)
+    const payload = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      throw new Error(payload.error || 'Não foi possível validar o CPF no momento.')
+    }
+
+    return Boolean(payload.exists)
+  }
+
+  const handleNext = async () => {
     const stepError = getStepValidationError(step)
     if (stepError) {
       setError(stepError)
       setValidationStep(step)
       return
+    }
+
+    if (step === 0 && formData.cpf) {
+      try {
+        setIsCheckingCpf(true)
+        const alreadyRegistered = await checkCpfAlreadyRegistered(formData.cpf)
+
+        if (alreadyRegistered) {
+          setError('CPF já identificado na nossa base de cadastrados.')
+          setValidationStep(0)
+          return
+        }
+      } catch (cpfCheckError) {
+        setError(
+          cpfCheckError instanceof Error
+            ? cpfCheckError.message
+            : 'Não foi possível validar o CPF no momento.'
+        )
+        setValidationStep(0)
+        return
+      } finally {
+        setIsCheckingCpf(false)
+      }
     }
 
     if (step < STEPS.length - 1) {
@@ -80,9 +116,7 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
         !hasValue(formData.data_nascimento) ||
         !hasValue(formData.estado_civil) ||
         !hasValue(formData.escolaridade) ||
-        !hasValue(formData.situacao_profissional) ||
-        !hasValue(formData.congregacao_atual) ||
-        !hasValue(formData.posicao_igreja)
+        !hasValue(formData.situacao_profissional)
       ) {
         return 'Preencha todos os campos obrigatórios dos dados pessoais para continuar.'
       }
@@ -93,6 +127,10 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
 
       if (formData.cpf && !isValidCPF(formData.cpf)) {
         return 'CPF do titular inválido.'
+      }
+
+      if (formData.email && !isValidEmail(formData.email)) {
+        return 'Email do titular inválido.'
       }
     }
 
@@ -121,12 +159,31 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
           !hasValue(dep.nome) ||
           !hasValue(dep.rg) ||
           !hasValue(dep.relacao) ||
+          !hasValue(dep.email) ||
           !hasValue(dep.telefone_celular) ||
           !hasValue(dep.sexo)
       )
 
       if (invalidDependente) {
-        return 'Cada dependente precisa ter nome, RG, relação, sexo e telefone celular.'
+        return 'Cada dependente precisa ter nome, RG, relação, email, sexo e telefone celular.'
+      }
+
+      const invalidDependenteEmail = dependentes.find((dep) => dep.email && !isValidEmail(dep.email))
+      if (invalidDependenteEmail) {
+        return `Email inválido para dependente: ${invalidDependenteEmail.nome || 'sem nome'}.`
+      }
+
+      const titularEmail = String(formData.email || '').trim().toLowerCase()
+      const dependenteComMesmoEmailTitularSemRegra = dependentes.find((dep) => {
+        const dependenteEmail = String(dep.email || '').trim().toLowerCase()
+        if (!titularEmail || dependenteEmail !== titularEmail) return false
+
+        const age = getAgeFromIsoDate(String(dep.data_nascimento || '').trim())
+        return age === null || age >= 18
+      })
+
+      if (dependenteComMesmoEmailTitularSemRegra) {
+        return `Dependente ${dependenteComMesmoEmailTitularSemRegra.nome || 'sem nome'} só pode usar email do titular se for menor de idade.`
       }
 
       const invalidDependenteCpf = dependentes.find((dep) => dep.cpf && !isValidCPF(dep.cpf))
@@ -158,9 +215,7 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
         !formData.data_nascimento ||
         !formData.estado_civil ||
         !formData.escolaridade ||
-        !formData.situacao_profissional ||
-        !formData.congregacao_atual ||
-        !formData.posicao_igreja
+        !formData.situacao_profissional
       ) {
         throw new Error('Dados pessoais incompletos')
       }
@@ -173,18 +228,46 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
         throw new Error('CPF do titular inválido')
       }
 
+      if (!isValidEmail(formData.email)) {
+        throw new Error('Email do titular inválido')
+      }
+
       const invalidDependente = (formData.dependentes || []).find(
         (dependente) =>
           !dependente.nome?.trim() ||
           !dependente.rg?.trim() ||
           !dependente.relacao?.trim() ||
+          !dependente.email?.trim() ||
           !dependente.telefone_celular?.trim() ||
           !dependente.sexo?.trim()
       )
 
       if (formData.tem_dependentes && invalidDependente) {
         throw new Error(
-          `Cada dependente precisa ter nome, RG, relação, sexo e telefone celular (${invalidDependente.nome || 'sem nome'}).`
+          `Cada dependente precisa ter nome, RG, relação, email, sexo e telefone celular (${invalidDependente.nome || 'sem nome'}).`
+        )
+      }
+
+      const invalidDependenteEmail = (formData.dependentes || []).find(
+        (dependente) => dependente.email && !isValidEmail(dependente.email)
+      )
+
+      if (invalidDependenteEmail) {
+        throw new Error(`Email inválido para dependente: ${invalidDependenteEmail.nome}`)
+      }
+
+      const titularEmail = String(formData.email || '').trim().toLowerCase()
+      const dependenteComMesmoEmailTitularSemRegra = (formData.dependentes || []).find((dependente) => {
+        const dependenteEmail = dependente.email?.trim().toLowerCase() || ''
+        if (!titularEmail || dependenteEmail !== titularEmail) return false
+
+        const age = getAgeFromIsoDate(dependente.data_nascimento?.trim() || '')
+        return age === null || age >= 18
+      })
+
+      if (dependenteComMesmoEmailTitularSemRegra) {
+        throw new Error(
+          `Dependente ${dependenteComMesmoEmailTitularSemRegra.nome || 'sem nome'} só pode usar email do titular se for menor de idade.`
         )
       }
 
@@ -211,6 +294,11 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
         throw new Error('Você precisa aceitar os termos e a política de privacidade para concluir o cadastro')
       }
 
+      if (!formData.assinatura_data_url?.trim()) {
+        setValidationStep(5)
+        throw new Error('Assinatura eletrônica obrigatória para concluir o cadastro')
+      }
+
       // Criar FormData para envio
       const submitData = new FormData()
       submitData.append('nome', formData.nome)
@@ -225,8 +313,6 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
       submitData.append('escolaridade', formData.escolaridade || '')
       submitData.append('situacao_profissional', formData.situacao_profissional || '')
       submitData.append('profissao', formData.profissao || '')
-      submitData.append('congregacao_atual', formData.congregacao_atual || '')
-      submitData.append('posicao_igreja', formData.posicao_igreja || '')
       submitData.append('endereco', formData.endereco || '')
       submitData.append('numero', formData.numero || '')
       submitData.append('complemento', formData.complemento || '')
@@ -236,6 +322,7 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
       submitData.append('cep', formData.cep || '')
       submitData.append('tem_dependentes', String(formData.tem_dependentes))
       submitData.append('dependentes', JSON.stringify(formData.dependentes || []))
+      submitData.append('assinatura_data_url', formData.assinatura_data_url || '')
 
       if (formData.selfie_blob) {
         submitData.append('selfie', formData.selfie_blob)
@@ -304,6 +391,9 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
             aceitePrivacidade={aceitePrivacidade}
             onAceiteTermosChange={setAceiteTermos}
             onAceitePrivacidadeChange={setAceitePrivacidade}
+            assinaturaDataUrl={formData.assinatura_data_url || ''}
+            onAssinaturaChange={(value) => updateFormData({ assinatura_data_url: value })}
+            showValidation={validationStep === 5}
           />
         )
       default:
@@ -354,14 +444,14 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
           {step === STEPS.length - 1 ? (
             <Button
               onClick={handleSubmit}
-              disabled={isLoading || !aceiteTermos || !aceitePrivacidade}
+              disabled={isLoading || !aceiteTermos || !aceitePrivacidade || !formData.assinatura_data_url}
               className="bg-green-600 hover:bg-green-700"
             >
               {isLoading ? 'Enviando...' : 'Concluir Cadastro'}
             </Button>
           ) : (
-            <Button onClick={handleNext} disabled={isLoading}>
-              Próximo
+            <Button onClick={handleNext} disabled={isLoading || isCheckingCpf}>
+              {isCheckingCpf ? 'Validando CPF...' : 'Próximo'}
             </Button>
           )}
         </div>

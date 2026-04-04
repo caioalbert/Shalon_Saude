@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import type { DocumentProps } from '@react-pdf/renderer'
 import React from 'react'
+import { get } from '@vercel/blob'
 import { TermoAdesaoPDF } from './TermoAdesaoPDF'
 
 export async function POST(request: NextRequest) {
@@ -41,6 +42,48 @@ export async function POST(request: NextRequest) {
         { error: 'Cadastro não encontrado' },
         { status: 404 }
       )
+    }
+
+    if (cadastro.termo_pdf_path) {
+      try {
+        const storedPdf = await get(cadastro.termo_pdf_path, {
+          access: 'private',
+          ifNoneMatch: request.headers.get('if-none-match') ?? undefined,
+        })
+
+        if (!storedPdf) {
+          throw new Error('Stored PDF not found')
+        }
+
+        if (storedPdf.statusCode === 304) {
+          return new NextResponse(null, {
+            status: 304,
+            headers: {
+              ETag: storedPdf.blob.etag,
+              'Cache-Control': 'private, no-cache',
+            },
+          })
+        }
+
+        if (!storedPdf.stream) {
+          throw new Error('Stored PDF stream is empty')
+        }
+
+        return new NextResponse(storedPdf.stream, {
+          headers: {
+            'Content-Type': storedPdf.blob.contentType || 'application/pdf',
+            'Content-Disposition': `attachment; filename="termo-adesao-${cadastro.cpf}.pdf"`,
+            ETag: storedPdf.blob.etag,
+            'Cache-Control': 'private, no-cache',
+          },
+        })
+      } catch (storedPdfError) {
+        console.warn('Stored PDF not available, regenerating...', {
+          cadastroId,
+          termo_pdf_path: cadastro.termo_pdf_path,
+          error: storedPdfError,
+        })
+      }
     }
 
     // Buscar dependentes
