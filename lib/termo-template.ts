@@ -65,7 +65,17 @@ O acesso e obtenção das disponibilizações e/ou entregas dos serviços ocorre
 
 Fica estabelecido o reajuste dos valores da mensalidade todo mês de dezembro, de acordo com a IGPM ou a sinistralidade.
 
-Para dirimir quaisquer discussões decorrentes dos serviços, será competente o Foro das Varas Cíveis da Comarca da cidade sede da CONTRATANTE.`
+Para dirimir quaisquer discussões decorrentes dos serviços, será competente o Foro das Varas Cíveis da Comarca da cidade sede da CONTRATANTE.
+
+CLÁUSULA DE FIDELIZAÇÃO E CANCELAMENTO ANTECIPADO
+
+1. Fica estabelecido o prazo mínimo de fidelidade de 12 (doze) meses para a manutenção dos serviços contratados, contados a partir da data de assinatura e/ou adesão a este termo.
+
+2. O presente contrato poderá ser rescindido imotivadamente pelo(a) CONTRATANTE/PACIENTE durante o período de fidelidade estipulado, mediante solicitação formal com aviso prévio de 30 (trinta) dias.
+
+3. Na hipótese de rescisão antecipada solicitada pelo(a) CONTRATANTE/PACIENTE antes de completado o prazo de 12 (doze) meses, incidirá multa rescisória equivalente a 10% (dez por cento) do valor correspondente à soma das mensalidades vincendas (restantes) para o cumprimento total do período de fidelidade.
+
+4. Após o término do período inicial de 12 (doze) meses, o presente termo passará a vigorar por prazo indeterminado, podendo ser cancelado a qualquer momento pelo(a) CONTRATANTE/PACIENTE sem a incidência de qualquer multa rescisória, desde que respeitado o aviso prévio de 30 (trinta) dias e não haja pendências financeiras.`
 
 function sanitizeTemplate(text: string) {
   return text
