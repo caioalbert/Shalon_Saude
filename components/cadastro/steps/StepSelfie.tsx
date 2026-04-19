@@ -28,6 +28,32 @@ export function StepSelfie({ data, onUpdate, showValidation = false }: StepSelfi
     }
   }
 
+  const applyCapturedBlob = (blob: Blob) => {
+    const preview = URL.createObjectURL(blob)
+    revokePreviewIfNeeded(selfiePreview)
+    setSelfieBlob(blob)
+    setSelfiePreview(preview)
+    onUpdate({ selfie_blob: blob })
+    setError(null)
+    stopCamera()
+  }
+
+  const canvasToBlob = async (
+    canvas: HTMLCanvasElement,
+    type: string,
+    quality?: number
+  ) => {
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((nextBlob) => resolve(nextBlob), type, quality)
+    )
+
+    if (!blob) {
+      throw new Error('Falha ao gerar blob da captura')
+    }
+
+    return blob
+  }
+
   const stopStream = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop())
@@ -144,48 +170,66 @@ export function StepSelfie({ data, onUpdate, showValidation = false }: StepSelfi
     }
   }, [cameraActive])
 
-  const captureSelfie = () => {
+  const captureSelfie = async () => {
     if (!videoRef.current || !canvasRef.current) {
       setError('Câmera não inicializada corretamente.')
       return
     }
 
-    const width = videoRef.current.videoWidth
-    const height = videoRef.current.videoHeight
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    const width = video.videoWidth
+    const height = video.videoHeight
 
-    if (!videoReady || videoRef.current.readyState < 2 || !width || !height) {
+    if (!videoReady || video.readyState < 2 || !width || !height) {
       setError('Aguarde a câmera carregar antes de capturar.')
       return
     }
 
-    const context = canvasRef.current.getContext('2d')
+    const context = canvas.getContext('2d')
     if (!context) {
       setError('Não foi possível preparar a captura da imagem.')
       return
     }
 
-    canvasRef.current.width = width
-    canvasRef.current.height = height
-    context.drawImage(videoRef.current, 0, 0, width, height)
+    try {
+      let blob: Blob | null = null
+      const videoTrack = streamRef.current?.getVideoTracks?.()[0]
 
-    canvasRef.current.toBlob(
-      (blob) => {
-        if (!blob) {
-          setError('Falha ao capturar selfie. Tente novamente.')
-          return
+      if (videoTrack && typeof window !== 'undefined' && 'ImageCapture' in window) {
+        try {
+          type BrowserImageCapture = {
+            takePhoto: () => Promise<Blob>
+            grabFrame?: () => Promise<ImageBitmap>
+          }
+          type ImageCaptureConstructor = new (track: MediaStreamTrack) => BrowserImageCapture
+          const ImageCaptureApi = (window as unknown as { ImageCapture: ImageCaptureConstructor })
+            .ImageCapture
+          const imageCapture = new ImageCaptureApi(videoTrack)
+          blob = await imageCapture.takePhoto()
+        } catch (captureError) {
+          console.warn('ImageCapture fallback to canvas:', captureError)
         }
+      }
 
-        const preview = URL.createObjectURL(blob)
-        revokePreviewIfNeeded(selfiePreview)
-        setSelfieBlob(blob)
-        setSelfiePreview(preview)
-        onUpdate({ selfie_blob: blob })
-        setError(null)
-        stopCamera()
-      },
-      'image/jpeg',
-      0.95
-    )
+      if (!blob) {
+        // Aguarda o próximo frame para reduzir chance de captura preta em alguns dispositivos.
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        context.drawImage(video, 0, 0, canvas.width, canvas.height)
+        blob = await canvasToBlob(canvas, 'image/jpeg', 0.95)
+      }
+
+      if (!blob || blob.size === 0) {
+        throw new Error('Blob de captura inválido')
+      }
+
+      applyCapturedBlob(blob)
+    } catch (captureError) {
+      console.error('Selfie capture error:', captureError)
+      setError('Falha ao capturar selfie. Tente novamente.')
+    }
   }
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
