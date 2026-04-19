@@ -5,7 +5,11 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 import './globals.css'
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist' })
-const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' })
+const geistMono = Geist_Mono({
+  subsets: ['latin'],
+  variable: '--font-geist-mono',
+  preload: false,
+})
 
 export const metadata: Metadata = {
   title: 'SHALON Saúde - Cadastro e Adesão',
