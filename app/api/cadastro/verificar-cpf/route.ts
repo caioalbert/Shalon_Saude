@@ -2,6 +2,17 @@ import { createClient } from '@/lib/supabase/server'
 import { isValidCPF } from '@/lib/utils'
 import { NextRequest, NextResponse } from 'next/server'
 
+const SUPABASE_CONNECTIVITY_REGEX =
+  /fetch failed|enotfound|getaddrinfo|network|ssl handshake|tls|cloudflare|error code 52\d|<html|<!doctype/i
+
+function isSupabaseConnectivityIssue(details: string) {
+  return SUPABASE_CONNECTIVITY_REGEX.test(details)
+}
+
+function getCpfCheckUnavailableError() {
+  return 'Não foi possível validar o CPF no momento. Tente novamente em alguns minutos.'
+}
+
 export async function GET(request: NextRequest) {
   try {
     const cpf = String(request.nextUrl.searchParams.get('cpf') || '').trim()
@@ -23,20 +34,15 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       const details = `${error.message || ''} ${error.details || ''}`
-      if (/fetch failed|enotfound|getaddrinfo|network/i.test(details)) {
+      if (isSupabaseConnectivityIssue(details)) {
         return NextResponse.json(
-          {
-            error:
-              'Falha ao conectar no Supabase. Verifique NEXT_PUBLIC_SUPABASE_URL e as chaves no arquivo .env/.env.local.',
-          },
+          { error: getCpfCheckUnavailableError() },
           { status: 503 }
         )
       }
 
-      return NextResponse.json(
-        { error: error.message || 'Erro ao validar CPF' },
-        { status: 500 }
-      )
+      console.error('CPF check database error:', error)
+      return NextResponse.json({ error: 'Erro ao validar CPF' }, { status: 500 })
     }
 
     return NextResponse.json({
@@ -45,12 +51,9 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    if (/fetch failed|enotfound|getaddrinfo|network/i.test(message)) {
+    if (isSupabaseConnectivityIssue(message)) {
       return NextResponse.json(
-        {
-          error:
-            'Falha ao conectar no Supabase. Verifique NEXT_PUBLIC_SUPABASE_URL e as chaves no arquivo .env/.env.local.',
-        },
+        { error: getCpfCheckUnavailableError() },
         { status: 503 }
       )
     }

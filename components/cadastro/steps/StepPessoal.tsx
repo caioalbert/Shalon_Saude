@@ -21,6 +21,8 @@ const ESCOLARIDADE_OPTIONS = [
   'Ensino Superior - Completo',
 ]
 
+const CPF_CHECK_FALLBACK_ERROR = 'Não foi possível validar o CPF agora. Tente novamente.'
+
 function formatDateInput(value: string) {
   return value
     .replace(/\D/g, '')
@@ -67,6 +69,35 @@ function formatISOToDateInput(value: string) {
 function normalizeDateToISO(value: string) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
   return parseDateInputToISO(value) || ''
+}
+
+function sanitizeApiErrorMessage(value: unknown) {
+  if (typeof value !== 'string') return null
+
+  const normalized = value.replace(/\s+/g, ' ').trim()
+  if (!normalized) return null
+
+  if (/(<!doctype|<html|cloudflare|error code 52\d|ssl handshake|cf-ray)/i.test(normalized)) {
+    return null
+  }
+
+  const withoutHtmlTags = normalized.replace(/<[^>]+>/g, '').trim()
+  if (!withoutHtmlTags || withoutHtmlTags.length > 220) {
+    return null
+  }
+
+  return withoutHtmlTags
+}
+
+async function readApiErrorMessage(response: Response, fallbackMessage: string) {
+  const contentType = response.headers.get('content-type') || ''
+  if (!contentType.includes('application/json')) {
+    return fallbackMessage
+  }
+
+  const payload = await response.json().catch(() => null) as { error?: unknown } | null
+  const safeMessage = sanitizeApiErrorMessage(payload?.error)
+  return safeMessage || fallbackMessage
 }
 
 export function StepPessoal({ data, onUpdate, showValidation = false }: StepPessoalProps) {
@@ -167,14 +198,15 @@ export function StepPessoal({ data, onUpdate, showValidation = false }: StepPess
     try {
       setIsCheckingCpf(true)
       const response = await fetch(`/api/cadastro/verificar-cpf?cpf=${encodeURIComponent(localData.cpf)}`)
-      const payload = await response.json().catch(() => ({}))
 
       if (!response.ok) {
-        setCpfError(payload.error || 'Não foi possível validar o CPF agora. Tente novamente.')
+        const safeMessage = await readApiErrorMessage(response, CPF_CHECK_FALLBACK_ERROR)
+        setCpfError(safeMessage)
         onUpdate(localData)
         return
       }
 
+      const payload = await response.json().catch(() => ({}))
       if (payload.exists) {
         setCpfError('CPF já identificado na nossa base de cadastrados.')
         onUpdate(localData)
@@ -184,7 +216,7 @@ export function StepPessoal({ data, onUpdate, showValidation = false }: StepPess
       setCpfError(null)
       onUpdate(localData)
     } catch {
-      setCpfError('Não foi possível validar o CPF agora. Tente novamente.')
+      setCpfError(CPF_CHECK_FALLBACK_ERROR)
       onUpdate(localData)
     } finally {
       setIsCheckingCpf(false)

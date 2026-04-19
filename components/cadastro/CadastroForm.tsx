@@ -24,6 +24,37 @@ interface CadastroFormProps {
   onSuccess: (data: any) => void
 }
 
+const CPF_CHECK_FALLBACK_ERROR = 'Não foi possível validar o CPF no momento. Tente novamente.'
+
+function sanitizeApiErrorMessage(value: unknown) {
+  if (typeof value !== 'string') return null
+
+  const normalized = value.replace(/\s+/g, ' ').trim()
+  if (!normalized) return null
+
+  if (/(<!doctype|<html|cloudflare|error code 52\d|ssl handshake|cf-ray)/i.test(normalized)) {
+    return null
+  }
+
+  const withoutHtmlTags = normalized.replace(/<[^>]+>/g, '').trim()
+  if (!withoutHtmlTags || withoutHtmlTags.length > 220) {
+    return null
+  }
+
+  return withoutHtmlTags
+}
+
+async function readApiErrorMessage(response: Response, fallbackMessage: string) {
+  const contentType = response.headers.get('content-type') || ''
+  if (!contentType.includes('application/json')) {
+    return fallbackMessage
+  }
+
+  const payload = await response.json().catch(() => null) as { error?: unknown } | null
+  const safeMessage = sanitizeApiErrorMessage(payload?.error)
+  return safeMessage || fallbackMessage
+}
+
 export function CadastroForm({ onSuccess }: CadastroFormProps) {
   const [step, setStep] = useState(0)
   const [validationStep, setValidationStep] = useState<number | null>(null)
@@ -39,12 +70,13 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
 
   const checkCpfAlreadyRegistered = async (cpf: string) => {
     const response = await fetch(`/api/cadastro/verificar-cpf?cpf=${encodeURIComponent(cpf)}`)
-    const payload = await response.json().catch(() => ({}))
 
     if (!response.ok) {
-      throw new Error(payload.error || 'Não foi possível validar o CPF no momento.')
+      const safeMessage = await readApiErrorMessage(response, CPF_CHECK_FALLBACK_ERROR)
+      throw new Error(safeMessage)
     }
 
+    const payload = await response.json().catch(() => ({}))
     return Boolean(payload.exists)
   }
 
@@ -70,7 +102,7 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
         setError(
           cpfCheckError instanceof Error
             ? cpfCheckError.message
-            : 'Não foi possível validar o CPF no momento.'
+            : CPF_CHECK_FALLBACK_ERROR
         )
         setValidationStep(0)
         return
