@@ -3,47 +3,6 @@ import { getAgeFromIsoDate, isValidCPF, isValidEmail } from '@/lib/utils'
 import { put } from '@vercel/blob'
 import { NextRequest, NextResponse } from 'next/server'
 
-function normalizeIp(rawIp: string | null | undefined) {
-  if (!rawIp) return null
-
-  // x-forwarded-for pode vir como lista: "ip1, ip2"
-  const first = rawIp.split(',')[0]?.trim()
-  if (!first) return null
-
-  // Remove porta em casos IPv4 "1.2.3.4:1234"
-  const withoutPort = first.includes(':') && !first.includes('::') && first.split(':').length === 2
-    ? first.split(':')[0]
-    : first
-
-  // IPv6-mapped IPv4
-  const normalized = withoutPort.replace(/^::ffff:/i, '')
-
-  // Valores locais comuns
-  if (normalized === '::1' || normalized === '127.0.0.1' || normalized === 'localhost') {
-    return 'localhost'
-  }
-
-  return normalized
-}
-
-function getClientIp(request: NextRequest) {
-  const headerCandidates = [
-    request.headers.get('x-forwarded-for'),
-    request.headers.get('x-real-ip'),
-    request.headers.get('cf-connecting-ip'),
-    request.headers.get('x-vercel-forwarded-for'),
-    request.headers.get('fly-client-ip'),
-    request.headers.get('true-client-ip'),
-  ]
-
-  for (const candidate of headerCandidates) {
-    const ip = normalizeIp(candidate)
-    if (ip) return ip
-  }
-
-  return 'unknown'
-}
-
 function getAppBaseUrl(request: NextRequest) {
   const envUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()
   if (envUrl) return envUrl.replace(/\/$/, '')
@@ -76,7 +35,6 @@ export async function POST(request: NextRequest) {
     const cep = formData.get('cep') as string
     const tem_dependentes = formData.get('tem_dependentes') === 'true'
     const dependentes_json = formData.get('dependentes') as string
-    const assinatura_data_url = formData.get('assinatura_data_url') as string
     const selfie = formData.get('selfie') as File | null
 
     const nomeValue = nome?.trim()
@@ -98,7 +56,6 @@ export async function POST(request: NextRequest) {
     const cidadeValue = cidade?.trim()
     const estadoValue = estado?.trim()
     const cepValue = cep?.trim()
-    const assinaturaDataUrlValue = assinatura_data_url?.trim()
 
     // Validação básica
     if (
@@ -129,29 +86,6 @@ export async function POST(request: NextRequest) {
     if (!enderecoValue || !numeroValue || !bairroValue || !cidadeValue || !estadoValue || !cepValue) {
       return NextResponse.json(
         { error: 'Dados de endereço obrigatórios faltando' },
-        { status: 400 }
-      )
-    }
-
-    if (!assinaturaDataUrlValue) {
-      return NextResponse.json(
-        { error: 'Assinatura eletrônica obrigatória' },
-        { status: 400 }
-      )
-    }
-
-    if (!/^data:image\/(png|jpeg);base64,/.test(assinaturaDataUrlValue)) {
-      return NextResponse.json(
-        { error: 'Formato de assinatura inválido' },
-        { status: 400 }
-      )
-    }
-
-    const assinaturaBase64 = assinaturaDataUrlValue.split(',')[1] || ''
-    const assinaturaBytes = Math.ceil((assinaturaBase64.length * 3) / 4)
-    if (assinaturaBytes > 1024 * 1024) {
-      return NextResponse.json(
-        { error: 'Assinatura muito grande. Refaça a assinatura.' },
         { status: 400 }
       )
     }
@@ -322,8 +256,6 @@ export async function POST(request: NextRequest) {
           cep: cepValue,
           tem_dependentes,
           selfie_path,
-          termo_assinado_em: new Date().toISOString(),
-          ip_assinante: getClientIp(request),
         },
       ])
       .select()
@@ -425,7 +357,6 @@ export async function POST(request: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           cadastroId: cadastroData.id,
-          assinaturaDataUrl: assinaturaDataUrlValue,
         }),
       })
 

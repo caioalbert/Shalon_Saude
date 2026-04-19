@@ -303,10 +303,22 @@ export default function CadastroDetail() {
                 <h2 className="text-lg font-semibold text-gray-900">Termo de Adesão</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
-                    <p className="text-xs text-gray-600 uppercase font-medium">Data de Assinatura</p>
+                    <p className="text-xs text-gray-600 uppercase font-medium">Cadastro em</p>
                     <p className="text-lg font-medium text-gray-900">
-                      {cadastro.termo_assinado_em
-                        ? new Date(cadastro.termo_assinado_em).toLocaleDateString('pt-BR', {
+                      {new Date(cadastro.created_at).toLocaleDateString('pt-BR', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 uppercase font-medium">Email enviado em</p>
+                    <p className="text-lg font-medium text-gray-900">
+                      {cadastro.email_enviado_em
+                        ? new Date(cadastro.email_enviado_em).toLocaleDateString('pt-BR', {
                             year: 'numeric',
                             month: '2-digit',
                             day: '2-digit',
@@ -315,10 +327,6 @@ export default function CadastroDetail() {
                           })
                         : '-'}
                     </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600 uppercase font-medium">IP do Assinante</p>
-                    <p className="text-lg font-medium text-gray-900 font-mono">{cadastro.ip_assinante || '-'}</p>
                   </div>
                 </div>
               </div>

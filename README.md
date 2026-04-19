@@ -18,7 +18,7 @@ Sistema completo de cadastro, adesão e gerenciamento de termos digitais para o 
 ✅ **Termo de Adesão Digital**
 - Geração dinâmica de PDF com dados do cadastro
 - Incluir dependentes no termo
-- Assinatura eletrônica com timestamp
+- Confirmação de adesão com data de registro
 
 ✅ **Painel Administrativo**
 - Dashboard com estatísticas e filtros
@@ -246,8 +246,6 @@ Depois do deploy, verifique no painel da Vercel:
 | tem_dependentes | BOOLEAN |
 | selfie_path | TEXT |
 | termo_pdf_path | TEXT |
-| termo_assinado_em | TIMESTAMP |
-| ip_assinante | TEXT |
 | email_enviado_em | TIMESTAMP |
 | created_at | TIMESTAMP |
 | updated_at | TIMESTAMP |
@@ -295,7 +293,7 @@ Depois do deploy, verifique no painel da Vercel:
 
 - Implementar autenticação 2FA
 - Adicionar dashboard de analytics
-- Integrar assinatura digital avançada
+- Implementar trilha de consentimento avançada
 - Suporte multi-idioma
 - Testes automatizados
 

@@ -23,8 +23,6 @@ CREATE TABLE IF NOT EXISTS cadastros (
   tem_dependentes BOOLEAN DEFAULT FALSE,
   selfie_path TEXT,
   termo_pdf_path TEXT,
-  termo_assinado_em TIMESTAMP WITH TIME ZONE,
-  ip_assinante TEXT,
   email_enviado_em TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

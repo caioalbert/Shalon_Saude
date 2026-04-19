@@ -1,12 +1,5 @@
-/* eslint-disable jsx-a11y/alt-text */
-
-import { Document, Image, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
+import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 import { DEFAULT_TERMO_BODY } from '@/lib/termo-template'
-
-const SIGNATURE_FRAME_WIDTH = 210
-const SIGNATURE_FRAME_HEIGHT = 70
-const SIGNATURE_BASELINE_RATIO = 0.72
-const SIGNATURE_BASELINE_TOP = Math.round(SIGNATURE_FRAME_HEIGHT * SIGNATURE_BASELINE_RATIO)
 
 const styles = StyleSheet.create({
   page: {
@@ -40,51 +33,18 @@ const styles = StyleSheet.create({
   smallGap: {
     marginBottom: 3,
   },
-  signatureBlock: {
+  confirmationBlock: {
     marginTop: 14,
     alignItems: 'center',
   },
-  signatureFrame: {
-    marginTop: 6,
-    width: SIGNATURE_FRAME_WIDTH,
-    height: SIGNATURE_FRAME_HEIGHT,
-    position: 'relative',
-  },
-  signatureGuideLine: {
-    position: 'absolute',
-    top: SIGNATURE_BASELINE_TOP,
-    left: 0,
-    right: 0,
-    borderTopWidth: 1,
-    borderTopColor: '#111827',
-  },
-  signatureInk: {
-    position: 'absolute',
-    top: SIGNATURE_BASELINE_TOP - 18,
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    fontFamily: 'Times-Italic',
-    fontSize: 16,
-  },
-  signatureImage: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: SIGNATURE_FRAME_WIDTH,
-    height: SIGNATURE_FRAME_HEIGHT,
-    objectFit: 'contain',
-  },
-  signerName: {
+  confirmationLine: {
     marginTop: 4,
-    marginBottom: 2,
   },
 })
 
 type CadastroPdfData = {
   nome: string
   cpf: string
-  termo_assinado_em?: string | null
   rg?: string | null
   email: string
   telefone?: string | null
@@ -119,7 +79,6 @@ type TermoAdesaoPDFProps = {
   data: CadastroPdfData
   dependentes: DependentePdfData[]
   termoBodyText?: string
-  assinaturaDataUrl?: string
 }
 
 function formatDate(value?: string | null) {
@@ -153,12 +112,12 @@ function isHeadingBlock(block: string) {
   return /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9\s]+$/.test(block) && block.length <= 80
 }
 
-export function TermoAdesaoPDF({ data, dependentes, termoBodyText, assinaturaDataUrl }: TermoAdesaoPDFProps) {
+export function TermoAdesaoPDF({ data, dependentes, termoBodyText }: TermoAdesaoPDFProps) {
   const dependentesRows = dependentes.filter((dep) => dep && dep.nome)
   const templateBlocks = splitTemplateBlocks(termoBodyText || DEFAULT_TERMO_BODY)
-  const cidadeAssinatura = data.cidade || 'Belo Horizonte'
-  const estadoAssinatura = data.estado || 'MG'
-  const dataAssinatura = formatDate(data.termo_assinado_em) || new Date().toLocaleDateString('pt-BR')
+  const cidadeConfirmacao = data.cidade || 'Belo Horizonte'
+  const estadoConfirmacao = data.estado || 'MG'
+  const dataConfirmacao = new Date().toLocaleDateString('pt-BR')
 
   return (
     <Document>
@@ -204,7 +163,7 @@ export function TermoAdesaoPDF({ data, dependentes, termoBodyText, assinaturaDat
           Pela adesão aos serviços da Shalon Saúde, o(a) CONTRATANTE pagará ao Prestador de Serviços o valor de R$ 19,90 (dezenove reais e noventa centavos), plano individual, sem taxa de adesão.
         </Text>
         <Text style={styles.paragraph}>
-          O pagamento pelos serviços contratados será realizado por meio de boleto bancário via e-mail do Responsável Financeiro, com vencimento todo dia 05 (cinco) do mês subsequente ao ato da assinatura deste termo.
+          O pagamento pelos serviços contratados será realizado por meio de boleto bancário via e-mail do Responsável Financeiro, com vencimento todo dia 05 (cinco) do mês subsequente ao ato da adesão a este termo.
         </Text>
 
         {templateBlocks.map((block, index) => (
@@ -216,20 +175,12 @@ export function TermoAdesaoPDF({ data, dependentes, termoBodyText, assinaturaDat
           </Text>
         ))}
 
-        <View style={styles.signatureBlock}>
+        <View style={styles.confirmationBlock}>
           <Text>
-            {cidadeAssinatura}/{estadoAssinatura}, {dataAssinatura}
+            {cidadeConfirmacao}/{estadoConfirmacao}, {dataConfirmacao}
           </Text>
-          <View style={styles.signatureFrame}>
-            {assinaturaDataUrl ? (
-              <Image src={assinaturaDataUrl} style={styles.signatureImage} />
-            ) : (
-              <Text style={styles.signatureInk}>{data.nome || ''}</Text>
-            )}
-            <View style={styles.signatureGuideLine} />
-          </View>
-          <Text style={styles.signerName}>{data.nome || 'CONTRATANTE'}</Text>
-          <Text>CONTRATANTE</Text>
+          <Text style={styles.confirmationLine}>{data.nome || 'TITULAR DO CADASTRO'}</Text>
+          <Text>Confirmação eletrônica de adesão registrada no sistema.</Text>
         </View>
       </Page>
     </Document>

@@ -93,7 +93,7 @@ export function StepTermo({ data }: StepTermoProps) {
         <section className="space-y-3">
           <h3 className="text-lg font-semibold text-gray-800">6. VIGÊNCIA</h3>
           <p className="text-gray-700">
-            Este termo entrará em vigor na data de sua assinatura eletrônica e permanecerá
+            Este termo entrará em vigor na data de confirmação do cadastro e permanecerá
             válido conforme as condições gerais do plano de saúde.
           </p>
         </section>
@@ -112,14 +112,14 @@ export function StepTermo({ data }: StepTermoProps) {
           <h3 className="text-lg font-semibold text-gray-800">8. ACEITE</h3>
           <p className="text-gray-700 text-justify">
             O ADERENTE declara ter lido, compreendido e aceita todos os termos e condições
-            contidos neste documento. A assinatura eletrônica abaixo é prova de consentimento
+            contidos neste documento. A confirmação final do cadastro é prova de consentimento
             e aceite integral do presente termo.
           </p>
         </section>
 
         <div className="pt-4 border-t border-gray-300">
           <p className="text-sm text-gray-600">
-            Data de assinatura: {new Date().toLocaleDateString('pt-BR')}
+            Data de confirmação: {new Date().toLocaleDateString('pt-BR')}
           </p>
         </div>
       </div>

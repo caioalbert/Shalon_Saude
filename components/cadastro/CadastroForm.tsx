@@ -35,7 +35,6 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
   const [formData, setFormData] = useState<Partial<CadastroFormData>>({
     dependentes: [],
     tem_dependentes: false,
-    assinatura_data_url: '',
   })
 
   const checkCpfAlreadyRegistered = async (cpf: string) => {
@@ -204,7 +203,6 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
       setIsLoading(true)
       setError(null)
 
-      // Validar dados obrigatórios
       if (
         !formData.nome ||
         !formData.cpf ||
@@ -294,12 +292,6 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
         throw new Error('Você precisa aceitar os termos e a política de privacidade para concluir o cadastro')
       }
 
-      if (!formData.assinatura_data_url?.trim()) {
-        setValidationStep(5)
-        throw new Error('Assinatura eletrônica obrigatória para concluir o cadastro')
-      }
-
-      // Criar FormData para envio
       const submitData = new FormData()
       submitData.append('nome', formData.nome)
       submitData.append('cpf', formData.cpf)
@@ -322,7 +314,6 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
       submitData.append('cep', formData.cep || '')
       submitData.append('tem_dependentes', String(formData.tem_dependentes))
       submitData.append('dependentes', JSON.stringify(formData.dependentes || []))
-      submitData.append('assinatura_data_url', formData.assinatura_data_url || '')
 
       if (formData.selfie_blob) {
         submitData.append('selfie', formData.selfie_blob)
@@ -391,8 +382,6 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
             aceitePrivacidade={aceitePrivacidade}
             onAceiteTermosChange={setAceiteTermos}
             onAceitePrivacidadeChange={setAceitePrivacidade}
-            assinaturaDataUrl={formData.assinatura_data_url || ''}
-            onAssinaturaChange={(value) => updateFormData({ assinatura_data_url: value })}
             showValidation={validationStep === 5}
           />
         )
@@ -444,7 +433,7 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
           {step === STEPS.length - 1 ? (
             <Button
               onClick={handleSubmit}
-              disabled={isLoading || !aceiteTermos || !aceitePrivacidade || !formData.assinatura_data_url}
+              disabled={isLoading || !aceiteTermos || !aceitePrivacidade}
               className="bg-green-600 hover:bg-green-700"
             >
               {isLoading ? 'Enviando...' : 'Concluir Cadastro'}

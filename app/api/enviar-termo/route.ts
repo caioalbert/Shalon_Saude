@@ -18,10 +18,6 @@ function sanitizeFileName(value: string) {
     .toLowerCase()
 }
 
-function isValidSignatureDataUrl(value: string) {
-  return /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(value)
-}
-
 async function streamToBuffer(stream: ReadableStream<Uint8Array>) {
   const arrayBuffer = await new Response(stream).arrayBuffer()
   return Buffer.from(arrayBuffer)
@@ -31,32 +27,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const cadastroId = body?.cadastroId
-    const assinaturaDataUrlRaw =
-      typeof body?.assinaturaDataUrl === 'string' ? body.assinaturaDataUrl.trim() : ''
 
     if (!cadastroId) {
       return NextResponse.json(
         { error: 'cadastroId é obrigatório' },
         { status: 400 }
       )
-    }
-
-    if (assinaturaDataUrlRaw && !isValidSignatureDataUrl(assinaturaDataUrlRaw)) {
-      return NextResponse.json(
-        { error: 'Formato de assinatura inválido' },
-        { status: 400 }
-      )
-    }
-
-    if (assinaturaDataUrlRaw) {
-      const assinaturaBase64 = assinaturaDataUrlRaw.split(',')[1] || ''
-      const assinaturaBytes = Math.ceil((assinaturaBase64.length * 3) / 4)
-      if (assinaturaBytes > 1024 * 1024) {
-        return NextResponse.json(
-          { error: 'Assinatura muito grande. Refaça a assinatura.' },
-          { status: 400 }
-        )
-      }
     }
 
     const supabase = await createClient()
@@ -125,8 +101,8 @@ export async function POST(request: NextRequest) {
 
     let pdfBuffer: Buffer | null = null
 
-    // Reenvio: reaproveita o contrato já assinado salvo
-    if (cadastro.termo_pdf_path && !assinaturaDataUrlRaw) {
+    // Reenvio: reaproveita o contrato já gerado
+    if (cadastro.termo_pdf_path) {
       try {
         const existingPdf = await get(cadastro.termo_pdf_path, { access: 'private' })
         if (!existingPdf?.stream) {
@@ -143,14 +119,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Primeiro envio: gera e salva PDF final assinado
+    // Primeiro envio: gera e salva PDF final
     if (!pdfBuffer) {
       const termoBodyText = await getTermoBodyText()
       const pdfDocument = React.createElement(TermoAdesaoPDF, {
         data: cadastro,
         dependentes: dependentes || [],
         termoBodyText,
-        assinaturaDataUrl: assinaturaDataUrlRaw || undefined,
       }) as unknown as React.ReactElement<DocumentProps>
 
       const generatedBuffer = await renderToBuffer(pdfDocument)
@@ -162,7 +137,7 @@ export async function POST(request: NextRequest) {
         .slice(-11)
 
       const pdfBlob = await put(
-        `termos/${Date.now()}-${safeName || fallbackId || 'assinado'}.pdf`,
+        `termos/${Date.now()}-${safeName || fallbackId || 'contrato'}.pdf`,
         pdfBuffer,
         {
           access: 'private',
@@ -180,7 +155,7 @@ export async function POST(request: NextRequest) {
     const fallbackId = String(cadastro.cpf || cadastroId)
       .replace(/\D/g, '')
       .slice(-11)
-    const attachmentFileName = `termo-adesao-${safeName || fallbackId || 'assinado'}.pdf`
+    const attachmentFileName = `termo-adesao-${safeName || fallbackId || 'contrato'}.pdf`
 
     // Verificar se Resend está configurado
     if (!process.env.RESEND_API_KEY) {
@@ -221,17 +196,17 @@ export async function POST(request: NextRequest) {
           </div>
           <div style="background: #f8fafc; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #e2e8f0; border-top: none;">
             <h2 style="color: #1e40af; margin-top: 0;">Olá, ${cadastro.nome}!</h2>
-            <p>Seu cadastro foi realizado com sucesso e seu Termo de Adesão ao serviço SHALON Saúde foi assinado digitalmente.</p>
+            <p>Seu cadastro foi realizado com sucesso e o Termo de Adesão ao serviço SHALON Saúde foi gerado.</p>
             <div style="background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 20px; margin: 20px 0;">
               <h3 style="margin-top: 0; color: #374151; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">Dados do Cadastro</h3>
               <table style="width: 100%; border-collapse: collapse;">
                 <tr><td style="padding: 6px 0; color: #6b7280; font-size: 13px; width: 40%;">Nome:</td><td style="padding: 6px 0; font-weight: 500; font-size: 13px;">${cadastro.nome}</td></tr>
                 <tr><td style="padding: 6px 0; color: #6b7280; font-size: 13px;">CPF:</td><td style="padding: 6px 0; font-weight: 500; font-size: 13px;">${cadastro.cpf}</td></tr>
                 <tr><td style="padding: 6px 0; color: #6b7280; font-size: 13px;">Email:</td><td style="padding: 6px 0; font-weight: 500; font-size: 13px;">${cadastro.email}</td></tr>
-                <tr><td style="padding: 6px 0; color: #6b7280; font-size: 13px;">Assinado em:</td><td style="padding: 6px 0; font-weight: 500; font-size: 13px;">${cadastro.termo_assinado_em ? new Date(cadastro.termo_assinado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}</td></tr>
+                <tr><td style="padding: 6px 0; color: #6b7280; font-size: 13px;">Cadastrado em:</td><td style="padding: 6px 0; font-weight: 500; font-size: 13px;">${cadastro.created_at ? new Date(cadastro.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}</td></tr>
               </table>
             </div>
-            <p style="font-size: 13px; color: #6b7280;">Seu termo assinado segue em anexo neste email em formato PDF.</p>
+            <p style="font-size: 13px; color: #6b7280;">Seu termo segue em anexo neste email em formato PDF.</p>
             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
             <p style="font-size: 12px; color: #9ca3af; margin: 0;">Este é um email automático do sistema SHALON Saúde. Não responda a este email.</p>
           </div>

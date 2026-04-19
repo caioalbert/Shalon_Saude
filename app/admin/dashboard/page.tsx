@@ -193,7 +193,7 @@ export default function AdminDashboard() {
 
     let withSelfie = 0
     let withDependentes = 0
-    let signedTerms = 0
+    let generatedTerms = 0
     let today = 0
     let last7Days = 0
     let last30Days = 0
@@ -202,7 +202,7 @@ export default function AdminDashboard() {
     cadastros.forEach((cadastro) => {
       if (cadastro.selfie_path) withSelfie += 1
       if (cadastro.tem_dependentes) withDependentes += 1
-      if (cadastro.termo_assinado_em) signedTerms += 1
+      if (cadastro.termo_pdf_path) generatedTerms += 1
 
       const createdAt = parseDate(cadastro.created_at)
       if (!createdAt) return
@@ -217,7 +217,7 @@ export default function AdminDashboard() {
       total: cadastros.length,
       withSelfie,
       withDependentes,
-      signedTerms,
+      generatedTerms,
       today,
       last7Days,
       last30Days,
@@ -245,10 +245,10 @@ export default function AdminDashboard() {
     [situacaoProfissionalRanking]
   )
 
-  const signedRate = useMemo(() => {
+  const generatedRate = useMemo(() => {
     if (summary.total === 0) return 0
-    return Math.round((summary.signedTerms / summary.total) * 100)
-  }, [summary.signedTerms, summary.total])
+    return Math.round((summary.generatedTerms / summary.total) * 100)
+  }, [summary.generatedTerms, summary.total])
 
   const monthlyTrendData = useMemo(() => {
     const now = new Date()
@@ -396,9 +396,9 @@ export default function AdminDashboard() {
                 iconClassName="bg-green-100 text-green-700"
               />
               <KpiCard
-                title="Termos Assinados"
-                value={summary.signedTerms}
-                subtitle={`Taxa atual: ${signedRate}%`}
+                title="Termos Gerados"
+                value={summary.generatedTerms}
+                subtitle={`Taxa atual: ${generatedRate}%`}
                 valueClassName="text-purple-700"
                 icon={FileSignature}
                 iconClassName="bg-purple-100 text-purple-700"

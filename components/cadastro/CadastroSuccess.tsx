@@ -79,7 +79,7 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
                     clipRule="evenodd"
                   />
                 </svg>
-                <span>Você receberá um email em breve com seu termo assinado</span>
+                <span>Você receberá um email em breve com seu termo em PDF</span>
               </div>
               <div className="flex items-start space-x-3">
                 <svg
@@ -100,7 +100,7 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-sm text-blue-900">
                 <strong>Próximos passos:</strong> Verifique seu email para receber e acessar seu
-                termo de adesão assinado.
+                termo de adesão.
               </p>
             </div>
 

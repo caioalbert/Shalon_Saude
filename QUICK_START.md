@@ -82,7 +82,7 @@ Acesse: http://localhost:3000
 
 ### Termo
 - Gerado automaticamente com dados do cadastro
-- Assinado digitalmente com timestamp
+- Disponível em PDF para download e envio por email
 
 ## Funcionalidades Prontas
 

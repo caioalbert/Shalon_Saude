@@ -29,7 +29,7 @@ const BENEFITS = [
     iconClass: 'bg-cyan-100 text-cyan-700',
   },
   {
-    title: 'Termo assinado online',
+    title: 'Termo digital online',
     description: 'Documento pronto para download imediato.',
     icon: FileCheck2,
     iconClass: 'bg-blue-100 text-blue-700',

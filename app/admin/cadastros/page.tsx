@@ -195,8 +195,8 @@ export default function AdminCadastrosPage() {
   }
 
   const handleResendTerm = async (cadastro: Cadastro) => {
-    if (!cadastro.termo_assinado_em) {
-      setError('Este cadastro ainda não possui termo assinado para reenvio.')
+    if (!cadastro.termo_pdf_path) {
+      setError('Este cadastro ainda não possui termo gerado para reenvio.')
       return
     }
 
@@ -242,12 +242,12 @@ export default function AdminCadastrosPage() {
   const summary = useMemo(() => {
     const withDependentes = cadastros.filter((item) => item.tem_dependentes).length
     const withSelfie = cadastros.filter((item) => item.selfie_path).length
-    const signedTerms = cadastros.filter((item) => item.termo_assinado_em).length
+    const generatedTerms = cadastros.filter((item) => item.termo_pdf_path).length
     return {
       total: cadastros.length,
       withDependentes,
       withSelfie,
-      signedTerms,
+      generatedTerms,
     }
   }, [cadastros])
 
@@ -318,9 +318,9 @@ export default function AdminCadastrosPage() {
             <p className="mt-1 text-2xl font-bold text-blue-700">{summary.withSelfie.toLocaleString('pt-BR')}</p>
           </div>
           <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <p className="text-sm text-gray-600">Termos Assinados</p>
+            <p className="text-sm text-gray-600">Termos Gerados</p>
             <p className="mt-1 text-2xl font-bold text-purple-700">
-              {summary.signedTerms.toLocaleString('pt-BR')}
+              {summary.generatedTerms.toLocaleString('pt-BR')}
             </p>
           </div>
         </div>
@@ -382,7 +382,7 @@ export default function AdminCadastrosPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">Email</th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">CPF</th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">
-                      Data de Assinatura
+                      Data do Cadastro
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">Ações</th>
@@ -395,25 +395,23 @@ export default function AdminCadastrosPage() {
                       <td className="px-6 py-4 text-sm text-gray-600">{cadastro.email}</td>
                       <td className="px-6 py-4 text-sm font-mono text-gray-600">{cadastro.cpf}</td>
                       <td className="px-6 py-4 text-sm text-gray-600">
-                        {cadastro.termo_assinado_em
-                          ? new Date(cadastro.termo_assinado_em).toLocaleDateString('pt-BR', {
-                              year: 'numeric',
-                              month: '2-digit',
-                              day: '2-digit',
-                            })
-                          : '-'}
+                        {new Date(cadastro.created_at).toLocaleDateString('pt-BR', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                        })}
                       </td>
                       <td className="px-6 py-4 text-sm">
                         <div className="flex flex-wrap gap-1">
-                          {cadastro.termo_assinado_em && (
+                          {cadastro.termo_pdf_path && (
                             <span className="inline-flex items-center gap-1 rounded bg-purple-100 px-2 py-1 text-xs font-medium text-purple-700">
                               <CheckCircle2 className="h-3 w-3" />
-                              Assinado
+                              Termo gerado
                             </span>
                           )}
-                          {!cadastro.termo_assinado_em && (
+                          {!cadastro.termo_pdf_path && (
                             <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
-                              Não assinado
+                              Termo pendente
                             </span>
                           )}
                           {(() => {
@@ -455,12 +453,12 @@ export default function AdminCadastrosPage() {
                             size="icon-sm"
                             variant="outline"
                             onClick={() => handleResendTerm(cadastro)}
-                            disabled={resendingId === cadastro.id || !cadastro.termo_assinado_em}
+                            disabled={resendingId === cadastro.id || !cadastro.termo_pdf_path}
                             aria-label="Reenviar termo"
                             title={
-                              cadastro.termo_assinado_em
+                              cadastro.termo_pdf_path
                                 ? 'Reenviar termo por email'
-                                : 'Termo ainda não assinado'
+                                : 'Termo ainda não gerado'
                             }
                           >
                             {resendingId === cadastro.id ? (

@@ -22,8 +22,6 @@ export interface Cadastro {
   tem_dependentes: boolean
   selfie_path?: string
   termo_pdf_path?: string
-  termo_assinado_em?: string
-  ip_assinante?: string
   email_enviado_em?: string
   dependentes_sem_rg_count?: number
   dependentes_sem_email_count?: number
@@ -74,7 +72,6 @@ export interface CadastroFormData {
   
   // Selfie
   selfie_blob?: Blob
-  assinatura_data_url: string
   
   // Email para contato
   email: string
@@ -89,13 +86,4 @@ export interface DependenteFormData {
   email: string
   telefone_celular: string
   sexo: string
-}
-
-export interface TermoAssinado {
-  id: string
-  cadastro_id: string
-  termo_assinado_em: string
-  ip_assinante: string
-  email_enviado_em: string | null
-  termo_pdf_path: string
 }
