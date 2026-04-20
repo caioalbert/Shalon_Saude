@@ -5,7 +5,9 @@ import { getAgeFromIsoDate, isValidCPF, isValidEmail } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+
+type PlanType = 'INDIVIDUAL' | 'FAMILIAR'
 
 interface StepDependentesProps {
   data: Partial<CadastroFormData>
@@ -14,6 +16,7 @@ interface StepDependentesProps {
 }
 
 export function StepDependentes({ data, onUpdate, showValidation = false }: StepDependentesProps) {
+  const [tipo_plano, setTipoPlano] = useState<PlanType>(data.tipo_plano || 'INDIVIDUAL')
   const [tem_dependentes, setTemDependentes] = useState(data.tem_dependentes || false)
   const [dependentes, setDependentes] = useState<DependenteFormData[]>(data.dependentes || [])
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
@@ -30,7 +33,21 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
     sexo: '',
   })
 
+  useEffect(() => {
+    if (data.tipo_plano && data.tipo_plano !== tipo_plano) {
+      setTipoPlano(data.tipo_plano)
+    }
+  }, [data.tipo_plano, tipo_plano])
+
   const handleAddDependente = () => {
+    if (tipo_plano !== 'FAMILIAR') {
+      return
+    }
+
+    if (editingIndex === null && dependentes.length >= 4) {
+      return
+    }
+
     const dependente = {
       ...formData,
       nome: formData.nome.trim(),
@@ -86,7 +103,7 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
         : [...dependentes, dependente]
 
     setDependentes(nextDependentes)
-    onUpdate({ tem_dependentes, dependentes: nextDependentes })
+    onUpdate({ tipo_plano, tem_dependentes, dependentes: nextDependentes })
 
     setFormData({
       nome: '',
@@ -107,7 +124,7 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
   const handleRemoveDependente = (index: number) => {
     const newDependentes = dependentes.filter((_, i) => i !== index)
     setDependentes(newDependentes)
-    onUpdate({ tem_dependentes, dependentes: newDependentes })
+    onUpdate({ tipo_plano, tem_dependentes, dependentes: newDependentes })
   }
 
   const handleEditDependente = (index: number) => {
@@ -124,25 +141,43 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
     setEmailError(null)
   }
 
+  const resetDependenteForm = () => {
+    setEditingIndex(null)
+    setFormData({
+      nome: '',
+      rg: '',
+      cpf: '',
+      data_nascimento: '',
+      relacao: '',
+      email: '',
+      telefone_celular: '',
+      sexo: '',
+    })
+    setCpfError(null)
+    setEmailError(null)
+  }
+
+  const handleTipoPlanoChange = (value: PlanType) => {
+    setTipoPlano(value)
+
+    if (value === 'INDIVIDUAL') {
+      setTemDependentes(false)
+      setDependentes([])
+      resetDependenteForm()
+      onUpdate({ tipo_plano: value, tem_dependentes: false, dependentes: [] })
+      return
+    }
+
+    onUpdate({ tipo_plano: value })
+  }
+
   const handleTemDependentesChange = (value: boolean) => {
     setTemDependentes(value)
     if (!value) {
       setDependentes([])
-      setEditingIndex(null)
-      setFormData({
-        nome: '',
-        rg: '',
-        cpf: '',
-        data_nascimento: '',
-        relacao: '',
-        email: '',
-        telefone_celular: '',
-        sexo: '',
-      })
-      setCpfError(null)
-      setEmailError(null)
+      resetDependenteForm()
     }
-    onUpdate({ tem_dependentes: value, dependentes: value ? dependentes : [] })
+    onUpdate({ tipo_plano, tem_dependentes: value, dependentes: value ? dependentes : [] })
   }
 
   const formatCPF = (value: string) => {
@@ -166,6 +201,43 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
 
   return (
     <div className="space-y-6">
+      <div className="space-y-3 rounded-lg border border-gray-200 p-4">
+        <p className="text-sm font-medium text-gray-800">Tipo de plano *</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => handleTipoPlanoChange('INDIVIDUAL')}
+            className={`rounded-md border px-4 py-3 text-left ${
+              tipo_plano === 'INDIVIDUAL'
+                ? 'border-blue-600 bg-blue-50'
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <p className="text-sm font-semibold text-gray-900">Individual</p>
+            <p className="text-xs text-gray-600">Cobertura apenas para o titular.</p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleTipoPlanoChange('FAMILIAR')}
+            className={`rounded-md border px-4 py-3 text-left ${
+              tipo_plano === 'FAMILIAR'
+                ? 'border-blue-600 bg-blue-50'
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <p className="text-sm font-semibold text-gray-900">Familiar</p>
+            <p className="text-xs text-gray-600">Permite incluir até 4 dependentes.</p>
+          </button>
+        </div>
+      </div>
+
+      {tipo_plano === 'INDIVIDUAL' ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm text-amber-900">Plano individual selecionado. Dependentes não são permitidos.</p>
+        </div>
+      ) : null}
+
       <div>
         <label className="flex items-center space-x-3">
           <input
@@ -173,17 +245,18 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
             checked={tem_dependentes}
             onChange={(e) => handleTemDependentesChange(e.target.checked)}
             className="w-4 h-4 text-blue-600 rounded cursor-pointer"
+            disabled={tipo_plano !== 'FAMILIAR'}
           />
           <span className="text-gray-700 font-medium">Tenho dependentes</span>
         </label>
-        {tem_dependentes && (
+        {tipo_plano === 'FAMILIAR' && tem_dependentes && (
           <p className="mt-2 text-xs text-gray-500">
-            Cada dependente deve ter email. Se for menor de idade, pode usar o mesmo email do titular.
+            Cada dependente deve ter email. Se for menor de idade, pode usar o mesmo email do titular. Máximo de 4 dependentes.
           </p>
         )}
       </div>
 
-      {tem_dependentes && (
+      {tipo_plano === 'FAMILIAR' && tem_dependentes && (
         <div className="space-y-6 border-t pt-6">
           {/* Formulário de adição */}
           <div className="bg-blue-50 p-6 rounded-lg space-y-4">
@@ -370,6 +443,7 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
                 onClick={handleAddDependente}
                 className="bg-blue-600 hover:bg-blue-700"
                 disabled={
+                  (editingIndex === null && dependentes.length >= 4) ||
                   !formData.nome ||
                   !formData.rg ||
                   !formData.relacao ||
@@ -382,27 +456,19 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
               </Button>
               {editingIndex !== null && (
                 <Button
-                  onClick={() => {
-                    setEditingIndex(null)
-                    setFormData({
-                      nome: '',
-                      rg: '',
-                      cpf: '',
-                      data_nascimento: '',
-                      relacao: '',
-                      email: '',
-                      telefone_celular: '',
-                      sexo: '',
-                    })
-                    setCpfError(null)
-                    setEmailError(null)
-                  }}
+                  onClick={resetDependenteForm}
                   variant="outline"
                 >
                   Cancelar
                 </Button>
               )}
             </div>
+
+            {dependentes.length >= 4 && editingIndex === null && (
+              <p className="text-xs text-amber-700">
+                Limite atingido: o plano familiar permite no máximo 4 dependentes.
+              </p>
+            )}
           </div>
 
           {/* Lista de dependentes */}

@@ -1,4 +1,4 @@
-import { BILLING_TYPE_OPTIONS, getBillingSettings } from '@/lib/billing-settings'
+import { BILLING_TYPE_OPTIONS, PLAN_TYPE_OPTIONS, getBillingSettings } from '@/lib/billing-settings'
 import { NextResponse } from 'next/server'
 
 function formatCurrency(value: number) {
@@ -16,13 +16,28 @@ export async function GET() {
       success: true,
       adesaoValue: settings.adesaoValue,
       mensalidadeValue: settings.mensalidadeValue,
+      adesaoByPlanType: settings.adesaoByPlanType,
+      mensalidadeByPlanType: {
+        INDIVIDUAL: settings.mensalidadeIndividualValue,
+        FAMILIAR: settings.mensalidadeFamiliarValue,
+      },
+      defaultPlanType: settings.defaultPlanType,
       mensalidadeBillingTypes: settings.mensalidadeBillingTypes,
       defaultMensalidadeBillingType: settings.defaultMensalidadeBillingType,
       display: {
         adesaoValue: formatCurrency(settings.adesaoValue),
         mensalidadeValue: formatCurrency(settings.mensalidadeValue),
+        adesaoByPlanType: {
+          INDIVIDUAL: formatCurrency(settings.adesaoByPlanType.INDIVIDUAL),
+          FAMILIAR: formatCurrency(settings.adesaoByPlanType.FAMILIAR),
+        },
+        mensalidadeByPlanType: {
+          INDIVIDUAL: formatCurrency(settings.mensalidadeIndividualValue),
+          FAMILIAR: formatCurrency(settings.mensalidadeFamiliarValue),
+        },
       },
       allowedBillingTypes: BILLING_TYPE_OPTIONS,
+      allowedPlanTypes: PLAN_TYPE_OPTIONS,
       source: settings.source,
     })
   } catch (error) {

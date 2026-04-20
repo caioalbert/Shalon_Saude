@@ -4,7 +4,12 @@ import {
   createAsaasPixPayment,
   getAsaasPixQrCode,
 } from '@/lib/asaas'
-import { getBillingSettings, type BillingTypeOption } from '@/lib/billing-settings'
+import {
+  getBillingSettings,
+  getMensalidadeValueByPlanType,
+  type BillingTypeOption,
+  type PlanTypeOption,
+} from '@/lib/billing-settings'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getAgeFromIsoDate, isValidCPF, isValidEmail } from '@/lib/utils'
@@ -74,6 +79,7 @@ export async function POST(request: NextRequest) {
     const cidade = formData.get('cidade') as string
     const estado = formData.get('estado') as string
     const cep = formData.get('cep') as string
+    const tipo_plano = formData.get('tipo_plano') as string
     const mensalidade_billing_type = formData.get('mensalidade_billing_type') as string
     const tem_dependentes = formData.get('tem_dependentes') === 'true'
     const dependentes_json = formData.get('dependentes') as string
@@ -98,6 +104,7 @@ export async function POST(request: NextRequest) {
     const cidadeValue = cidade?.trim()
     const estadoValue = estado?.trim()
     const cepValue = cep?.trim()
+    const tipoPlanoRequested = tipo_plano?.trim().toUpperCase()
     const mensalidadeBillingTypeRequested = mensalidade_billing_type?.trim().toUpperCase()
 
     // Validação básica
@@ -248,6 +255,13 @@ export async function POST(request: NextRequest) {
           telefone_celular: toTrimmed(dep?.telefone_celular),
           sexo: toTrimmed(dep?.sexo),
         }))
+
+        if (dependentes.length > 4) {
+          return NextResponse.json(
+            { error: 'Plano familiar permite no máximo 4 dependentes.' },
+            { status: 400 }
+          )
+        }
       } catch {
         return NextResponse.json(
           { error: 'Formato inválido de dependentes' },
@@ -328,8 +342,26 @@ export async function POST(request: NextRequest) {
     const cadastroId = crypto.randomUUID()
 
     const billingSettings = await getBillingSettings()
-    const adesaoValue = billingSettings.adesaoValue
     const adesaoDueDate = toIsoDate(new Date())
+    const tipoPlano = (() => {
+      if (!tipoPlanoRequested) {
+        return billingSettings.defaultPlanType
+      }
+
+      if (!['INDIVIDUAL', 'FAMILIAR'].includes(tipoPlanoRequested)) {
+        throw new Error('Tipo de plano inválido.')
+      }
+
+      return tipoPlanoRequested as PlanTypeOption
+    })()
+
+    if (tipoPlano === 'INDIVIDUAL' && tem_dependentes) {
+      return NextResponse.json(
+        { error: 'Plano individual não permite dependentes.' },
+        { status: 400 }
+      )
+    }
+
     const mensalidadeBillingType = (() => {
       if (!mensalidadeBillingTypeRequested) {
         return billingSettings.defaultMensalidadeBillingType
@@ -345,6 +377,8 @@ export async function POST(request: NextRequest) {
 
       return mensalidadeBillingTypeRequested
     })()
+    const mensalidadeValor = getMensalidadeValueByPlanType(billingSettings, tipoPlano)
+    const adesaoValue = mensalidadeValor
 
     let asaasCustomerId: string
     let asaasPaymentId: string
@@ -434,6 +468,8 @@ export async function POST(request: NextRequest) {
           status: 'PENDENTE_PAGAMENTO',
           asaas_customer_id: asaasCustomerId,
           asaas_payment_id: asaasPaymentId,
+          tipo_plano: tipoPlano,
+          mensalidade_valor: mensalidadeValor,
           mensalidade_billing_type: mensalidadeBillingType,
         },
       ])
@@ -460,7 +496,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (
-        /column .*sexo|sexo .*column|telefone_celular|estado_civil|nome_conjuge|escolaridade|situacao_profissional|profissao|rg|asaas_customer_id|asaas_payment_id|asaas_subscription_id|status|adesao_pago_em|mensalidade_billing_type/i.test(
+        /column .*sexo|sexo .*column|telefone_celular|estado_civil|nome_conjuge|escolaridade|situacao_profissional|profissao|rg|asaas_customer_id|asaas_payment_id|asaas_subscription_id|status|adesao_pago_em|mensalidade_billing_type|tipo_plano|mensalidade_valor/i.test(
           details
         )
       ) {
@@ -468,7 +504,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error:
-              'Banco desatualizado. Execute scripts/001_create_tables.sql, scripts/004_add_cadastro_pagamentos.sql e scripts/005_add_billing_settings_admin.sql no Supabase SQL Editor.',
+              'Banco desatualizado. Execute scripts/001_create_tables.sql, scripts/004_add_cadastro_pagamentos.sql, scripts/005_add_billing_settings_admin.sql e scripts/006_add_plan_type_pricing.sql no Supabase SQL Editor.',
           },
           { status: 500 }
         )
@@ -546,6 +582,8 @@ export async function POST(request: NextRequest) {
         pixCopiaECola: pixCopyPaste,
         qrCodeBase64: pixQrCodeImage,
       },
+      tipoPlanoEscolhido: tipoPlano,
+      mensalidadeValor,
       mensalidadeBillingTypeEscolhida: mensalidadeBillingType,
     })
   } catch (error) {
@@ -554,7 +592,11 @@ export async function POST(request: NextRequest) {
     }
 
     const message = error instanceof Error ? error.message : String(error)
-    if (/forma de cobrança mensal inválida/i.test(message)) {
+    if (
+      /forma de cobrança mensal inválida|tipo de plano inválido|plano familiar permite no máximo 4 dependentes/i.test(
+        message
+      )
+    ) {
       return NextResponse.json({ error: message }, { status: 400 })
     }
 

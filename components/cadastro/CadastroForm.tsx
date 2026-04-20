@@ -25,10 +25,14 @@ interface CadastroFormProps {
 }
 
 type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD'
+type PlanType = 'INDIVIDUAL' | 'FAMILIAR'
+
+const PLAN_TYPES: PlanType[] = ['INDIVIDUAL', 'FAMILIAR']
 
 type PublicBillingConfig = {
-  adesaoValue: number
-  mensalidadeValue: number
+  adesaoByPlanType: Record<PlanType, number>
+  mensalidadeByPlanType: Record<PlanType, number>
+  defaultPlanType: PlanType
   mensalidadeBillingTypes: BillingType[]
   defaultMensalidadeBillingType: BillingType
 }
@@ -77,6 +81,7 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
   const [formData, setFormData] = useState<Partial<CadastroFormData>>({
     dependentes: [],
     tem_dependentes: false,
+    tipo_plano: 'INDIVIDUAL',
     mensalidade_billing_type: 'PIX',
   })
 
@@ -96,8 +101,25 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
         }
 
         const config: PublicBillingConfig = {
-          adesaoValue: Number(payload?.adesaoValue || 0),
-          mensalidadeValue: Number(payload?.mensalidadeValue || 0),
+          adesaoByPlanType: {
+            INDIVIDUAL: Number(
+              payload?.adesaoByPlanType?.INDIVIDUAL ||
+              payload?.mensalidadeByPlanType?.INDIVIDUAL ||
+              payload?.mensalidadeValue ||
+              0
+            ),
+            FAMILIAR: Number(
+              payload?.adesaoByPlanType?.FAMILIAR ||
+              payload?.mensalidadeByPlanType?.FAMILIAR ||
+              payload?.mensalidadeValue ||
+              0
+            ),
+          },
+          mensalidadeByPlanType: {
+            INDIVIDUAL: Number(payload?.mensalidadeByPlanType?.INDIVIDUAL || payload?.mensalidadeValue || 0),
+            FAMILIAR: Number(payload?.mensalidadeByPlanType?.FAMILIAR || payload?.mensalidadeValue || 0),
+          },
+          defaultPlanType: (payload?.defaultPlanType || 'INDIVIDUAL') as PlanType,
           mensalidadeBillingTypes: Array.isArray(payload?.mensalidadeBillingTypes)
             ? payload.mensalidadeBillingTypes
             : ['PIX'],
@@ -108,6 +130,10 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
         setBillingConfig(config)
         setFormData((prev) => ({
           ...prev,
+          tipo_plano:
+            prev.tipo_plano && PLAN_TYPES.includes(prev.tipo_plano)
+              ? prev.tipo_plano
+              : config.defaultPlanType,
           mensalidade_billing_type:
             prev.mensalidade_billing_type && config.mensalidadeBillingTypes.includes(prev.mensalidade_billing_type)
               ? prev.mensalidade_billing_type
@@ -247,6 +273,14 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
     if (currentStep === 2 && formData.tem_dependentes) {
       const dependentes = formData.dependentes || []
 
+      if (formData.tipo_plano === 'INDIVIDUAL') {
+        return 'Plano individual não permite dependentes. Escolha plano familiar para incluir dependentes.'
+      }
+
+      if (dependentes.length > 4) {
+        return 'Plano familiar permite no máximo 4 dependentes.'
+      }
+
       if (dependentes.length === 0) {
         return 'Adicione ao menos um dependente para continuar.'
       }
@@ -294,6 +328,10 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
     }
 
     if (currentStep === 5) {
+      if (!formData.tipo_plano || !PLAN_TYPES.includes(formData.tipo_plano)) {
+        return 'Selecione o tipo de plano.'
+      }
+
       if (!formData.mensalidade_billing_type) {
         return 'Selecione a forma de cobrança da mensalidade.'
       }
@@ -355,6 +393,18 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
         throw new Error(
           `Cada dependente precisa ter nome, RG, relação, email, sexo e telefone celular (${invalidDependente.nome || 'sem nome'}).`
         )
+      }
+
+      if (!formData.tipo_plano || !PLAN_TYPES.includes(formData.tipo_plano)) {
+        throw new Error('Selecione o tipo de plano')
+      }
+
+      if (formData.tipo_plano === 'INDIVIDUAL' && formData.tem_dependentes) {
+        throw new Error('Plano individual não permite dependentes')
+      }
+
+      if (formData.tipo_plano === 'FAMILIAR' && (formData.dependentes || []).length > 4) {
+        throw new Error('Plano familiar permite no máximo 4 dependentes')
       }
 
       const invalidDependenteEmail = (formData.dependentes || []).find(
@@ -429,6 +479,7 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
       submitData.append('cep', formData.cep || '')
       submitData.append('tem_dependentes', String(formData.tem_dependentes))
       submitData.append('dependentes', JSON.stringify(formData.dependentes || []))
+      submitData.append('tipo_plano', formData.tipo_plano)
       submitData.append('mensalidade_billing_type', formData.mensalidade_billing_type)
 
       if (formData.selfie_blob) {
@@ -500,6 +551,13 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
             onAceitePrivacidadeChange={setAceitePrivacidade}
             billingConfig={billingConfig}
             isLoadingBillingConfig={isLoadingBillingConfig}
+            onPlanoUpdate={(value) =>
+              updateFormData(
+                value === 'INDIVIDUAL'
+                  ? { tipo_plano: value, tem_dependentes: false, dependentes: [] }
+                  : { tipo_plano: value }
+              )
+            }
             onMensalidadeBillingTypeChange={(value) =>
               updateFormData({ mensalidade_billing_type: value })
             }

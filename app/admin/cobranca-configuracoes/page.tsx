@@ -8,11 +8,17 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 
 type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD'
+type PlanType = 'INDIVIDUAL' | 'FAMILIAR'
 
 const BILLING_TYPE_LABEL: Record<BillingType, string> = {
   PIX: 'PIX',
   BOLETO: 'Boleto',
   CREDIT_CARD: 'Cartão de Crédito',
+}
+
+const PLAN_TYPE_LABEL: Record<PlanType, string> = {
+  INDIVIDUAL: 'Individual',
+  FAMILIAR: 'Familiar',
 }
 
 export default function AdminCobrancaConfiguracoesPage() {
@@ -22,8 +28,10 @@ export default function AdminCobrancaConfiguracoesPage() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [allowedBillingTypes, setAllowedBillingTypes] = useState<BillingType[]>(['PIX', 'BOLETO', 'CREDIT_CARD'])
-  const [adesaoValue, setAdesaoValue] = useState('')
-  const [mensalidadeValue, setMensalidadeValue] = useState('')
+  const [allowedPlanTypes, setAllowedPlanTypes] = useState<PlanType[]>(['INDIVIDUAL', 'FAMILIAR'])
+  const [mensalidadeIndividualValue, setMensalidadeIndividualValue] = useState('')
+  const [mensalidadeFamiliarValue, setMensalidadeFamiliarValue] = useState('')
+  const [defaultPlanType, setDefaultPlanType] = useState<PlanType>('INDIVIDUAL')
   const [mensalidadeBillingTypes, setMensalidadeBillingTypes] = useState<BillingType[]>(['PIX'])
   const [defaultMensalidadeBillingType, setDefaultMensalidadeBillingType] = useState<BillingType>('PIX')
   const [source, setSource] = useState<string | null>(null)
@@ -55,8 +63,18 @@ export default function AdminCobrancaConfiguracoesPage() {
           ? data.allowedBillingTypes
           : ['PIX', 'BOLETO', 'CREDIT_CARD']
       )
-      setAdesaoValue(String(data?.settings?.adesaoValue ?? ''))
-      setMensalidadeValue(String(data?.settings?.mensalidadeValue ?? ''))
+      setAllowedPlanTypes(
+        Array.isArray(data?.allowedPlanTypes) && data.allowedPlanTypes.length > 0
+          ? data.allowedPlanTypes
+          : ['INDIVIDUAL', 'FAMILIAR']
+      )
+      setMensalidadeIndividualValue(
+        String(data?.settings?.mensalidadeIndividualValue ?? data?.settings?.mensalidadeValue ?? '')
+      )
+      setMensalidadeFamiliarValue(
+        String(data?.settings?.mensalidadeFamiliarValue ?? data?.settings?.mensalidadeValue ?? '')
+      )
+      setDefaultPlanType(data?.settings?.defaultPlanType || 'INDIVIDUAL')
       setMensalidadeBillingTypes(types)
       setDefaultMensalidadeBillingType(data?.settings?.defaultMensalidadeBillingType || types[0] || 'PIX')
       setSource(data?.settings?.source || null)
@@ -119,10 +137,11 @@ export default function AdminCobrancaConfiguracoesPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          adesaoValue: Number(adesaoValue),
-          mensalidadeValue: Number(mensalidadeValue),
+          mensalidadeIndividualValue: Number(mensalidadeIndividualValue),
+          mensalidadeFamiliarValue: Number(mensalidadeFamiliarValue),
           mensalidadeBillingTypes,
           defaultMensalidadeBillingType,
+          defaultPlanType,
         }),
       })
 
@@ -139,8 +158,13 @@ export default function AdminCobrancaConfiguracoesPage() {
 
       setMessage(data?.message || 'Configurações salvas com sucesso.')
       setSource(data?.settings?.source || null)
-      setAdesaoValue(String(data?.settings?.adesaoValue ?? adesaoValue))
-      setMensalidadeValue(String(data?.settings?.mensalidadeValue ?? mensalidadeValue))
+      setMensalidadeIndividualValue(
+        String(data?.settings?.mensalidadeIndividualValue ?? mensalidadeIndividualValue)
+      )
+      setMensalidadeFamiliarValue(
+        String(data?.settings?.mensalidadeFamiliarValue ?? mensalidadeFamiliarValue)
+      )
+      setDefaultPlanType(data?.settings?.defaultPlanType || defaultPlanType)
       setMensalidadeBillingTypes(data?.settings?.mensalidadeBillingTypes || mensalidadeBillingTypes)
       setDefaultMensalidadeBillingType(
         data?.settings?.defaultMensalidadeBillingType || defaultMensalidadeBillingType
@@ -167,7 +191,9 @@ export default function AdminCobrancaConfiguracoesPage() {
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Configurações de Cobrança</h1>
-            <p className="text-sm text-gray-600">Defina valores e formas de pagamento da mensalidade</p>
+            <p className="text-sm text-gray-600">
+              Defina os valores por plano (adesão e mensalidade usam o mesmo valor)
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <Link href="/admin/dashboard">
@@ -188,30 +214,56 @@ export default function AdminCobrancaConfiguracoesPage() {
             <>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <label className="space-y-1">
-                  <span className="text-sm font-medium text-gray-700">Valor da adesão (R$)</span>
+                  <span className="text-sm font-medium text-gray-700">Valor do Plano Individual (R$)</span>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
-                    value={adesaoValue}
-                    onChange={(event) => setAdesaoValue(event.target.value)}
+                    value={mensalidadeIndividualValue}
+                    onChange={(event) => setMensalidadeIndividualValue(event.target.value)}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
                     disabled={isSaving}
                   />
                 </label>
 
                 <label className="space-y-1">
-                  <span className="text-sm font-medium text-gray-700">Valor da mensalidade (R$)</span>
+                  <span className="text-sm font-medium text-gray-700">Valor do Plano Familiar (R$)</span>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
-                    value={mensalidadeValue}
-                    onChange={(event) => setMensalidadeValue(event.target.value)}
+                    value={mensalidadeFamiliarValue}
+                    onChange={(event) => setMensalidadeFamiliarValue(event.target.value)}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
                     disabled={isSaving}
                   />
                 </label>
+              </div>
+
+              <div className="space-y-3 rounded-lg border border-gray-200 p-4">
+                <p className="text-sm font-medium text-gray-800">Regra aplicada automaticamente</p>
+                <p className="text-xs text-gray-600">
+                  O valor configurado em cada plano será usado tanto na taxa de adesão quanto na assinatura recorrente.
+                </p>
+              </div>
+
+              <div className="space-y-3 rounded-lg border border-gray-200 p-4">
+                <p className="text-sm font-medium text-gray-800">Plano padrão do cadastro</p>
+                <RadioGroup
+                  value={defaultPlanType}
+                  onValueChange={(value) => setDefaultPlanType(value as PlanType)}
+                  className="space-y-2"
+                >
+                  {allowedPlanTypes.map((planType) => (
+                    <label key={planType} className="flex items-center gap-3">
+                      <RadioGroupItem value={planType} id={`plan-${planType}`} disabled={isSaving} />
+                      <span className="text-sm text-gray-800">{PLAN_TYPE_LABEL[planType]}</span>
+                    </label>
+                  ))}
+                </RadioGroup>
+                <p className="text-xs text-gray-600">
+                  Plano familiar permite até 4 dependentes por titular.
+                </p>
               </div>
 
               <div className="space-y-3 rounded-lg border border-gray-200 p-4">

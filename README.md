@@ -38,7 +38,8 @@ Sistema completo de cadastro, adesão e gerenciamento de termos digitais para o 
 - Exibição de QR Code + PIX copia e cola no final do cadastro
 - Ativação do cadastro somente após confirmação de pagamento via webhook
 - Criação automática de assinatura mensal após pagamento confirmado
-- Configuração de cobrança via painel admin (valores e opções de mensalidade)
+- Configuração de cobrança via painel admin (adesão, mensalidade individual/familiar e opções de cobrança)
+- Regra de negócio aplicada: cada plano tem 1 valor único (adesão = mensalidade)
 
 ## Stack Técnico
 
@@ -97,10 +98,13 @@ Edite `.env.local` com:
 - `ASAAS_API_KEY` - Token de API do Asaas
 - `ASAAS_API_BASE_URL` - URL base da API (sandbox: `https://api-sandbox.asaas.com/v3`)
 - `ASAAS_WEBHOOK_TOKEN` - Token de segurança validado no webhook
-- `ASAAS_ADESAO_VALUE` - Fallback do valor da taxa de adesão (quando não houver configuração no admin)
-- `ASAAS_MENSALIDADE_VALUE` - Fallback do valor da recorrência mensal (quando não houver configuração no admin)
+- `ASAAS_MENSALIDADE_INDIVIDUAL_VALUE` - Fallback da mensalidade do plano individual
+- `ASAAS_MENSALIDADE_FAMILIAR_VALUE` - Fallback da mensalidade do plano familiar
+- `ASAAS_DEFAULT_PLAN_TYPE` - Fallback do plano padrão (`INDIVIDUAL` ou `FAMILIAR`)
 - `ASAAS_MENSALIDADE_BILLING_TYPE` - Fallback da forma padrão da mensalidade
 - `ASAAS_MENSALIDADE_BILLING_TYPES` - Fallback de opções permitidas (`PIX,BOLETO,CREDIT_CARD`)
+- `ASAAS_MENSALIDADE_VALUE` - (Opcional/legado) fallback único para ambos os planos
+- `ASAAS_ADESAO_VALUE` - (Opcional/legado) fallback único para compatibilidade
 
 #### Aplicação
 - `NEXT_PUBLIC_APP_URL` - URL da aplicação (ex: http://localhost:3000)
@@ -131,6 +135,7 @@ Se o banco já existia antes, execute também:
 -- scripts/003_add_asaas_customer_id.sql
 -- scripts/004_add_cadastro_pagamentos.sql
 -- scripts/005_add_billing_settings_admin.sql
+-- scripts/006_add_plan_type_pricing.sql
 ```
 
 ### 5. Criar usuário admin (opcional)
@@ -283,6 +288,8 @@ Depois do deploy, verifique no painel da Vercel:
 | asaas_customer_id | TEXT |
 | asaas_payment_id | TEXT |
 | asaas_subscription_id | TEXT |
+| tipo_plano | TEXT |
+| mensalidade_valor | NUMERIC(10,2) |
 | mensalidade_billing_type | TEXT |
 | adesao_pago_em | TIMESTAMP |
 | termo_pdf_path | TEXT |
@@ -297,8 +304,11 @@ Depois do deploy, verifique no painel da Vercel:
 | id | BOOLEAN (PK) |
 | adesao_value | NUMERIC(10,2) |
 | mensalidade_value | NUMERIC(10,2) |
+| mensalidade_individual_value | NUMERIC(10,2) |
+| mensalidade_familiar_value | NUMERIC(10,2) |
 | mensalidade_billing_types | TEXT[] |
 | default_mensalidade_billing_type | TEXT |
+| default_plan_type | TEXT |
 | updated_at | TIMESTAMP |
 
 ### Tabela: dependentes

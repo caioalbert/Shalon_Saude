@@ -4,7 +4,7 @@ import {
   getAsaasPayment,
   isAsaasPaidStatus,
 } from '@/lib/asaas'
-import { getBillingSettings } from '@/lib/billing-settings'
+import { getBillingSettings, getMensalidadeValueByPlanType } from '@/lib/billing-settings'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -112,25 +112,33 @@ export async function POST(request: NextRequest) {
 
     let cadastroResult = await supabase
       .from('cadastros')
-      .select('id, status, asaas_customer_id, asaas_payment_id, asaas_subscription_id, mensalidade_billing_type')
+      .select(
+        'id, status, asaas_customer_id, asaas_payment_id, asaas_subscription_id, tipo_plano, mensalidade_valor, mensalidade_billing_type'
+      )
       .eq('asaas_payment_id', paymentId)
       .maybeSingle()
 
     if (!cadastroResult.data && payload.payment.externalReference) {
       cadastroResult = await supabase
         .from('cadastros')
-        .select('id, status, asaas_customer_id, asaas_payment_id, asaas_subscription_id, mensalidade_billing_type')
+        .select(
+          'id, status, asaas_customer_id, asaas_payment_id, asaas_subscription_id, tipo_plano, mensalidade_valor, mensalidade_billing_type'
+        )
         .eq('id', payload.payment.externalReference)
         .maybeSingle()
     }
 
     if (cadastroResult.error) {
       const details = `${cadastroResult.error.message || ''} ${cadastroResult.error.details || ''}`
-      if (/asaas_payment_id|asaas_subscription_id|status|adesao_pago_em|mensalidade_billing_type/i.test(details)) {
+      if (
+        /asaas_payment_id|asaas_subscription_id|status|adesao_pago_em|mensalidade_billing_type|tipo_plano|mensalidade_valor/i.test(
+          details
+        )
+      ) {
         return NextResponse.json(
           {
             error:
-              'Banco desatualizado. Execute scripts/001_create_tables.sql, scripts/004_add_cadastro_pagamentos.sql e scripts/005_add_billing_settings_admin.sql.',
+              'Banco desatualizado. Execute scripts/001_create_tables.sql, scripts/004_add_cadastro_pagamentos.sql, scripts/005_add_billing_settings_admin.sql e scripts/006_add_plan_type_pricing.sql.',
           },
           { status: 500 }
         )
@@ -196,7 +204,11 @@ export async function POST(request: NextRequest) {
       )
         ? (billingTypeRequested as 'PIX' | 'BOLETO' | 'CREDIT_CARD')
         : billingSettings.defaultMensalidadeBillingType
-      const mensalidadeValue = billingSettings.mensalidadeValue
+      const storedMensalidadeValue = Number(cadastro.mensalidade_valor)
+      const mensalidadeValue =
+        Number.isFinite(storedMensalidadeValue) && storedMensalidadeValue > 0
+          ? storedMensalidadeValue
+          : getMensalidadeValueByPlanType(billingSettings, cadastro.tipo_plano)
       const nextDueDate = getNextMonthlyDueDate()
 
       const subscription = await createAsaasSubscription({

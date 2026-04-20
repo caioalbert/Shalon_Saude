@@ -1,4 +1,9 @@
-import { BILLING_TYPE_OPTIONS, getBillingSettings, updateBillingSettings } from '@/lib/billing-settings'
+import {
+  BILLING_TYPE_OPTIONS,
+  PLAN_TYPE_OPTIONS,
+  getBillingSettings,
+  updateBillingSettings,
+} from '@/lib/billing-settings'
 import { requireAdminAuth } from '@/lib/supabase/admin-auth'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -6,6 +11,10 @@ function mapDatabaseErrorMessage(error: unknown) {
   const details = error instanceof Error ? error.message : String(error)
   if (/relation .*cobranca_configuracoes|does not exist|42P01/i.test(details)) {
     return 'Banco desatualizado. Execute scripts/005_add_billing_settings_admin.sql no Supabase SQL Editor.'
+  }
+
+  if (/mensalidade_individual_value|mensalidade_familiar_value|default_plan_type|tipo_plano|mensalidade_valor/i.test(details)) {
+    return 'Banco desatualizado. Execute scripts/006_add_plan_type_pricing.sql no Supabase SQL Editor.'
   }
 
   if (/fetch failed|enotfound|getaddrinfo|network/i.test(details)) {
@@ -27,13 +36,19 @@ export async function GET(request: NextRequest) {
       success: true,
       settings: {
         adesaoValue: settings.adesaoValue,
+        adesaoByPlanType: settings.adesaoByPlanType,
         mensalidadeValue: settings.mensalidadeValue,
+        mensalidadeByPlanType: settings.mensalidadeByPlanType,
+        mensalidadeIndividualValue: settings.mensalidadeIndividualValue,
+        mensalidadeFamiliarValue: settings.mensalidadeFamiliarValue,
         mensalidadeBillingTypes: settings.mensalidadeBillingTypes,
         defaultMensalidadeBillingType: settings.defaultMensalidadeBillingType,
+        defaultPlanType: settings.defaultPlanType,
         source: settings.source,
         updatedAt: settings.updatedAt || null,
       },
       allowedBillingTypes: BILLING_TYPE_OPTIONS,
+      allowedPlanTypes: PLAN_TYPE_OPTIONS,
     })
   } catch (error) {
     const mappedMessage = mapDatabaseErrorMessage(error)
@@ -57,8 +72,11 @@ export async function PUT(request: NextRequest) {
       | {
           adesaoValue?: number | string
           mensalidadeValue?: number | string
+          mensalidadeIndividualValue?: number | string
+          mensalidadeFamiliarValue?: number | string
           mensalidadeBillingTypes?: string[]
           defaultMensalidadeBillingType?: string
+          defaultPlanType?: string
         }
       | null
 
@@ -66,13 +84,20 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Payload inválido.' }, { status: 400 })
     }
 
+    const legacyMensalidadeValue = Number(body.mensalidadeValue)
+
     const updated = await updateBillingSettings({
-      adesaoValue: Number(body.adesaoValue),
-      mensalidadeValue: Number(body.mensalidadeValue),
+      mensalidadeIndividualValue: Number(
+        body.mensalidadeIndividualValue ?? legacyMensalidadeValue
+      ),
+      mensalidadeFamiliarValue: Number(
+        body.mensalidadeFamiliarValue ?? legacyMensalidadeValue
+      ),
       mensalidadeBillingTypes: Array.isArray(body.mensalidadeBillingTypes)
         ? body.mensalidadeBillingTypes
         : [],
       defaultMensalidadeBillingType: String(body.defaultMensalidadeBillingType || ''),
+      defaultPlanType: String(body.defaultPlanType || ''),
     })
 
     return NextResponse.json({
@@ -80,13 +105,19 @@ export async function PUT(request: NextRequest) {
       message: 'Configurações de cobrança atualizadas com sucesso.',
       settings: {
         adesaoValue: updated.adesaoValue,
+        adesaoByPlanType: updated.adesaoByPlanType,
         mensalidadeValue: updated.mensalidadeValue,
+        mensalidadeByPlanType: updated.mensalidadeByPlanType,
+        mensalidadeIndividualValue: updated.mensalidadeIndividualValue,
+        mensalidadeFamiliarValue: updated.mensalidadeFamiliarValue,
         mensalidadeBillingTypes: updated.mensalidadeBillingTypes,
         defaultMensalidadeBillingType: updated.defaultMensalidadeBillingType,
+        defaultPlanType: updated.defaultPlanType,
         source: updated.source,
         updatedAt: updated.updatedAt || null,
       },
       allowedBillingTypes: BILLING_TYPE_OPTIONS,
+      allowedPlanTypes: PLAN_TYPE_OPTIONS,
     })
   } catch (error) {
     const mappedMessage = mapDatabaseErrorMessage(error)

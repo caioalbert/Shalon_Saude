@@ -5,10 +5,12 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 
 type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD'
+type PlanType = 'INDIVIDUAL' | 'FAMILIAR'
 
 type BillingConfig = {
-  adesaoValue: number
-  mensalidadeValue: number
+  adesaoByPlanType: Record<PlanType, number>
+  mensalidadeByPlanType: Record<PlanType, number>
+  defaultPlanType: PlanType
   mensalidadeBillingTypes: BillingType[]
   defaultMensalidadeBillingType: BillingType
 } | null
@@ -21,6 +23,7 @@ interface StepConfirmacaoProps {
   isLoadingBillingConfig: boolean
   onAceiteTermosChange: (value: boolean) => void
   onAceitePrivacidadeChange: (value: boolean) => void
+  onPlanoUpdate: (value: PlanType) => void
   onMensalidadeBillingTypeChange: (value: BillingType) => void
   showValidation?: boolean
 }
@@ -33,6 +36,7 @@ export function StepConfirmacao({
   isLoadingBillingConfig,
   onAceiteTermosChange,
   onAceitePrivacidadeChange,
+  onPlanoUpdate,
   onMensalidadeBillingTypeChange,
 }: StepConfirmacaoProps) {
   const billingTypeLabels: Record<BillingType, string> = {
@@ -49,12 +53,20 @@ export function StepConfirmacao({
     billingConfig?.defaultMensalidadeBillingType ||
     'PIX'
 
+  const selectedPlanType =
+    (data.tipo_plano as PlanType | undefined) ||
+    billingConfig?.defaultPlanType ||
+    'INDIVIDUAL'
+
+  const selectedMensalidadeValue =
+    billingConfig?.mensalidadeByPlanType?.[selectedPlanType] ?? 0
+  const selectedAdesaoValue =
+    billingConfig?.adesaoByPlanType?.[selectedPlanType] ?? selectedMensalidadeValue
+
   return (
     <div className="space-y-6">
       <div className="bg-blue-50 p-4 rounded-lg">
-        <p className="text-sm text-blue-900">
-          ✓ Revise os dados abaixo antes de finalizar seu cadastro.
-        </p>
+        <p className="text-sm text-blue-900">✓ Revise os dados abaixo antes de finalizar seu cadastro.</p>
       </div>
 
       <div className="space-y-4 border border-gray-200 rounded-lg p-6 bg-gray-50">
@@ -107,9 +119,7 @@ export function StepConfirmacao({
           </div>
           <div>
             <p className="text-xs text-gray-600">Situação Profissional</p>
-            <p className="font-medium text-gray-800">
-              {data.situacao_profissional || 'Não informada'}
-            </p>
+            <p className="font-medium text-gray-800">{data.situacao_profissional || 'Não informada'}</p>
           </div>
           <div>
             <p className="text-xs text-gray-600">Profissão</p>
@@ -117,9 +127,7 @@ export function StepConfirmacao({
           </div>
           <div>
             <p className="text-xs text-gray-600">Selfie</p>
-            <p className="font-medium text-gray-800">
-              {data.selfie_blob ? '✓ Capturada' : '✗ Não capturada'}
-            </p>
+            <p className="font-medium text-gray-800">{data.selfie_blob ? '✓ Capturada' : '✗ Não capturada'}</p>
           </div>
         </div>
 
@@ -143,8 +151,8 @@ export function StepConfirmacao({
             <div className="space-y-2">
               {data.dependentes.map((dep, index) => (
                 <p key={index} className="text-sm text-gray-700">
-                  {index + 1}. {dep.nome} - {dep.relacao} | Email: {dep.email || '-'} | RG:{' '}
-                  {dep.rg || '-'} | Sexo: {dep.sexo || '-'} | Celular: {dep.telefone_celular || '-'}
+                  {index + 1}. {dep.nome} - {dep.relacao} | Email: {dep.email || '-'} | RG: {dep.rg || '-'} |
+                  {' '}Sexo: {dep.sexo || '-'} | Celular: {dep.telefone_celular || '-'}
                 </p>
               ))}
             </div>
@@ -160,18 +168,40 @@ export function StepConfirmacao({
         ) : (
           <>
             {billingConfig && (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                  <p className="text-xs text-gray-600">Taxa de adesão</p>
-                  <p className="text-base font-semibold text-gray-900">
-                    {formatCurrency(billingConfig.adesaoValue)}
-                  </p>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-800">Tipo de plano *</p>
+                  <RadioGroup
+                    value={selectedPlanType}
+                    onValueChange={(value) => onPlanoUpdate(value as PlanType)}
+                    className="space-y-2"
+                  >
+                    <label className="flex items-center gap-3 rounded-md border border-gray-200 p-2">
+                      <RadioGroupItem value="INDIVIDUAL" id="plan-individual" />
+                      <span className="text-sm text-gray-800">Individual (sem dependentes)</span>
+                    </label>
+                    <label className="flex items-center gap-3 rounded-md border border-gray-200 p-2">
+                      <RadioGroupItem value="FAMILIAR" id="plan-familiar" />
+                      <span className="text-sm text-gray-800">Familiar (até 4 dependentes)</span>
+                    </label>
+                  </RadioGroup>
                 </div>
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                  <p className="text-xs text-gray-600">Mensalidade</p>
-                  <p className="text-base font-semibold text-gray-900">
-                    {formatCurrency(billingConfig.mensalidadeValue)}
-                  </p>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs text-gray-600">Taxa de adesão</p>
+                    <p className="text-base font-semibold text-gray-900">
+                      {formatCurrency(selectedAdesaoValue)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs text-gray-600">
+                      Mensalidade ({selectedPlanType === 'FAMILIAR' ? 'Plano Familiar' : 'Plano Individual'})
+                    </p>
+                    <p className="text-base font-semibold text-gray-900">
+                      {formatCurrency(selectedMensalidadeValue)}
+                    </p>
+                  </div>
                 </div>
               </div>
             )}

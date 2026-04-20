@@ -25,6 +25,8 @@ export interface Cadastro {
   asaas_customer_id?: string
   asaas_payment_id?: string
   asaas_subscription_id?: string
+  tipo_plano?: 'INDIVIDUAL' | 'FAMILIAR' | string
+  mensalidade_valor?: number
   mensalidade_billing_type?: 'PIX' | 'BOLETO' | 'CREDIT_CARD' | string
   adesao_pago_em?: string
   termo_pdf_path?: string
@@ -75,6 +77,9 @@ export interface CadastroFormData {
   // Dependentes
   tem_dependentes: boolean
   dependentes: DependenteFormData[]
+
+  // Plano
+  tipo_plano: 'INDIVIDUAL' | 'FAMILIAR'
   
   // Selfie
   selfie_blob?: Blob
