@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     const cep = formData.get('cep') as string
     const tipo_plano = formData.get('tipo_plano') as string
     const mensalidade_billing_type = formData.get('mensalidade_billing_type') as string
-    const tem_dependentes = formData.get('tem_dependentes') === 'true'
+    const temDependentesPayload = formData.get('tem_dependentes') === 'true'
     const dependentes_json = formData.get('dependentes') as string
     const selfie = formData.get('selfie') as File | null
 
@@ -106,6 +106,7 @@ export async function POST(request: NextRequest) {
     const estadoValue = estado?.trim()
     const cepValue = cep?.trim()
     const tipoPlanoRequested = tipo_plano?.trim().toUpperCase()
+    const tem_dependentes = tipoPlanoRequested === 'FAMILIAR' ? true : temDependentesPayload
     const mensalidadeBillingTypeRequested = mensalidade_billing_type?.trim().toUpperCase()
 
     // Validação básica
@@ -359,6 +360,13 @@ export async function POST(request: NextRequest) {
     if (tipoPlano === 'INDIVIDUAL' && tem_dependentes) {
       return NextResponse.json(
         { error: 'Plano individual não permite dependentes.' },
+        { status: 400 }
+      )
+    }
+
+    if (tipoPlano === 'FAMILIAR' && dependentes.length === 0) {
+      return NextResponse.json(
+        { error: 'Plano familiar exige ao menos um dependente.' },
         { status: 400 }
       )
     }

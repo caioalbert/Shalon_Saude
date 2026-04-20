@@ -23,7 +23,6 @@ interface StepConfirmacaoProps {
   isLoadingBillingConfig: boolean
   onAceiteTermosChange: (value: boolean) => void
   onAceitePrivacidadeChange: (value: boolean) => void
-  onPlanoUpdate: (value: PlanType) => void
   onMensalidadeBillingTypeChange: (value: BillingType) => void
   showValidation?: boolean
 }
@@ -36,7 +35,6 @@ export function StepConfirmacao({
   isLoadingBillingConfig,
   onAceiteTermosChange,
   onAceitePrivacidadeChange,
-  onPlanoUpdate,
   onMensalidadeBillingTypeChange,
 }: StepConfirmacaoProps) {
   const billingTypeLabels: Record<BillingType, string> = {
@@ -169,22 +167,13 @@ export function StepConfirmacao({
           <>
             {billingConfig && (
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-800">Tipo de plano *</p>
-                  <RadioGroup
-                    value={selectedPlanType}
-                    onValueChange={(value) => onPlanoUpdate(value as PlanType)}
-                    className="space-y-2"
-                  >
-                    <label className="flex items-center gap-3 rounded-md border border-gray-200 p-2">
-                      <RadioGroupItem value="INDIVIDUAL" id="plan-individual" />
-                      <span className="text-sm text-gray-800">Individual (sem dependentes)</span>
-                    </label>
-                    <label className="flex items-center gap-3 rounded-md border border-gray-200 p-2">
-                      <RadioGroupItem value="FAMILIAR" id="plan-familiar" />
-                      <span className="text-sm text-gray-800">Familiar (até 4 dependentes)</span>
-                    </label>
-                  </RadioGroup>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-xs text-gray-600">Tipo de plano escolhido</p>
+                  <p className="text-base font-semibold text-gray-900">
+                    {selectedPlanType === 'FAMILIAR'
+                      ? 'Familiar (até 4 dependentes)'
+                      : 'Individual (sem dependentes)'}
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

@@ -270,19 +270,15 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
       }
     }
 
-    if (currentStep === 2 && formData.tem_dependentes) {
+    if (currentStep === 2 && formData.tipo_plano === 'FAMILIAR') {
       const dependentes = formData.dependentes || []
-
-      if (formData.tipo_plano === 'INDIVIDUAL') {
-        return 'Plano individual não permite dependentes. Escolha plano familiar para incluir dependentes.'
-      }
 
       if (dependentes.length > 4) {
         return 'Plano familiar permite no máximo 4 dependentes.'
       }
 
       if (dependentes.length === 0) {
-        return 'Adicione ao menos um dependente para continuar.'
+        return 'Plano familiar exige ao menos um dependente.'
       }
 
       const invalidDependente = dependentes.find(
@@ -389,7 +385,7 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
           !dependente.sexo?.trim()
       )
 
-      if (formData.tem_dependentes && invalidDependente) {
+      if (formData.tipo_plano === 'FAMILIAR' && invalidDependente) {
         throw new Error(
           `Cada dependente precisa ter nome, RG, relação, email, sexo e telefone celular (${invalidDependente.nome || 'sem nome'}).`
         )
@@ -401,6 +397,10 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
 
       if (formData.tipo_plano === 'INDIVIDUAL' && formData.tem_dependentes) {
         throw new Error('Plano individual não permite dependentes')
+      }
+
+      if (formData.tipo_plano === 'FAMILIAR' && (formData.dependentes || []).length === 0) {
+        throw new Error('Plano familiar exige ao menos um dependente')
       }
 
       if (formData.tipo_plano === 'FAMILIAR' && (formData.dependentes || []).length > 4) {
@@ -477,7 +477,7 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
       submitData.append('cidade', formData.cidade || '')
       submitData.append('estado', formData.estado || '')
       submitData.append('cep', formData.cep || '')
-      submitData.append('tem_dependentes', String(formData.tem_dependentes))
+      submitData.append('tem_dependentes', String(formData.tipo_plano === 'FAMILIAR'))
       submitData.append('dependentes', JSON.stringify(formData.dependentes || []))
       submitData.append('tipo_plano', formData.tipo_plano)
       submitData.append('mensalidade_billing_type', formData.mensalidade_billing_type)
@@ -552,13 +552,6 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
             onAceitePrivacidadeChange={setAceitePrivacidade}
             billingConfig={billingConfig}
             isLoadingBillingConfig={isLoadingBillingConfig}
-            onPlanoUpdate={(value) =>
-              updateFormData(
-                value === 'INDIVIDUAL'
-                  ? { tipo_plano: value, tem_dependentes: false, dependentes: [] }
-                  : { tipo_plano: value }
-              )
-            }
             onMensalidadeBillingTypeChange={(value) =>
               updateFormData({ mensalidade_billing_type: value })
             }

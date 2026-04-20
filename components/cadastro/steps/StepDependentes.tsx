@@ -26,7 +26,6 @@ export function StepDependentes({
   showValidation = false,
 }: StepDependentesProps) {
   const [tipo_plano, setTipoPlano] = useState<PlanType>(data.tipo_plano || 'INDIVIDUAL')
-  const [tem_dependentes, setTemDependentes] = useState(data.tem_dependentes || false)
   const [dependentes, setDependentes] = useState<DependenteFormData[]>(data.dependentes || [])
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [cpfError, setCpfError] = useState<string | null>(null)
@@ -47,6 +46,8 @@ export function StepDependentes({
       setTipoPlano(data.tipo_plano)
     }
   }, [data.tipo_plano, tipo_plano])
+
+  const tem_dependentes = tipo_plano === 'FAMILIAR'
 
   const handleAddDependente = () => {
     if (tipo_plano !== 'FAMILIAR') {
@@ -112,7 +113,7 @@ export function StepDependentes({
         : [...dependentes, dependente]
 
     setDependentes(nextDependentes)
-    onUpdate({ tipo_plano, tem_dependentes, dependentes: nextDependentes })
+    onUpdate({ tipo_plano, tem_dependentes: true, dependentes: nextDependentes })
 
     setFormData({
       nome: '',
@@ -133,7 +134,7 @@ export function StepDependentes({
   const handleRemoveDependente = (index: number) => {
     const newDependentes = dependentes.filter((_, i) => i !== index)
     setDependentes(newDependentes)
-    onUpdate({ tipo_plano, tem_dependentes, dependentes: newDependentes })
+    onUpdate({ tipo_plano, tem_dependentes: true, dependentes: newDependentes })
   }
 
   const handleEditDependente = (index: number) => {
@@ -170,23 +171,13 @@ export function StepDependentes({
     setTipoPlano(value)
 
     if (value === 'INDIVIDUAL') {
-      setTemDependentes(false)
       setDependentes([])
       resetDependenteForm()
       onUpdate({ tipo_plano: value, tem_dependentes: false, dependentes: [] })
       return
     }
 
-    onUpdate({ tipo_plano: value })
-  }
-
-  const handleTemDependentesChange = (value: boolean) => {
-    setTemDependentes(value)
-    if (!value) {
-      setDependentes([])
-      resetDependenteForm()
-    }
-    onUpdate({ tipo_plano, tem_dependentes: value, dependentes: value ? dependentes : [] })
+    onUpdate({ tipo_plano: value, tem_dependentes: true, dependentes })
   }
 
   const formatCPF = (value: string) => {
@@ -227,10 +218,9 @@ export function StepDependentes({
             <p className="text-sm font-semibold text-gray-900">Individual</p>
             <p className="text-xs text-gray-600">Cobertura apenas para o titular.</p>
             {planValues ? (
-              <div className="mt-2 space-y-1 text-xs text-gray-700">
-                <p>Valor do plano individual: {formatCurrency(planValues.INDIVIDUAL)}</p>
-                <p>Valor do plano familiar: {formatCurrency(planValues.FAMILIAR)}</p>
-              </div>
+              <p className="mt-2 text-xs text-gray-700">
+                Valor do plano individual: {formatCurrency(planValues.INDIVIDUAL)}
+              </p>
             ) : null}
           </button>
 
@@ -260,23 +250,11 @@ export function StepDependentes({
         </div>
       ) : null}
 
-      <div>
-        <label className="flex items-center space-x-3">
-          <input
-            type="checkbox"
-            checked={tem_dependentes}
-            onChange={(e) => handleTemDependentesChange(e.target.checked)}
-            className="w-4 h-4 text-blue-600 rounded cursor-pointer"
-            disabled={tipo_plano !== 'FAMILIAR'}
-          />
-          <span className="text-gray-700 font-medium">Tenho dependentes</span>
-        </label>
-        {tipo_plano === 'FAMILIAR' && tem_dependentes && (
-          <p className="mt-2 text-xs text-gray-500">
-            Cada dependente deve ter email. Se for menor de idade, pode usar o mesmo email do titular. Máximo de 4 dependentes.
-          </p>
-        )}
-      </div>
+      {tipo_plano === 'FAMILIAR' && (
+        <p className="text-xs text-gray-500">
+          Cada dependente deve ter email. Se for menor de idade, pode usar o mesmo email do titular. Máximo de 4 dependentes.
+        </p>
+      )}
 
       {tipo_plano === 'FAMILIAR' && tem_dependentes && (
         <div className="space-y-6 border-t pt-6">
