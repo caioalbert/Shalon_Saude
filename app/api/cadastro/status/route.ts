@@ -1,3 +1,4 @@
+import { AsaasIntegrationError, getAsaasPayment, isAsaasPaidStatus } from '@/lib/asaas'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -52,12 +53,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Cadastro não encontrado.' }, { status: 404 })
     }
 
+    let asaasPaymentStatus: string | null = null
+    let processingPayment = false
+
+    if ((data.status || 'PENDENTE_PAGAMENTO') !== 'ATIVO' && data.asaas_payment_id) {
+      try {
+        const payment = await getAsaasPayment(String(data.asaas_payment_id))
+        asaasPaymentStatus = payment.status || null
+        processingPayment = isAsaasPaidStatus(payment.status)
+      } catch (error) {
+        // Não quebra o fluxo de status caso a consulta no Asaas falhe.
+        if (!(error instanceof AsaasIntegrationError)) {
+          console.error('Cadastro status Asaas lookup error:', error)
+        }
+      }
+    }
+
     return NextResponse.json({
       id: data.id,
       status: data.status || 'PENDENTE_PAGAMENTO',
       asaasPaymentId: data.asaas_payment_id || null,
       asaasSubscriptionId: data.asaas_subscription_id || null,
       adesaoPagoEm: data.adesao_pago_em || null,
+      asaasPaymentStatus,
+      processingPayment,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

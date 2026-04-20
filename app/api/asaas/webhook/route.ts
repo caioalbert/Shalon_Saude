@@ -4,7 +4,11 @@ import {
   getAsaasPayment,
   isAsaasPaidStatus,
 } from '@/lib/asaas'
-import { getBillingSettings, getMensalidadeValueByPlanType } from '@/lib/billing-settings'
+import {
+  MIN_ASAAS_CHARGE_VALUE,
+  getBillingSettings,
+  getMensalidadeValueByPlanType,
+} from '@/lib/billing-settings'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -209,6 +213,16 @@ export async function POST(request: NextRequest) {
         Number.isFinite(storedMensalidadeValue) && storedMensalidadeValue > 0
           ? storedMensalidadeValue
           : getMensalidadeValueByPlanType(billingSettings, cadastro.tipo_plano)
+
+      if (mensalidadeValue < MIN_ASAAS_CHARGE_VALUE) {
+        return NextResponse.json(
+          {
+            error: `Configuração de cobrança inválida. O valor mínimo permitido pelo Asaas é R$ ${MIN_ASAAS_CHARGE_VALUE.toFixed(2).replace('.', ',')}.`,
+          },
+          { status: 500 }
+        )
+      }
+
       const nextDueDate = getNextMonthlyDueDate()
 
       const subscription = await createAsaasSubscription({

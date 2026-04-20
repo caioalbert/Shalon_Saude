@@ -5,6 +5,7 @@ export type BillingTypeOption = (typeof BILLING_TYPE_OPTIONS)[number]
 
 export const PLAN_TYPE_OPTIONS = ['INDIVIDUAL', 'FAMILIAR'] as const
 export type PlanTypeOption = (typeof PLAN_TYPE_OPTIONS)[number]
+export const MIN_ASAAS_CHARGE_VALUE = 5
 
 type BillingSettingsRow = {
   id: boolean
@@ -251,6 +252,19 @@ export async function updateBillingSettings(input: UpdateBillingSettingsInput): 
     input.mensalidadeFamiliarValue,
     'valor do plano familiar'
   )
+
+  if (mensalidadeIndividualValue < MIN_ASAAS_CHARGE_VALUE) {
+    throw new Error(
+      `Valor inválido para o plano individual. O mínimo permitido pelo Asaas é R$ ${MIN_ASAAS_CHARGE_VALUE.toFixed(2).replace('.', ',')}.`
+    )
+  }
+
+  if (mensalidadeFamiliarValue < MIN_ASAAS_CHARGE_VALUE) {
+    throw new Error(
+      `Valor inválido para o plano familiar. O mínimo permitido pelo Asaas é R$ ${MIN_ASAAS_CHARGE_VALUE.toFixed(2).replace('.', ',')}.`
+    )
+  }
+
   const mensalidadeBillingTypes = normalizeBillingTypeList(input.mensalidadeBillingTypes)
 
   const defaultBillingTypeRaw = toUpperTrim(input.defaultMensalidadeBillingType)

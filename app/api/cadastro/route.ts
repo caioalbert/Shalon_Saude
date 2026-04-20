@@ -7,6 +7,7 @@ import {
 import {
   getBillingSettings,
   getMensalidadeValueByPlanType,
+  MIN_ASAAS_CHARGE_VALUE,
   type BillingTypeOption,
   type PlanTypeOption,
 } from '@/lib/billing-settings'
@@ -379,6 +380,15 @@ export async function POST(request: NextRequest) {
     })()
     const mensalidadeValor = getMensalidadeValueByPlanType(billingSettings, tipoPlano)
     const adesaoValue = mensalidadeValor
+
+    if (adesaoValue < MIN_ASAAS_CHARGE_VALUE) {
+      return NextResponse.json(
+        {
+          error: `Configuração de cobrança inválida. O valor mínimo permitido pelo Asaas é R$ ${MIN_ASAAS_CHARGE_VALUE.toFixed(2).replace('.', ',')}.`,
+        },
+        { status: 400 }
+      )
+    }
 
     let asaasCustomerId: string
     let asaasPaymentId: string

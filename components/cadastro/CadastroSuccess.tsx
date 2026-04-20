@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -24,8 +24,12 @@ interface CadastroSuccessProps {
 export function CadastroSuccess({ data }: CadastroSuccessProps) {
   const [status, setStatus] = useState(data.status || 'ATIVO')
   const [isCheckingStatus, setIsCheckingStatus] = useState(false)
+  const [isAutoChecking, setIsAutoChecking] = useState(false)
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [copyMessage, setCopyMessage] = useState<string | null>(null)
+  const [lastCheckAt, setLastCheckAt] = useState<string | null>(null)
+  const mountedRef = useRef(true)
 
   const isPendingPayment = status === 'PENDENTE_PAGAMENTO' && Boolean(data.pagamento)
 
@@ -49,39 +53,104 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
     }
   }
 
-  const handleCheckStatus = async () => {
+  const checkStatus = useCallback(async (options?: { manual?: boolean }) => {
+    const isManual = options?.manual === true
     try {
-      setIsCheckingStatus(true)
-      setStatusMessage(null)
+      if (isManual) {
+        setIsCheckingStatus(true)
+      } else {
+        setIsAutoChecking(true)
+      }
 
       const response = await fetch(`/api/cadastro/status?id=${encodeURIComponent(data.id)}`, {
         cache: 'no-store',
       })
 
-      const payload = (await response.json().catch(() => null)) as { status?: string; error?: string } | null
+      const payload = (await response.json().catch(() => null)) as {
+        status?: string
+        error?: string
+        processingPayment?: boolean
+        asaasPaymentStatus?: string | null
+      } | null
       if (!response.ok) {
         throw new Error(payload?.error || 'Não foi possível verificar o status do pagamento.')
       }
 
       const nextStatus = payload?.status || 'PENDENTE_PAGAMENTO'
+      const processingPayment = Boolean(payload?.processingPayment)
       setStatus(nextStatus)
+      setIsProcessingPayment(processingPayment)
+      setLastCheckAt(new Date().toLocaleTimeString('pt-BR'))
 
       if (nextStatus === 'ATIVO') {
         setStatusMessage('Pagamento confirmado. Seu cadastro foi ativado.')
         return
       }
 
-      setStatusMessage('Pagamento ainda não foi confirmado. Aguarde alguns instantes e tente novamente.')
+      if (processingPayment) {
+        setStatusMessage('Pagamento identificado. Estamos processando a ativação do seu plano.')
+        return
+      }
+
+      if (isManual) {
+        setStatusMessage('Pagamento ainda não foi confirmado. Seguiremos verificando automaticamente.')
+      } else {
+        setStatusMessage('Aguardando confirmação automática do pagamento PIX.')
+      }
     } catch (error) {
-      setStatusMessage(
-        error instanceof Error
-          ? error.message
-          : 'Erro ao verificar status do pagamento.'
-      )
+      if (isManual) {
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : 'Erro ao verificar status do pagamento.'
+        )
+      }
     } finally {
-      setIsCheckingStatus(false)
+      if (isManual) {
+        setIsCheckingStatus(false)
+      } else {
+        setIsAutoChecking(false)
+      }
     }
+  }, [data.id])
+
+  const handleCheckStatus = async () => {
+    await checkStatus({ manual: true })
   }
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isPendingPayment) return
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+    const scheduleNext = () => {
+      timeoutId = setTimeout(async () => {
+        if (!mountedRef.current) return
+        await checkStatus({ manual: false })
+        if (mountedRef.current && status === 'PENDENTE_PAGAMENTO') {
+          scheduleNext()
+        }
+      }, 5000)
+    }
+
+    setStatusMessage('Aguardando confirmação automática do pagamento PIX.')
+    checkStatus({ manual: false }).finally(() => {
+      if (mountedRef.current && status === 'PENDENTE_PAGAMENTO') {
+        scheduleNext()
+      }
+    })
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+  }, [checkStatus, isPendingPayment, status])
 
   if (isPendingPayment && data.pagamento) {
     return (
@@ -145,23 +214,39 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
               <div className="space-y-3">
                 <Button
                   onClick={handleCheckStatus}
-                  disabled={isCheckingStatus}
-                  className="w-full bg-green-600 hover:bg-green-700"
+                  disabled={isCheckingStatus || isAutoChecking}
+                  className="w-full bg-gray-800 hover:bg-gray-900"
                 >
-                  {isCheckingStatus ? 'Verificando pagamento...' : 'Já Paguei, Verificar Status'}
+                  {isCheckingStatus || isAutoChecking ? 'Verificando pagamento...' : 'Verificar Agora'}
                 </Button>
                 {statusMessage && (
                   <p className="text-sm text-gray-700">{statusMessage}</p>
                 )}
+                {lastCheckAt && (
+                  <p className="text-xs text-gray-500">Última verificação: {lastCheckAt}</p>
+                )}
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-900">
-                  O plano será ativado automaticamente após a confirmação do pagamento no Asaas.
-                </p>
-              </div>
+              {isProcessingPayment ? (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                  <p className="text-sm text-emerald-900">
+                    Pagamento identificado. Estamos processando a ativação do seu plano agora.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-900">
+                    O plano será ativado automaticamente após a confirmação do pagamento no Asaas. Não é necessário ficar clicando.
+                  </p>
+                </div>
+              )}
 
               <div className="flex flex-col gap-3">
+                <Link href="/login" className="w-full">
+                  <Button className="w-full bg-indigo-600 hover:bg-indigo-700">
+                    Fazer login na minha conta
+                  </Button>
+                </Link>
                 <Link href="/" className="w-full">
                   <Button variant="outline" className="w-full">
                     Voltar para Início
@@ -268,6 +353,11 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
             </div>
 
             <div className="flex flex-col gap-3">
+              <Link href="/login" className="w-full">
+                <Button className="w-full bg-indigo-600 hover:bg-indigo-700">
+                  Fazer login na minha conta
+                </Button>
+              </Link>
               <Link href="/" className="w-full">
                 <Button variant="outline" className="w-full">
                   Voltar para Início

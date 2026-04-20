@@ -1,5 +1,6 @@
 import {
   BILLING_TYPE_OPTIONS,
+  MIN_ASAAS_CHARGE_VALUE,
   PLAN_TYPE_OPTIONS,
   getBillingSettings,
   updateBillingSettings,
@@ -85,14 +86,38 @@ export async function PUT(request: NextRequest) {
     }
 
     const legacyMensalidadeValue = Number(body.mensalidadeValue)
+    const mensalidadeIndividualValue = Number(
+      body.mensalidadeIndividualValue ?? legacyMensalidadeValue
+    )
+    const mensalidadeFamiliarValue = Number(
+      body.mensalidadeFamiliarValue ?? legacyMensalidadeValue
+    )
+
+    if (
+      !Number.isFinite(mensalidadeIndividualValue) ||
+      !Number.isFinite(mensalidadeFamiliarValue)
+    ) {
+      return NextResponse.json(
+        { error: 'Informe valores numéricos válidos para os planos.' },
+        { status: 400 }
+      )
+    }
+
+    if (
+      mensalidadeIndividualValue < MIN_ASAAS_CHARGE_VALUE ||
+      mensalidadeFamiliarValue < MIN_ASAAS_CHARGE_VALUE
+    ) {
+      return NextResponse.json(
+        {
+          error: `O valor mínimo permitido pelo Asaas é R$ ${MIN_ASAAS_CHARGE_VALUE.toFixed(2).replace('.', ',')} para adesão e mensalidade.`,
+        },
+        { status: 400 }
+      )
+    }
 
     const updated = await updateBillingSettings({
-      mensalidadeIndividualValue: Number(
-        body.mensalidadeIndividualValue ?? legacyMensalidadeValue
-      ),
-      mensalidadeFamiliarValue: Number(
-        body.mensalidadeFamiliarValue ?? legacyMensalidadeValue
-      ),
+      mensalidadeIndividualValue,
+      mensalidadeFamiliarValue,
       mensalidadeBillingTypes: Array.isArray(body.mensalidadeBillingTypes)
         ? body.mensalidadeBillingTypes
         : [],

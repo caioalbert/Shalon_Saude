@@ -9,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 
 type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD'
 type PlanType = 'INDIVIDUAL' | 'FAMILIAR'
+const MIN_CHARGE_VALUE = 5
 
 const BILLING_TYPE_LABEL: Record<BillingType, string> = {
   PIX: 'PIX',
@@ -133,12 +134,25 @@ export default function AdminCobrancaConfiguracoesPage() {
         throw new Error('Selecione ao menos uma forma de cobrança de mensalidade.')
       }
 
+      const individualValue = Number(mensalidadeIndividualValue)
+      const familiarValue = Number(mensalidadeFamiliarValue)
+
+      if (!Number.isFinite(individualValue) || !Number.isFinite(familiarValue)) {
+        throw new Error('Informe valores numéricos válidos para os planos.')
+      }
+
+      if (individualValue < MIN_CHARGE_VALUE || familiarValue < MIN_CHARGE_VALUE) {
+        throw new Error(
+          `O valor mínimo permitido pelo Asaas é R$ ${MIN_CHARGE_VALUE.toFixed(2).replace('.', ',')}.`
+        )
+      }
+
       const response = await fetch('/api/admin/cobranca-configuracoes', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          mensalidadeIndividualValue: Number(mensalidadeIndividualValue),
-          mensalidadeFamiliarValue: Number(mensalidadeFamiliarValue),
+          mensalidadeIndividualValue: individualValue,
+          mensalidadeFamiliarValue: familiarValue,
           mensalidadeBillingTypes,
           defaultMensalidadeBillingType,
           defaultPlanType,
@@ -217,26 +231,28 @@ export default function AdminCobrancaConfiguracoesPage() {
                   <span className="text-sm font-medium text-gray-700">Valor do Plano Individual (R$)</span>
                   <input
                     type="number"
-                    min="0"
+                    min={MIN_CHARGE_VALUE}
                     step="0.01"
                     value={mensalidadeIndividualValue}
                     onChange={(event) => setMensalidadeIndividualValue(event.target.value)}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
                     disabled={isSaving}
                   />
+                  <span className="text-xs text-gray-500">Mínimo: R$ 5,00</span>
                 </label>
 
                 <label className="space-y-1">
                   <span className="text-sm font-medium text-gray-700">Valor do Plano Familiar (R$)</span>
                   <input
                     type="number"
-                    min="0"
+                    min={MIN_CHARGE_VALUE}
                     step="0.01"
                     value={mensalidadeFamiliarValue}
                     onChange={(event) => setMensalidadeFamiliarValue(event.target.value)}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
                     disabled={isSaving}
                   />
+                  <span className="text-xs text-gray-500">Mínimo: R$ 5,00</span>
                 </label>
               </div>
 

@@ -528,6 +528,7 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
           <StepDependentes
             data={formData}
             onUpdate={updateFormData}
+            planValues={billingConfig?.mensalidadeByPlanType || null}
             showValidation={validationStep === 2}
           />
         )

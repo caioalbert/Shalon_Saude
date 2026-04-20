@@ -12,10 +12,19 @@ type PlanType = 'INDIVIDUAL' | 'FAMILIAR'
 interface StepDependentesProps {
   data: Partial<CadastroFormData>
   onUpdate: (data: Partial<CadastroFormData>) => void
+  planValues?: {
+    INDIVIDUAL: number
+    FAMILIAR: number
+  } | null
   showValidation?: boolean
 }
 
-export function StepDependentes({ data, onUpdate, showValidation = false }: StepDependentesProps) {
+export function StepDependentes({
+  data,
+  onUpdate,
+  planValues,
+  showValidation = false,
+}: StepDependentesProps) {
   const [tipo_plano, setTipoPlano] = useState<PlanType>(data.tipo_plano || 'INDIVIDUAL')
   const [tem_dependentes, setTemDependentes] = useState(data.tem_dependentes || false)
   const [dependentes, setDependentes] = useState<DependenteFormData[]>(data.dependentes || [])
@@ -198,6 +207,8 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
   }
 
   const highlightRequired = showValidation && tem_dependentes && dependentes.length === 0
+  const formatCurrency = (value: number) =>
+    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
   return (
     <div className="space-y-6">
@@ -215,6 +226,12 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
           >
             <p className="text-sm font-semibold text-gray-900">Individual</p>
             <p className="text-xs text-gray-600">Cobertura apenas para o titular.</p>
+            {planValues ? (
+              <div className="mt-2 space-y-1 text-xs text-gray-700">
+                <p>Valor do plano individual: {formatCurrency(planValues.INDIVIDUAL)}</p>
+                <p>Valor do plano familiar: {formatCurrency(planValues.FAMILIAR)}</p>
+              </div>
+            ) : null}
           </button>
 
           <button
@@ -228,6 +245,11 @@ export function StepDependentes({ data, onUpdate, showValidation = false }: Step
           >
             <p className="text-sm font-semibold text-gray-900">Familiar</p>
             <p className="text-xs text-gray-600">Permite incluir até 4 dependentes.</p>
+            {planValues ? (
+              <p className="mt-2 text-xs text-gray-700">
+                Valor do plano familiar: {formatCurrency(planValues.FAMILIAR)}
+              </p>
+            ) : null}
           </button>
         </div>
       </div>
