@@ -1,8 +1,14 @@
 import fs from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
+import { del, get, head, put } from '@vercel/blob'
 
-const TEMPLATE_DIR = path.join(process.cwd(), 'templates')
-const TEMPLATE_FILE = path.join(TEMPLATE_DIR, 'termo-adesao-custom.txt')
+const TEMPLATE_FILE_NAME = 'termo-adesao-custom.txt'
+const TEMPLATE_BLOB_PATH = `templates/${TEMPLATE_FILE_NAME}`
+const TEMPLATE_DIR = process.env.VERCEL
+  ? path.join(os.tmpdir(), 'templates')
+  : path.join(process.cwd(), 'templates')
+const TEMPLATE_FILE = path.join(TEMPLATE_DIR, TEMPLATE_FILE_NAME)
 const MAX_TEMPLATE_SIZE_BYTES = 200 * 1024
 
 export const DEFAULT_TERMO_BODY = `TELEMEDICINA
@@ -69,7 +75,7 @@ Para dirimir quaisquer discussões decorrentes dos serviços, será competente o
 
 CLÁUSULA DE FIDELIZAÇÃO E CANCELAMENTO ANTECIPADO
 
-1. Fica estabelecido o prazo mínimo de fidelidade de 12 (doze) meses para a manutenção dos serviços contratados, contados a partir da data de assinatura e/ou adesão a este termo.
+1. Fica estabelecido o prazo mínimo de fidelidade de 12 (doze) meses para a manutenção dos serviços contratados, contados a partir da data de adesão a este termo.
 
 2. O presente contrato poderá ser rescindido imotivadamente pelo(a) CONTRATANTE/PACIENTE durante o período de fidelidade estipulado, mediante solicitação formal com aviso prévio de 30 (trinta) dias.
 
@@ -83,8 +89,35 @@ function sanitizeTemplate(text: string) {
     .trim()
 }
 
+function hasBlobToken() {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN)
+}
+
+async function getCustomTemplateFromBlob() {
+  if (!hasBlobToken()) return null
+
+  const result = await get(TEMPLATE_BLOB_PATH, {
+    access: 'private',
+    useCache: false,
+  })
+
+  if (!result || result.statusCode !== 200 || !result.stream) {
+    return null
+  }
+
+  return new Response(result.stream).text()
+}
+
 export async function getTermoBodyText() {
   try {
+    const blobTemplate = await getCustomTemplateFromBlob()
+    if (blobTemplate) {
+      const sanitizedBlobTemplate = sanitizeTemplate(blobTemplate)
+      if (sanitizedBlobTemplate) {
+        return sanitizedBlobTemplate
+      }
+    }
+
     const customTemplate = await fs.readFile(TEMPLATE_FILE, 'utf8')
     const sanitized = sanitizeTemplate(customTemplate)
     return sanitized || DEFAULT_TERMO_BODY
@@ -105,11 +138,30 @@ export async function saveTermoBodyText(content: string) {
     throw new Error('O template excede 200KB')
   }
 
+  if (hasBlobToken()) {
+    await put(TEMPLATE_BLOB_PATH, sanitized, {
+      access: 'private',
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: 'text/plain; charset=utf-8',
+    })
+    return
+  }
+
   await fs.mkdir(TEMPLATE_DIR, { recursive: true })
   await fs.writeFile(TEMPLATE_FILE, sanitized, 'utf8')
 }
 
 export async function removeCustomTermoBodyText() {
+  if (hasBlobToken()) {
+    try {
+      await del(TEMPLATE_BLOB_PATH)
+    } catch {
+      // ignore
+    }
+    return
+  }
+
   try {
     await fs.unlink(TEMPLATE_FILE)
   } catch {
@@ -118,20 +170,34 @@ export async function removeCustomTermoBodyText() {
 }
 
 export async function getTermoTemplateInfo() {
+  if (hasBlobToken()) {
+    try {
+      const blobInfo = await head(TEMPLATE_BLOB_PATH)
+      return {
+        hasCustomTemplate: true,
+        sizeBytes: blobInfo.size,
+        updatedAt: blobInfo.uploadedAt.toISOString(),
+        fileName: TEMPLATE_FILE_NAME,
+      }
+    } catch {
+      // fallback to local
+    }
+  }
+
   try {
     const stat = await fs.stat(TEMPLATE_FILE)
     return {
       hasCustomTemplate: true,
       sizeBytes: stat.size,
       updatedAt: stat.mtime.toISOString(),
-      fileName: path.basename(TEMPLATE_FILE),
+      fileName: TEMPLATE_FILE_NAME,
     }
   } catch {
     return {
       hasCustomTemplate: false,
       sizeBytes: 0,
       updatedAt: null as string | null,
-      fileName: path.basename(TEMPLATE_FILE),
+      fileName: TEMPLATE_FILE_NAME,
     }
   }
 }

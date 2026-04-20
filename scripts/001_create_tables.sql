@@ -22,6 +22,12 @@ CREATE TABLE IF NOT EXISTS cadastros (
   cep TEXT,
   tem_dependentes BOOLEAN DEFAULT FALSE,
   selfie_path TEXT,
+  asaas_customer_id TEXT,
+  asaas_payment_id TEXT,
+  asaas_subscription_id TEXT,
+  mensalidade_billing_type TEXT,
+  status TEXT NOT NULL DEFAULT 'PENDENTE_PAGAMENTO',
+  adesao_pago_em TIMESTAMP WITH TIME ZONE,
   termo_pdf_path TEXT,
   email_enviado_em TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -55,7 +61,50 @@ ALTER TABLE cadastros
   ADD COLUMN IF NOT EXISTS nome_conjuge TEXT,
   ADD COLUMN IF NOT EXISTS escolaridade TEXT,
   ADD COLUMN IF NOT EXISTS situacao_profissional TEXT,
-  ADD COLUMN IF NOT EXISTS profissao TEXT;
+  ADD COLUMN IF NOT EXISTS profissao TEXT,
+  ADD COLUMN IF NOT EXISTS asaas_customer_id TEXT,
+  ADD COLUMN IF NOT EXISTS asaas_payment_id TEXT,
+  ADD COLUMN IF NOT EXISTS asaas_subscription_id TEXT,
+  ADD COLUMN IF NOT EXISTS mensalidade_billing_type TEXT,
+  ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'PENDENTE_PAGAMENTO',
+  ADD COLUMN IF NOT EXISTS adesao_pago_em TIMESTAMP WITH TIME ZONE;
+
+UPDATE cadastros
+SET status = 'PENDENTE_PAGAMENTO'
+WHERE status IS NULL;
+
+ALTER TABLE cadastros
+  ALTER COLUMN status SET DEFAULT 'PENDENTE_PAGAMENTO',
+  ALTER COLUMN status SET NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS cadastros_asaas_customer_id_idx ON cadastros(asaas_customer_id) WHERE asaas_customer_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS cadastros_asaas_payment_id_idx ON cadastros(asaas_payment_id) WHERE asaas_payment_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS cadastros_asaas_subscription_id_idx ON cadastros(asaas_subscription_id) WHERE asaas_subscription_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS cadastros_status_idx ON cadastros(status);
+
+CREATE TABLE IF NOT EXISTS cobranca_configuracoes (
+  id BOOLEAN PRIMARY KEY DEFAULT true CHECK (id),
+  adesao_value NUMERIC(10,2) NOT NULL DEFAULT 49.90,
+  mensalidade_value NUMERIC(10,2) NOT NULL DEFAULT 49.90,
+  mensalidade_billing_types TEXT[] NOT NULL DEFAULT ARRAY['PIX']::TEXT[],
+  default_mensalidade_billing_type TEXT NOT NULL DEFAULT 'PIX',
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO cobranca_configuracoes (
+  id,
+  adesao_value,
+  mensalidade_value,
+  mensalidade_billing_types,
+  default_mensalidade_billing_type
+) VALUES (
+  true,
+  49.90,
+  49.90,
+  ARRAY['PIX']::TEXT[],
+  'PIX'
+)
+ON CONFLICT (id) DO NOTHING;
 
 ALTER TABLE dependentes
   ADD COLUMN IF NOT EXISTS email TEXT,

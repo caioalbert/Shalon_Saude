@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireAdminAuth } from '@/lib/supabase/admin-auth'
 import { isValidCPF } from '@/lib/utils'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -14,14 +15,11 @@ async function getValidatedId(context: RouteContext) {
   return id
 }
 
-function isAuthenticated(request: NextRequest) {
-  return Boolean(request.cookies.get('supabase-auth-token')?.value)
-}
-
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
-    if (!isAuthenticated(request)) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    const authResult = await requireAdminAuth(request)
+    if (!authResult.ok) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status })
     }
 
     const id = await getValidatedId(context)
@@ -74,8 +72,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
-    if (!isAuthenticated(request)) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    const authResult = await requireAdminAuth(request)
+    if (!authResult.ok) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status })
     }
 
     const id = await getValidatedId(context)
@@ -181,8 +180,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
-    if (!isAuthenticated(request)) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    const authResult = await requireAdminAuth(request)
+    if (!authResult.ok) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status })
     }
 
     const id = await getValidatedId(context)

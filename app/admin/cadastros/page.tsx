@@ -287,6 +287,9 @@ export default function AdminCadastrosPage() {
             <Link href="/admin/termo-template">
               <Button variant="outline">Atualizar Termo de Adesão</Button>
             </Link>
+            <Link href="/admin/cobranca-configuracoes">
+              <Button variant="outline">Configurações de Cobrança</Button>
+            </Link>
             <Button
               onClick={handleExportAllContracts}
               disabled={exportLoading || cadastros.length === 0}

@@ -21,6 +21,12 @@ export interface Cadastro {
   cep?: string
   tem_dependentes: boolean
   selfie_path?: string
+  status?: 'PENDENTE_PAGAMENTO' | 'ATIVO' | string
+  asaas_customer_id?: string
+  asaas_payment_id?: string
+  asaas_subscription_id?: string
+  mensalidade_billing_type?: 'PIX' | 'BOLETO' | 'CREDIT_CARD' | string
+  adesao_pago_em?: string
   termo_pdf_path?: string
   email_enviado_em?: string
   dependentes_sem_rg_count?: number
@@ -75,6 +81,9 @@ export interface CadastroFormData {
   
   // Email para contato
   email: string
+
+  // Cobrança recorrente (mensalidade)
+  mensalidade_billing_type: 'PIX' | 'BOLETO' | 'CREDIT_CARD'
 }
 
 export interface DependenteFormData {

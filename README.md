@@ -32,6 +32,14 @@ Sistema completo de cadastro, adesão e gerenciamento de termos digitais para o 
 - Envio automático do termo ao cadastrado
 - Suporte a templates HTML
 
+✅ **Integração de Pagamentos (Asaas)**
+- Criação automática de cliente no Asaas ao concluir cadastro
+- Geração automática de cobrança de adesão via PIX
+- Exibição de QR Code + PIX copia e cola no final do cadastro
+- Ativação do cadastro somente após confirmação de pagamento via webhook
+- Criação automática de assinatura mensal após pagamento confirmado
+- Configuração de cobrança via painel admin (valores e opções de mensalidade)
+
 ## Stack Técnico
 
 - **Frontend**: Next.js 16, React 19, TypeScript
@@ -39,6 +47,7 @@ Sistema completo de cadastro, adesão e gerenciamento de termos digitais para o 
 - **Banco de Dados**: Supabase (PostgreSQL)
 - **Storage**: Vercel Blob (para selfies e PDFs)
 - **Email**: Resend
+- **Pagamentos**: Asaas API
 - **Autenticação**: Supabase Auth
 - **UI**: Tailwind CSS, Shadcn/ui, Radix UI
 - **PDF**: React-PDF Renderer
@@ -84,8 +93,22 @@ Edite `.env.local` com:
 - `RESEND_API_KEY` - Chave API Resend para envio de emails
 - `RESEND_FROM_EMAIL` - Email remetente (deve estar verificado no Resend em produção)
 
+#### Asaas
+- `ASAAS_API_KEY` - Token de API do Asaas
+- `ASAAS_API_BASE_URL` - URL base da API (sandbox: `https://api-sandbox.asaas.com/v3`)
+- `ASAAS_WEBHOOK_TOKEN` - Token de segurança validado no webhook
+- `ASAAS_ADESAO_VALUE` - Fallback do valor da taxa de adesão (quando não houver configuração no admin)
+- `ASAAS_MENSALIDADE_VALUE` - Fallback do valor da recorrência mensal (quando não houver configuração no admin)
+- `ASAAS_MENSALIDADE_BILLING_TYPE` - Fallback da forma padrão da mensalidade
+- `ASAAS_MENSALIDADE_BILLING_TYPES` - Fallback de opções permitidas (`PIX,BOLETO,CREDIT_CARD`)
+
 #### Aplicação
 - `NEXT_PUBLIC_APP_URL` - URL da aplicação (ex: http://localhost:3000)
+
+#### Webhook Asaas (painel Asaas)
+- URL: `https://seu-dominio.com/api/asaas/webhook`
+- Eventos: `PAYMENT_RECEIVED` e `PAYMENT_CONFIRMED`
+- Token de autenticação: mesmo valor de `ASAAS_WEBHOOK_TOKEN`
 
 ### 4. Criar tabelas no banco de dados
 
@@ -95,9 +118,20 @@ Acesse o SQL Editor do Supabase e execute o script em `scripts/001_create_tables
 -- Copie o conteúdo do arquivo scripts/001_create_tables.sql e execute
 ```
 
-Se o banco já existia antes, execute também `scripts/002_add_campos_cadastro.sql` para:
+Se o banco já existia antes, execute também:
 - adicionar `email` em dependentes;
-- remover campos de igreja do cadastro.
+- remover campos de igreja do cadastro;
+- adicionar `asaas_customer_id` em `cadastros`;
+- adicionar colunas de pagamento/ativação (`status`, `asaas_payment_id`, `asaas_subscription_id`, `adesao_pago_em`);
+- adicionar configurações de cobrança gerenciadas no admin.
+
+```sql
+-- Execute também:
+-- scripts/002_add_campos_cadastro.sql
+-- scripts/003_add_asaas_customer_id.sql
+-- scripts/004_add_cadastro_pagamentos.sql
+-- scripts/005_add_billing_settings_admin.sql
+```
 
 ### 5. Criar usuário admin (opcional)
 
@@ -245,9 +279,26 @@ Depois do deploy, verifique no painel da Vercel:
 | cep | TEXT |
 | tem_dependentes | BOOLEAN |
 | selfie_path | TEXT |
+| status | TEXT |
+| asaas_customer_id | TEXT |
+| asaas_payment_id | TEXT |
+| asaas_subscription_id | TEXT |
+| mensalidade_billing_type | TEXT |
+| adesao_pago_em | TIMESTAMP |
 | termo_pdf_path | TEXT |
 | email_enviado_em | TIMESTAMP |
 | created_at | TIMESTAMP |
+| updated_at | TIMESTAMP |
+
+### Tabela: cobranca_configuracoes
+
+| Campo | Tipo |
+|-------|------|
+| id | BOOLEAN (PK) |
+| adesao_value | NUMERIC(10,2) |
+| mensalidade_value | NUMERIC(10,2) |
+| mensalidade_billing_types | TEXT[] |
+| default_mensalidade_billing_type | TEXT |
 | updated_at | TIMESTAMP |
 
 ### Tabela: dependentes

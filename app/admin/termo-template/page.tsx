@@ -54,7 +54,7 @@ export default function AdminTermoTemplatePage() {
 
   const handleTemplateUpload = async () => {
     if (!templateFile) {
-      setTemplateMessage('Selecione um arquivo .txt ou .md')
+      setTemplateMessage('Selecione um arquivo .txt, .md ou .docx')
       return
     }
 
@@ -135,6 +135,9 @@ export default function AdminTermoTemplatePage() {
             <Link href="/admin/dashboard">
               <Button variant="outline">Voltar ao Dashboard</Button>
             </Link>
+            <Link href="/admin/cobranca-configuracoes">
+              <Button variant="outline">Configurações de Cobrança</Button>
+            </Link>
             <Button onClick={handleLogout} variant="outline">
               Sair
             </Button>
@@ -154,7 +157,7 @@ export default function AdminTermoTemplatePage() {
 
           <div className="space-y-1 text-sm text-gray-700">
             <p>Como carregar corretamente:</p>
-            <p>1. Use arquivo .txt ou .md em UTF-8.</p>
+            <p>1. Use arquivo .txt, .md ou .docx.</p>
             <p>2. Separe parágrafos com uma linha em branco.</p>
             <p>3. Títulos em linha isolada (ex.: TELEMEDICINA, ASSISTÊNCIA FUNERÁRIA).</p>
             <p>4. Tamanho máximo: 200KB.</p>
@@ -164,7 +167,7 @@ export default function AdminTermoTemplatePage() {
             <input
               key={templateInputKey}
               type="file"
-              accept=".txt,.md,text/plain,text/markdown"
+              accept=".txt,.md,.docx,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               onChange={(event) => setTemplateFile(event.target.files?.[0] || null)}
               className="block w-full rounded-lg border border-gray-300 p-2 text-sm text-gray-700"
               disabled={templateLoading || isLoadingInfo}

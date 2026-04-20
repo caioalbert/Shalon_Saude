@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { get } from '@vercel/blob'
+import { requireAdminAuth } from '@/lib/supabase/admin-auth'
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get('supabase-auth-token')?.value
-
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Não autenticado' },
-        { status: 401 }
-      )
+    const authResult = await requireAdminAuth(request)
+    if (!authResult.ok) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status })
     }
 
     const pathname = request.nextUrl.searchParams.get('pathname')

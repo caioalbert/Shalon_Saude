@@ -1,19 +1,15 @@
-import { createClient } from '@/lib/supabase/server'
+import { requireAdminAuth } from '@/lib/supabase/admin-auth'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
   try {
-    // Verificar autenticação (simplificado, em produção usar middleware mais robusto)
-    const token = request.cookies.get('supabase-auth-token')?.value
-
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Não autenticado' },
-        { status: 401 }
-      )
+    const authResult = await requireAdminAuth(request)
+    if (!authResult.ok) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status })
     }
 
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     // Buscar todos os cadastros
     const { data: cadastros, error } = await supabase

@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { requireAdminAuth } from '@/lib/supabase/admin-auth'
 import { getTermoBodyText } from '@/lib/termo-template'
 import { NextRequest, NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
@@ -36,16 +37,12 @@ async function streamToBuffer(stream: ReadableStream<Uint8Array>) {
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get('supabase-auth-token')?.value
-
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Não autenticado' },
-        { status: 401 }
-      )
+    const authResult = await requireAdminAuth(request)
+    if (!authResult.ok) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status })
     }
 
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     const { data: cadastros, error: cadastrosError } = await supabase
       .from('cadastros')

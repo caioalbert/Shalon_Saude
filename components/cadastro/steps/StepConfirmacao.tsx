@@ -2,13 +2,26 @@
 
 import { CadastroFormData } from '@/lib/types'
 import { Checkbox } from '@/components/ui/checkbox'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+
+type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD'
+
+type BillingConfig = {
+  adesaoValue: number
+  mensalidadeValue: number
+  mensalidadeBillingTypes: BillingType[]
+  defaultMensalidadeBillingType: BillingType
+} | null
 
 interface StepConfirmacaoProps {
   data: Partial<CadastroFormData>
   aceiteTermos: boolean
   aceitePrivacidade: boolean
+  billingConfig: BillingConfig
+  isLoadingBillingConfig: boolean
   onAceiteTermosChange: (value: boolean) => void
   onAceitePrivacidadeChange: (value: boolean) => void
+  onMensalidadeBillingTypeChange: (value: BillingType) => void
   showValidation?: boolean
 }
 
@@ -16,9 +29,26 @@ export function StepConfirmacao({
   data,
   aceiteTermos,
   aceitePrivacidade,
+  billingConfig,
+  isLoadingBillingConfig,
   onAceiteTermosChange,
   onAceitePrivacidadeChange,
+  onMensalidadeBillingTypeChange,
 }: StepConfirmacaoProps) {
+  const billingTypeLabels: Record<BillingType, string> = {
+    PIX: 'PIX',
+    BOLETO: 'Boleto',
+    CREDIT_CARD: 'Cartão de Crédito',
+  }
+
+  const formatCurrency = (value: number) =>
+    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+  const selectedBillingType =
+    (data.mensalidade_billing_type as BillingType | undefined) ||
+    billingConfig?.defaultMensalidadeBillingType ||
+    'PIX'
+
   return (
     <div className="space-y-6">
       <div className="bg-blue-50 p-4 rounded-lg">
@@ -123,6 +153,49 @@ export function StepConfirmacao({
       </div>
 
       <div className="space-y-4 border border-gray-200 rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-800">Cobrança e Plano</h3>
+
+        {isLoadingBillingConfig ? (
+          <p className="text-sm text-gray-600">Carregando opções de cobrança...</p>
+        ) : (
+          <>
+            {billingConfig && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-xs text-gray-600">Taxa de adesão</p>
+                  <p className="text-base font-semibold text-gray-900">
+                    {formatCurrency(billingConfig.adesaoValue)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-xs text-gray-600">Mensalidade</p>
+                  <p className="text-base font-semibold text-gray-900">
+                    {formatCurrency(billingConfig.mensalidadeValue)}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-800">Forma de cobrança da mensalidade *</p>
+              <RadioGroup
+                value={selectedBillingType}
+                onValueChange={(value) => onMensalidadeBillingTypeChange(value as BillingType)}
+                className="space-y-2"
+              >
+                {(billingConfig?.mensalidadeBillingTypes || ['PIX']).map((billingType) => (
+                  <label key={billingType} className="flex items-center gap-3 rounded-md border border-gray-200 p-2">
+                    <RadioGroupItem value={billingType} id={`billing-${billingType}`} />
+                    <span className="text-sm text-gray-800">{billingTypeLabels[billingType as BillingType]}</span>
+                  </label>
+                ))}
+              </RadioGroup>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="space-y-4 border border-gray-200 rounded-lg p-6">
         <h3 className="text-lg font-semibold text-gray-800">Confirmação</h3>
 
         <div className="flex items-start space-x-3">
@@ -156,16 +229,15 @@ export function StepConfirmacao({
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
         <p className="text-sm font-medium text-amber-900">📌 Informações Importantes</p>
         <ul className="text-xs text-amber-800 space-y-1 list-disc list-inside">
-          <li>Um email será enviado para {data.email} com o termo de adesão</li>
+          <li>Após o cadastro você verá o QR Code PIX para pagar a adesão</li>
+          <li>O termo será enviado para {data.email} após confirmação do pagamento</li>
           <li>Seu cadastro será armazenado com segurança em nossos servidores</li>
-          <li>Você poderá acessar seu termo a qualquer momento</li>
           <li>Sua selfie será utilizada apenas para verificação de identidade</li>
         </ul>
       </div>
 
       <p className="text-xs text-gray-500">
-        Ao clicar em "Concluir Cadastro", você será redirecionado para a tela de sucesso e receberá
-        um email com seu termo de adesão.
+        Ao clicar em "Concluir Cadastro", você será redirecionado para o pagamento da adesão.
       </p>
     </div>
   )

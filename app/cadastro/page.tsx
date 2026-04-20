@@ -10,6 +10,14 @@ export default function CadastroPage() {
     nome: string
     email: string
     id: string
+    status?: string
+    pagamento?: {
+      id: string
+      valor: number
+      vencimento: string
+      pixCopiaECola: string
+      qrCodeBase64: string
+    }
   } | null>(null)
 
   const handleSuccess = useCallback((data: any) => {
@@ -17,6 +25,8 @@ export default function CadastroPage() {
       nome: data.nome,
       email: data.email,
       id: data.id,
+      status: data.status,
+      pagamento: data.pagamento,
     })
     setIsSubmitted(true)
   }, [])

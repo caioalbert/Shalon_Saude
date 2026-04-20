@@ -1,12 +1,53 @@
+import {
+  AsaasIntegrationError,
+  createAsaasCustomer,
+  createAsaasPixPayment,
+  getAsaasPixQrCode,
+} from '@/lib/asaas'
+import { getBillingSettings, type BillingTypeOption } from '@/lib/billing-settings'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getAgeFromIsoDate, isValidCPF, isValidEmail } from '@/lib/utils'
-import { put } from '@vercel/blob'
+import { del, put } from '@vercel/blob'
 import { NextRequest, NextResponse } from 'next/server'
 
-function getAppBaseUrl(request: NextRequest) {
-  const envUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()
-  if (envUrl) return envUrl.replace(/\/$/, '')
-  return request.nextUrl.origin
+const CONNECTIVITY_ERROR_REGEX =
+  /fetch failed|enotfound|getaddrinfo|network|ssl handshake|tls|cloudflare|error code 52\d/i
+
+function isConnectivityIssue(details: string) {
+  return CONNECTIVITY_ERROR_REGEX.test(details)
+}
+
+function onlyDigits(value: string) {
+  return value.replace(/\D/g, '')
+}
+
+function toIsoDate(date: Date) {
+  return date.toISOString().slice(0, 10)
+}
+
+async function cleanupSelfieBlob(selfiePath: string | null) {
+  if (!selfiePath) return
+
+  try {
+    await del(selfiePath)
+  } catch (error) {
+    console.warn('Could not cleanup selfie blob:', { selfiePath, error })
+  }
+}
+
+async function cleanupFailedCadastro(cadastroId: string, selfiePath: string | null) {
+  try {
+    const supabaseAdmin = createAdminClient()
+    const { error } = await supabaseAdmin.from('cadastros').delete().eq('id', cadastroId)
+    if (error) {
+      console.error('Rollback cadastro delete error:', error)
+    }
+  } catch (error) {
+    console.error('Rollback cadastro delete unexpected error:', error)
+  }
+
+  await cleanupSelfieBlob(selfiePath)
 }
 
 export async function POST(request: NextRequest) {
@@ -33,6 +74,7 @@ export async function POST(request: NextRequest) {
     const cidade = formData.get('cidade') as string
     const estado = formData.get('estado') as string
     const cep = formData.get('cep') as string
+    const mensalidade_billing_type = formData.get('mensalidade_billing_type') as string
     const tem_dependentes = formData.get('tem_dependentes') === 'true'
     const dependentes_json = formData.get('dependentes') as string
     const selfie = formData.get('selfie') as File | null
@@ -56,6 +98,7 @@ export async function POST(request: NextRequest) {
     const cidadeValue = cidade?.trim()
     const estadoValue = estado?.trim()
     const cepValue = cep?.trim()
+    const mensalidadeBillingTypeRequested = mensalidade_billing_type?.trim().toUpperCase()
 
     // Validação básica
     if (
@@ -216,6 +259,137 @@ export async function POST(request: NextRequest) {
     // Inicializar Supabase
     const supabase = await createClient()
 
+    // Evita criar cliente no Asaas para CPF já cadastrado no sistema.
+    const { data: cadastroByCpf, error: cadastroByCpfError } = await supabase
+      .from('cadastros')
+      .select('id')
+      .eq('cpf', cpfValue)
+      .limit(1)
+
+    if (cadastroByCpfError) {
+      const details = `${cadastroByCpfError.message || ''} ${cadastroByCpfError.details || ''}`
+      if (isConnectivityIssue(details)) {
+        return NextResponse.json(
+          {
+            error:
+              'Falha ao conectar no Supabase. Verifique NEXT_PUBLIC_SUPABASE_URL e as chaves no arquivo .env/.env.local.',
+          },
+          { status: 503 }
+        )
+      }
+
+      console.error('CPF pre-check error:', cadastroByCpfError)
+      return NextResponse.json(
+        { error: 'Erro ao validar CPF já cadastrado' },
+        { status: 500 }
+      )
+    }
+
+    if ((cadastroByCpf || []).length > 0) {
+      return NextResponse.json(
+        { error: 'CPF já identificado na nossa base de cadastrados.' },
+        { status: 409 }
+      )
+    }
+
+    // Evita criar cliente no Asaas para email já cadastrado no sistema.
+    const { data: cadastroByEmail, error: cadastroByEmailError } = await supabase
+      .from('cadastros')
+      .select('id')
+      .eq('email', emailValue)
+      .limit(1)
+
+    if (cadastroByEmailError) {
+      const details = `${cadastroByEmailError.message || ''} ${cadastroByEmailError.details || ''}`
+      if (isConnectivityIssue(details)) {
+        return NextResponse.json(
+          {
+            error:
+              'Falha ao conectar no Supabase. Verifique NEXT_PUBLIC_SUPABASE_URL e as chaves no arquivo .env/.env.local.',
+          },
+          { status: 503 }
+        )
+      }
+
+      console.error('Email pre-check error:', cadastroByEmailError)
+      return NextResponse.json(
+        { error: 'Erro ao validar email já cadastrado' },
+        { status: 500 }
+      )
+    }
+
+    if ((cadastroByEmail || []).length > 0) {
+      return NextResponse.json(
+        { error: 'Email já identificado na nossa base de cadastrados.' },
+        { status: 409 }
+      )
+    }
+
+    const cadastroId = crypto.randomUUID()
+
+    const billingSettings = await getBillingSettings()
+    const adesaoValue = billingSettings.adesaoValue
+    const adesaoDueDate = toIsoDate(new Date())
+    const mensalidadeBillingType = (() => {
+      if (!mensalidadeBillingTypeRequested) {
+        return billingSettings.defaultMensalidadeBillingType
+      }
+
+      if (
+        !billingSettings.mensalidadeBillingTypes.includes(
+          mensalidadeBillingTypeRequested as BillingTypeOption
+        )
+      ) {
+        throw new Error('Forma de cobrança mensal inválida para o plano atual.')
+      }
+
+      return mensalidadeBillingTypeRequested
+    })()
+
+    let asaasCustomerId: string
+    let asaasPaymentId: string
+    let pixCopyPaste: string
+    let pixQrCodeImage: string
+    try {
+      const asaasCustomer = await createAsaasCustomer({
+        name: nomeValue,
+        cpfCnpj: onlyDigits(cpfValue),
+        email: emailValue,
+        phone: onlyDigits(telefoneValue),
+        mobilePhone: onlyDigits(telefoneValue),
+        address: enderecoValue,
+        addressNumber: numeroValue,
+        complement: complementoValue || undefined,
+        province: bairroValue,
+        postalCode: onlyDigits(cepValue),
+        externalReference: cadastroId,
+      })
+      asaasCustomerId = asaasCustomer.id
+
+      const payment = await createAsaasPixPayment({
+        customer: asaasCustomerId,
+        value: adesaoValue,
+        dueDate: adesaoDueDate,
+        description: 'Taxa de adesão SHALON Saúde',
+        externalReference: cadastroId,
+      })
+      asaasPaymentId = payment.id
+
+      const pixQrCode = await getAsaasPixQrCode(asaasPaymentId)
+      pixCopyPaste = pixQrCode.payload
+      pixQrCodeImage = pixQrCode.encodedImage
+    } catch (error) {
+      if (error instanceof AsaasIntegrationError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
+
+      console.error('Asaas create customer error:', error)
+      return NextResponse.json(
+        { error: 'Não foi possível registrar o cliente no Asaas.' },
+        { status: 502 }
+      )
+    }
+
     // Fazer upload da selfie se houver
     let selfie_path: string | null = null
     if (selfie) {
@@ -235,6 +409,7 @@ export async function POST(request: NextRequest) {
       .from('cadastros')
       .insert([
         {
+          id: cadastroId,
           nome: nomeValue,
           email: emailValue,
           cpf: cpfValue,
@@ -256,6 +431,10 @@ export async function POST(request: NextRequest) {
           cep: cepValue,
           tem_dependentes,
           selfie_path,
+          status: 'PENDENTE_PAGAMENTO',
+          asaas_customer_id: asaasCustomerId,
+          asaas_payment_id: asaasPaymentId,
+          mensalidade_billing_type: mensalidadeBillingType,
         },
       ])
       .select()
@@ -265,6 +444,7 @@ export async function POST(request: NextRequest) {
       const details = `${cadastroError.message || ''} ${cadastroError.details || ''}`
 
       if (/duplicate key|cadastros_cpf|cadastros_cpf_idx/i.test(details)) {
+        await cleanupSelfieBlob(selfie_path)
         return NextResponse.json(
           { error: 'CPF já identificado na nossa base de cadastrados.' },
           { status: 409 }
@@ -272,6 +452,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (/duplicate key|cadastros_email|cadastros_email_idx/i.test(details)) {
+        await cleanupSelfieBlob(selfie_path)
         return NextResponse.json(
           { error: 'Email já identificado na nossa base de cadastrados.' },
           { status: 409 }
@@ -279,20 +460,22 @@ export async function POST(request: NextRequest) {
       }
 
       if (
-        /column .*sexo|sexo .*column|telefone_celular|estado_civil|nome_conjuge|escolaridade|situacao_profissional|profissao|rg/i.test(
+        /column .*sexo|sexo .*column|telefone_celular|estado_civil|nome_conjuge|escolaridade|situacao_profissional|profissao|rg|asaas_customer_id|asaas_payment_id|asaas_subscription_id|status|adesao_pago_em|mensalidade_billing_type/i.test(
           details
         )
       ) {
+        await cleanupSelfieBlob(selfie_path)
         return NextResponse.json(
           {
             error:
-              'Banco desatualizado. Execute novamente o script scripts/001_create_tables.sql no Supabase SQL Editor para adicionar as novas colunas.',
+              'Banco desatualizado. Execute scripts/001_create_tables.sql, scripts/004_add_cadastro_pagamentos.sql e scripts/005_add_billing_settings_admin.sql no Supabase SQL Editor.',
           },
           { status: 500 }
         )
       }
 
-      if (/fetch failed|enotfound|getaddrinfo|network/i.test(details)) {
+      if (isConnectivityIssue(details)) {
+        await cleanupSelfieBlob(selfie_path)
         return NextResponse.json(
           {
             error:
@@ -303,6 +486,7 @@ export async function POST(request: NextRequest) {
       }
 
       console.error('Database error:', cadastroError)
+      await cleanupSelfieBlob(selfie_path)
       return NextResponse.json(
         { error: cadastroError.message || 'Erro ao salvar cadastro' },
         { status: 500 }
@@ -330,7 +514,7 @@ export async function POST(request: NextRequest) {
       if (dependentesError) {
         const details = `${dependentesError.message || ''} ${dependentesError.details || ''}`
         if (/column .*email|email .*column/i.test(details)) {
-          await supabase.from('cadastros').delete().eq('id', cadastroData.id)
+          await cleanupFailedCadastro(cadastroData.id, selfie_path)
           return NextResponse.json(
             {
               error:
@@ -341,7 +525,7 @@ export async function POST(request: NextRequest) {
         }
 
         console.error('Dependentes error:', dependentesError)
-        await supabase.from('cadastros').delete().eq('id', cadastroData.id)
+        await cleanupFailedCadastro(cadastroData.id, selfie_path)
         return NextResponse.json(
           { error: 'Erro ao salvar dependentes' },
           { status: 500 }
@@ -349,39 +533,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Enviar email com termo de adesão
-    try {
-      const appBaseUrl = getAppBaseUrl(request)
-      const emailResponse = await fetch(`${appBaseUrl}/api/enviar-termo`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cadastroId: cadastroData.id,
-        }),
-      })
-
-      if (!emailResponse.ok) {
-        const responseText = await emailResponse.text()
-        console.error('Email API returned non-200', {
-          cadastroId: cadastroData.id,
-          status: emailResponse.status,
-          body: responseText,
-        })
-      }
-    } catch (emailError) {
-      console.error('Error sending email:', emailError)
-      // Não falhar o cadastro se o email falhar
-    }
-
     return NextResponse.json({
       success: true,
       id: cadastroData.id,
       nome: cadastroData.nome,
       email: cadastroData.email,
+      status: cadastroData.status || 'PENDENTE_PAGAMENTO',
+      pagamento: {
+        id: asaasPaymentId,
+        valor: adesaoValue,
+        vencimento: adesaoDueDate,
+        pixCopiaECola: pixCopyPaste,
+        qrCodeBase64: pixQrCodeImage,
+      },
+      mensalidadeBillingTypeEscolhida: mensalidadeBillingType,
     })
   } catch (error) {
+    if (error instanceof AsaasIntegrationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+
     const message = error instanceof Error ? error.message : String(error)
-    if (/fetch failed|enotfound|getaddrinfo|network/i.test(message)) {
+    if (/forma de cobrança mensal inválida/i.test(message)) {
+      return NextResponse.json({ error: message }, { status: 400 })
+    }
+
+    if (isConnectivityIssue(message)) {
       return NextResponse.json(
         {
           error:

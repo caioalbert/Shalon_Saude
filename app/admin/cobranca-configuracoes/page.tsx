@@ -1,0 +1,286 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+
+type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD'
+
+const BILLING_TYPE_LABEL: Record<BillingType, string> = {
+  PIX: 'PIX',
+  BOLETO: 'Boleto',
+  CREDIT_CARD: 'Cartão de Crédito',
+}
+
+export default function AdminCobrancaConfiguracoesPage() {
+  const router = useRouter()
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [allowedBillingTypes, setAllowedBillingTypes] = useState<BillingType[]>(['PIX', 'BOLETO', 'CREDIT_CARD'])
+  const [adesaoValue, setAdesaoValue] = useState('')
+  const [mensalidadeValue, setMensalidadeValue] = useState('')
+  const [mensalidadeBillingTypes, setMensalidadeBillingTypes] = useState<BillingType[]>(['PIX'])
+  const [defaultMensalidadeBillingType, setDefaultMensalidadeBillingType] = useState<BillingType>('PIX')
+  const [source, setSource] = useState<string | null>(null)
+
+  const fetchSettings = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      setMessage(null)
+
+      const response = await fetch('/api/admin/cobranca-configuracoes')
+      const data = await response.json().catch(() => null)
+
+      if (response.status === 401) {
+        router.push('/admin/login')
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erro ao carregar configurações de cobrança.')
+      }
+
+      const types = Array.isArray(data?.settings?.mensalidadeBillingTypes)
+        ? data.settings.mensalidadeBillingTypes
+        : ['PIX']
+
+      setAllowedBillingTypes(
+        Array.isArray(data?.allowedBillingTypes) && data.allowedBillingTypes.length > 0
+          ? data.allowedBillingTypes
+          : ['PIX', 'BOLETO', 'CREDIT_CARD']
+      )
+      setAdesaoValue(String(data?.settings?.adesaoValue ?? ''))
+      setMensalidadeValue(String(data?.settings?.mensalidadeValue ?? ''))
+      setMensalidadeBillingTypes(types)
+      setDefaultMensalidadeBillingType(data?.settings?.defaultMensalidadeBillingType || types[0] || 'PIX')
+      setSource(data?.settings?.source || null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao carregar configurações de cobrança.')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [router])
+
+  useEffect(() => {
+    fetchSettings()
+  }, [fetchSettings])
+
+  const sortedSelectedTypes = useMemo(
+    () => allowedBillingTypes.filter((type) => mensalidadeBillingTypes.includes(type)),
+    [allowedBillingTypes, mensalidadeBillingTypes]
+  )
+
+  const handleToggleBillingType = (billingType: BillingType, checked: boolean) => {
+    setError(null)
+    setMessage(null)
+
+    if (checked) {
+      setMensalidadeBillingTypes((prev) => {
+        if (prev.includes(billingType)) return prev
+        return [...prev, billingType]
+      })
+
+      if (!mensalidadeBillingTypes.includes(defaultMensalidadeBillingType)) {
+        setDefaultMensalidadeBillingType(billingType)
+      }
+      return
+    }
+
+    setMensalidadeBillingTypes((prev) => {
+      const next = prev.filter((type) => type !== billingType)
+      if (next.length === 0) {
+        return prev
+      }
+
+      if (!next.includes(defaultMensalidadeBillingType)) {
+        setDefaultMensalidadeBillingType(next[0])
+      }
+      return next
+    })
+  }
+
+  const handleSave = async () => {
+    try {
+      setIsSaving(true)
+      setError(null)
+      setMessage(null)
+
+      if (mensalidadeBillingTypes.length === 0) {
+        throw new Error('Selecione ao menos uma forma de cobrança de mensalidade.')
+      }
+
+      const response = await fetch('/api/admin/cobranca-configuracoes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adesaoValue: Number(adesaoValue),
+          mensalidadeValue: Number(mensalidadeValue),
+          mensalidadeBillingTypes,
+          defaultMensalidadeBillingType,
+        }),
+      })
+
+      const data = await response.json().catch(() => null)
+
+      if (response.status === 401) {
+        router.push('/admin/login')
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erro ao salvar configurações de cobrança.')
+      }
+
+      setMessage(data?.message || 'Configurações salvas com sucesso.')
+      setSource(data?.settings?.source || null)
+      setAdesaoValue(String(data?.settings?.adesaoValue ?? adesaoValue))
+      setMensalidadeValue(String(data?.settings?.mensalidadeValue ?? mensalidadeValue))
+      setMensalidadeBillingTypes(data?.settings?.mensalidadeBillingTypes || mensalidadeBillingTypes)
+      setDefaultMensalidadeBillingType(
+        data?.settings?.defaultMensalidadeBillingType || defaultMensalidadeBillingType
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao salvar configurações de cobrança.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/admin/logout', { method: 'POST' })
+      router.push('/admin/login')
+    } catch (err) {
+      console.error('Logout error:', err)
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-gray-50">
+      <header className="sticky top-0 z-50 border-b border-gray-200 bg-white">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Configurações de Cobrança</h1>
+            <p className="text-sm text-gray-600">Defina valores e formas de pagamento da mensalidade</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link href="/admin/dashboard">
+              <Button variant="outline">Voltar ao Dashboard</Button>
+            </Link>
+            <Button onClick={handleLogout} variant="outline">
+              Sair
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="rounded-lg bg-white p-6 shadow space-y-6">
+          {isLoading ? (
+            <p className="text-sm text-gray-600">Carregando configurações...</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-sm font-medium text-gray-700">Valor da adesão (R$)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={adesaoValue}
+                    onChange={(event) => setAdesaoValue(event.target.value)}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    disabled={isSaving}
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-sm font-medium text-gray-700">Valor da mensalidade (R$)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={mensalidadeValue}
+                    onChange={(event) => setMensalidadeValue(event.target.value)}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    disabled={isSaving}
+                  />
+                </label>
+              </div>
+
+              <div className="space-y-3 rounded-lg border border-gray-200 p-4">
+                <p className="text-sm font-medium text-gray-800">Formas de cobrança da mensalidade</p>
+                <p className="text-xs text-gray-600">
+                  Se houver mais de uma opção marcada, o cliente escolherá no fim do cadastro.
+                </p>
+
+                <div className="space-y-2">
+                  {allowedBillingTypes.map((billingType) => (
+                    <label key={billingType} className="flex items-center gap-3">
+                      <Checkbox
+                        checked={mensalidadeBillingTypes.includes(billingType)}
+                        onCheckedChange={(value) =>
+                          handleToggleBillingType(billingType, value === true)
+                        }
+                        disabled={isSaving}
+                      />
+                      <span className="text-sm text-gray-800">{BILLING_TYPE_LABEL[billingType]}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3 rounded-lg border border-gray-200 p-4">
+                <p className="text-sm font-medium text-gray-800">Opção padrão</p>
+                <RadioGroup
+                  value={defaultMensalidadeBillingType}
+                  onValueChange={(value) =>
+                    setDefaultMensalidadeBillingType(value as BillingType)
+                  }
+                  className="space-y-2"
+                >
+                  {sortedSelectedTypes.map((billingType) => (
+                    <label key={billingType} className="flex items-center gap-3">
+                      <RadioGroupItem value={billingType} id={`default-${billingType}`} disabled={isSaving} />
+                      <span className="text-sm text-gray-800">{BILLING_TYPE_LABEL[billingType]}</span>
+                    </label>
+                  ))}
+                </RadioGroup>
+              </div>
+
+              {source && (
+                <p className="text-xs text-gray-500">
+                  Fonte atual: {source === 'database' ? 'Banco (admin)' : 'Variáveis de ambiente (fallback)'}
+                </p>
+              )}
+
+              {error && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              )}
+
+              {message && (
+                <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                  <p className="text-sm text-green-700">{message}</p>
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <Button onClick={handleSave} disabled={isSaving || isLoading}>
+                  {isSaving ? 'Salvando...' : 'Salvar Configurações'}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </main>
+  )
+}

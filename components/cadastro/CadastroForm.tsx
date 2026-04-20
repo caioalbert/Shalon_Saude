@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CadastroFormData } from '@/lib/types'
 import { getAgeFromIsoDate, isValidCPF, isValidEmail } from '@/lib/utils'
 import { StepPessoal } from './steps/StepPessoal'
@@ -22,6 +22,15 @@ const STEPS = [
 
 interface CadastroFormProps {
   onSuccess: (data: any) => void
+}
+
+type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD'
+
+type PublicBillingConfig = {
+  adesaoValue: number
+  mensalidadeValue: number
+  mensalidadeBillingTypes: BillingType[]
+  defaultMensalidadeBillingType: BillingType
 }
 
 const CPF_CHECK_FALLBACK_ERROR = 'Não foi possível validar o CPF no momento. Tente novamente.'
@@ -63,10 +72,67 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [aceiteTermos, setAceiteTermos] = useState(false)
   const [aceitePrivacidade, setAceitePrivacidade] = useState(false)
+  const [billingConfig, setBillingConfig] = useState<PublicBillingConfig | null>(null)
+  const [isLoadingBillingConfig, setIsLoadingBillingConfig] = useState(true)
   const [formData, setFormData] = useState<Partial<CadastroFormData>>({
     dependentes: [],
     tem_dependentes: false,
+    mensalidade_billing_type: 'PIX',
   })
+
+  useEffect(() => {
+    let active = true
+
+    const fetchBillingConfig = async () => {
+      try {
+        setIsLoadingBillingConfig(true)
+        const response = await fetch('/api/cadastro/cobranca-configuracoes', {
+          cache: 'no-store',
+        })
+        const payload = await response.json().catch(() => null)
+
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Não foi possível carregar configurações de cobrança.')
+        }
+
+        const config: PublicBillingConfig = {
+          adesaoValue: Number(payload?.adesaoValue || 0),
+          mensalidadeValue: Number(payload?.mensalidadeValue || 0),
+          mensalidadeBillingTypes: Array.isArray(payload?.mensalidadeBillingTypes)
+            ? payload.mensalidadeBillingTypes
+            : ['PIX'],
+          defaultMensalidadeBillingType: (payload?.defaultMensalidadeBillingType || 'PIX') as BillingType,
+        }
+
+        if (!active) return
+        setBillingConfig(config)
+        setFormData((prev) => ({
+          ...prev,
+          mensalidade_billing_type:
+            prev.mensalidade_billing_type && config.mensalidadeBillingTypes.includes(prev.mensalidade_billing_type)
+              ? prev.mensalidade_billing_type
+              : config.defaultMensalidadeBillingType,
+        }))
+      } catch (error) {
+        if (!active) return
+        setError(
+          error instanceof Error
+            ? error.message
+            : 'Não foi possível carregar configurações de cobrança.'
+        )
+      } finally {
+        if (active) {
+          setIsLoadingBillingConfig(false)
+        }
+      }
+    }
+
+    fetchBillingConfig()
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   const checkCpfAlreadyRegistered = async (cpf: string) => {
     const response = await fetch(`/api/cadastro/verificar-cpf?cpf=${encodeURIComponent(cpf)}`)
@@ -227,6 +293,19 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
       return 'Capture ou envie uma selfie para continuar.'
     }
 
+    if (currentStep === 5) {
+      if (!formData.mensalidade_billing_type) {
+        return 'Selecione a forma de cobrança da mensalidade.'
+      }
+
+      if (
+        billingConfig &&
+        !billingConfig.mensalidadeBillingTypes.includes(formData.mensalidade_billing_type)
+      ) {
+        return 'A forma de cobrança selecionada não está disponível no momento.'
+      }
+    }
+
     return null
   }
 
@@ -324,6 +403,10 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
         throw new Error('Você precisa aceitar os termos e a política de privacidade para concluir o cadastro')
       }
 
+      if (!formData.mensalidade_billing_type) {
+        throw new Error('Selecione a forma de cobrança da mensalidade')
+      }
+
       const submitData = new FormData()
       submitData.append('nome', formData.nome)
       submitData.append('cpf', formData.cpf)
@@ -346,6 +429,7 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
       submitData.append('cep', formData.cep || '')
       submitData.append('tem_dependentes', String(formData.tem_dependentes))
       submitData.append('dependentes', JSON.stringify(formData.dependentes || []))
+      submitData.append('mensalidade_billing_type', formData.mensalidade_billing_type)
 
       if (formData.selfie_blob) {
         submitData.append('selfie', formData.selfie_blob)
@@ -357,8 +441,8 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Erro ao enviar cadastro')
+        const safeMessage = await readApiErrorMessage(response, 'Erro ao enviar cadastro')
+        throw new Error(safeMessage)
       }
 
       const result = await response.json()
@@ -414,6 +498,11 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
             aceitePrivacidade={aceitePrivacidade}
             onAceiteTermosChange={setAceiteTermos}
             onAceitePrivacidadeChange={setAceitePrivacidade}
+            billingConfig={billingConfig}
+            isLoadingBillingConfig={isLoadingBillingConfig}
+            onMensalidadeBillingTypeChange={(value) =>
+              updateFormData({ mensalidade_billing_type: value })
+            }
             showValidation={validationStep === 5}
           />
         )
@@ -465,7 +554,7 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
           {step === STEPS.length - 1 ? (
             <Button
               onClick={handleSubmit}
-              disabled={isLoading || !aceiteTermos || !aceitePrivacidade}
+              disabled={isLoading || isLoadingBillingConfig || !aceiteTermos || !aceitePrivacidade}
               className="bg-green-600 hover:bg-green-700"
             >
               {isLoading ? 'Enviando...' : 'Concluir Cadastro'}

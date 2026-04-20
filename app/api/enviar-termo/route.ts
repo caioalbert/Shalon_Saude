@@ -76,6 +76,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (cadastro.status && cadastro.status !== 'ATIVO') {
+      return NextResponse.json(
+        { error: 'Termo disponível somente após confirmação do pagamento da adesão.' },
+        { status: 409 }
+      )
+    }
+
     const { data: dependentes, error: dependentesError } = await supabase
       .from('dependentes')
       .select('*')
