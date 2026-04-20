@@ -312,6 +312,9 @@ export default function AdminDashboard() {
             <Link href="/admin/cobranca-configuracoes">
               <Button variant="outline">Configurações de Cobrança</Button>
             </Link>
+            <Link href="/admin/vendedores">
+              <Button variant="outline">Vendedores</Button>
+            </Link>
             <Button
               onClick={handleExportAllContracts}
               disabled={exportLoading || cadastros.length === 0}

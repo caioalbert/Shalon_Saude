@@ -25,6 +25,8 @@ export interface Cadastro {
   asaas_customer_id?: string
   asaas_payment_id?: string
   asaas_subscription_id?: string
+  vendedor_id?: string
+  vendedor_codigo?: string
   tipo_plano?: 'INDIVIDUAL' | 'FAMILIAR' | string
   mensalidade_valor?: number
   mensalidade_billing_type?: 'PIX' | 'BOLETO' | 'CREDIT_CARD' | string
@@ -87,8 +89,22 @@ export interface CadastroFormData {
   // Email para contato
   email: string
 
+  // Referência de vendedor (link de indicação)
+  vendedor_ref?: string
+
   // Cobrança recorrente (mensalidade)
   mensalidade_billing_type: 'PIX' | 'BOLETO' | 'CREDIT_CARD'
+}
+
+export interface Vendedor {
+  id: string
+  nome: string
+  email: string
+  codigo_indicacao: string
+  ativo: boolean
+  auth_user_id?: string
+  created_at: string
+  updated_at: string
 }
 
 export interface DependenteFormData {

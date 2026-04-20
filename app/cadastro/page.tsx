@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { CadastroForm } from '@/components/cadastro/CadastroForm'
 import { CadastroSuccess } from '@/components/cadastro/CadastroSuccess'
 
 export default function CadastroPage() {
+  const searchParams = useSearchParams()
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [cadastroData, setCadastroData] = useState<{
     nome: string
@@ -31,6 +33,11 @@ export default function CadastroPage() {
     setIsSubmitted(true)
   }, [])
 
+  const vendedorRef = useMemo(() => {
+    const ref = searchParams.get('ref')
+    return ref ? ref.trim().toUpperCase() : ''
+  }, [searchParams])
+
   if (isSubmitted && cadastroData) {
     return <CadastroSuccess data={cadastroData} />
   }
@@ -45,7 +52,7 @@ export default function CadastroPage() {
           </div>
           
           <div className="px-6 py-8 sm:px-8">
-            <CadastroForm onSuccess={handleSuccess} />
+            <CadastroForm onSuccess={handleSuccess} initialVendedorRef={vendedorRef} />
           </div>
         </div>
       </div>

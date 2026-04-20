@@ -22,6 +22,7 @@ const STEPS = [
 
 interface CadastroFormProps {
   onSuccess: (data: any) => void
+  initialVendedorRef?: string
 }
 
 type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD'
@@ -68,7 +69,7 @@ async function readApiErrorMessage(response: Response, fallbackMessage: string) 
   return safeMessage || fallbackMessage
 }
 
-export function CadastroForm({ onSuccess }: CadastroFormProps) {
+export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFormProps) {
   const [step, setStep] = useState(0)
   const [validationStep, setValidationStep] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -84,6 +85,7 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
     tipo_plano: 'INDIVIDUAL',
     mensalidade_billing_type: 'PIX',
   })
+  const vendedorRef = initialVendedorRef.trim().toUpperCase()
 
   useEffect(() => {
     let active = true
@@ -481,6 +483,9 @@ export function CadastroForm({ onSuccess }: CadastroFormProps) {
       submitData.append('dependentes', JSON.stringify(formData.dependentes || []))
       submitData.append('tipo_plano', formData.tipo_plano)
       submitData.append('mensalidade_billing_type', formData.mensalidade_billing_type)
+      if (vendedorRef) {
+        submitData.append('vendedor_ref', vendedorRef)
+      }
 
       if (formData.selfie_blob) {
         submitData.append('selfie', formData.selfie_blob)

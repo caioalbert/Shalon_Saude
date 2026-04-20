@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS cadastros (
   asaas_customer_id TEXT,
   asaas_payment_id TEXT,
   asaas_subscription_id TEXT,
+  vendedor_id UUID,
+  vendedor_codigo TEXT,
   tipo_plano TEXT NOT NULL DEFAULT 'INDIVIDUAL',
   mensalidade_valor NUMERIC(10,2),
   mensalidade_billing_type TEXT,
@@ -39,6 +41,8 @@ CREATE TABLE IF NOT EXISTS cadastros (
 -- Criar índices únicos
 CREATE UNIQUE INDEX IF NOT EXISTS cadastros_email_idx ON cadastros(email);
 CREATE UNIQUE INDEX IF NOT EXISTS cadastros_cpf_idx ON cadastros(cpf);
+CREATE INDEX IF NOT EXISTS cadastros_vendedor_id_idx ON cadastros(vendedor_id);
+CREATE INDEX IF NOT EXISTS cadastros_vendedor_codigo_idx ON cadastros(vendedor_codigo);
 
 -- Tabela de dependentes
 CREATE TABLE IF NOT EXISTS dependentes (
@@ -55,6 +59,21 @@ CREATE TABLE IF NOT EXISTS dependentes (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Tabela de vendedores
+CREATE TABLE IF NOT EXISTS vendedores (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome TEXT NOT NULL,
+  email TEXT NOT NULL,
+  codigo_indicacao TEXT NOT NULL,
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  auth_user_id UUID,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS vendedores_email_idx ON vendedores(email);
+CREATE UNIQUE INDEX IF NOT EXISTS vendedores_codigo_idx ON vendedores(codigo_indicacao);
+
 -- Compatibilidade com bancos já existentes
 ALTER TABLE cadastros
   ADD COLUMN IF NOT EXISTS sexo TEXT,
@@ -67,11 +86,32 @@ ALTER TABLE cadastros
   ADD COLUMN IF NOT EXISTS asaas_customer_id TEXT,
   ADD COLUMN IF NOT EXISTS asaas_payment_id TEXT,
   ADD COLUMN IF NOT EXISTS asaas_subscription_id TEXT,
+  ADD COLUMN IF NOT EXISTS vendedor_id UUID,
+  ADD COLUMN IF NOT EXISTS vendedor_codigo TEXT,
   ADD COLUMN IF NOT EXISTS tipo_plano TEXT DEFAULT 'INDIVIDUAL',
   ADD COLUMN IF NOT EXISTS mensalidade_valor NUMERIC(10,2),
   ADD COLUMN IF NOT EXISTS mensalidade_billing_type TEXT,
   ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'PENDENTE_PAGAMENTO',
   ADD COLUMN IF NOT EXISTS adesao_pago_em TIMESTAMP WITH TIME ZONE;
+
+CREATE TABLE IF NOT EXISTS vendedores (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome TEXT NOT NULL,
+  email TEXT NOT NULL,
+  codigo_indicacao TEXT NOT NULL,
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  auth_user_id UUID,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE vendedores
+  ADD COLUMN IF NOT EXISTS ativo BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS auth_user_id UUID,
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+
+CREATE UNIQUE INDEX IF NOT EXISTS vendedores_email_idx ON vendedores(email);
+CREATE UNIQUE INDEX IF NOT EXISTS vendedores_codigo_idx ON vendedores(codigo_indicacao);
 
 UPDATE cadastros
 SET status = 'PENDENTE_PAGAMENTO'
@@ -91,6 +131,24 @@ CREATE UNIQUE INDEX IF NOT EXISTS cadastros_asaas_customer_id_idx ON cadastros(a
 CREATE UNIQUE INDEX IF NOT EXISTS cadastros_asaas_payment_id_idx ON cadastros(asaas_payment_id) WHERE asaas_payment_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS cadastros_asaas_subscription_id_idx ON cadastros(asaas_subscription_id) WHERE asaas_subscription_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS cadastros_status_idx ON cadastros(status);
+CREATE INDEX IF NOT EXISTS cadastros_vendedor_id_idx ON cadastros(vendedor_id);
+CREATE INDEX IF NOT EXISTS cadastros_vendedor_codigo_idx ON cadastros(vendedor_codigo);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'cadastros_vendedor_id_fkey'
+  ) THEN
+    ALTER TABLE cadastros
+      ADD CONSTRAINT cadastros_vendedor_id_fkey
+      FOREIGN KEY (vendedor_id)
+      REFERENCES vendedores(id)
+      ON DELETE SET NULL;
+  END IF;
+END
+$$;
 
 CREATE TABLE IF NOT EXISTS cobranca_configuracoes (
   id BOOLEAN PRIMARY KEY DEFAULT true CHECK (id),
@@ -149,6 +207,7 @@ CREATE INDEX IF NOT EXISTS dependentes_cadastro_idx ON dependentes(cadastro_id);
 -- Habilitar RLS
 ALTER TABLE cadastros ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dependentes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vendedores ENABLE ROW LEVEL SECURITY;
 
 -- Políticas RLS para cadastros
 -- Permitir inserção pública (qualquer pessoa pode se cadastrar)
@@ -189,5 +248,11 @@ $$ language 'plpgsql';
 DROP TRIGGER IF EXISTS update_cadastros_updated_at ON cadastros;
 CREATE TRIGGER update_cadastros_updated_at
   BEFORE UPDATE ON cadastros
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_vendedores_updated_at ON vendedores;
+CREATE TRIGGER update_vendedores_updated_at
+  BEFORE UPDATE ON vendedores
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();

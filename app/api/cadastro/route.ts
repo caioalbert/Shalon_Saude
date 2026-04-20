@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
     const cep = formData.get('cep') as string
     const tipo_plano = formData.get('tipo_plano') as string
     const mensalidade_billing_type = formData.get('mensalidade_billing_type') as string
+    const vendedor_ref = formData.get('vendedor_ref') as string
     const temDependentesPayload = formData.get('tem_dependentes') === 'true'
     const dependentes_json = formData.get('dependentes') as string
     const selfie = formData.get('selfie') as File | null
@@ -108,6 +109,7 @@ export async function POST(request: NextRequest) {
     const tipoPlanoRequested = tipo_plano?.trim().toUpperCase()
     const tem_dependentes = tipoPlanoRequested === 'FAMILIAR' ? true : temDependentesPayload
     const mensalidadeBillingTypeRequested = mensalidade_billing_type?.trim().toUpperCase()
+    const vendedorRefValue = vendedor_ref?.trim().toUpperCase()
 
     // Validação básica
     if (
@@ -274,6 +276,70 @@ export async function POST(request: NextRequest) {
 
     // Inicializar Supabase
     const supabase = await createClient()
+    let vendedorId: string | null = null
+    let vendedorCodigo: string | null = null
+
+    if (vendedorRefValue) {
+      let supabaseAdmin
+
+      try {
+        supabaseAdmin = createAdminClient()
+      } catch {
+        return NextResponse.json(
+          {
+            error:
+              'Configuração ausente para validar vendedor. Defina SUPABASE_SERVICE_ROLE_KEY no ambiente.',
+          },
+          { status: 500 }
+        )
+      }
+
+      const { data: vendedor, error: vendedorError } = await supabaseAdmin
+        .from('vendedores')
+        .select('id, codigo_indicacao, ativo')
+        .eq('codigo_indicacao', vendedorRefValue)
+        .maybeSingle()
+
+      if (vendedorError) {
+        const details = `${vendedorError.message || ''} ${vendedorError.details || ''}`
+
+        if (/relation .*vendedores|does not exist|42P01|column .*vendedor_id|vendedor_codigo/i.test(details)) {
+          return NextResponse.json(
+            {
+              error:
+                'Banco desatualizado. Execute scripts/007_add_vendedores_module.sql no Supabase SQL Editor.',
+            },
+            { status: 500 }
+          )
+        }
+
+        if (isConnectivityIssue(details)) {
+          return NextResponse.json(
+            {
+              error:
+                'Falha ao conectar no Supabase. Verifique NEXT_PUBLIC_SUPABASE_URL e as chaves no arquivo .env/.env.local.',
+            },
+            { status: 503 }
+          )
+        }
+
+        console.error('Vendedor lookup error:', vendedorError)
+        return NextResponse.json(
+          { error: 'Erro ao validar link de vendedor.' },
+          { status: 500 }
+        )
+      }
+
+      if (!vendedor || vendedor.ativo !== true) {
+        return NextResponse.json(
+          { error: 'Link de vendedor inválido ou inativo.' },
+          { status: 400 }
+        )
+      }
+
+      vendedorId = vendedor.id
+      vendedorCodigo = vendedor.codigo_indicacao
+    }
 
     // Evita criar cliente no Asaas para CPF já cadastrado no sistema.
     const { data: cadastroByCpf, error: cadastroByCpfError } = await supabase
@@ -486,6 +552,8 @@ export async function POST(request: NextRequest) {
           status: 'PENDENTE_PAGAMENTO',
           asaas_customer_id: asaasCustomerId,
           asaas_payment_id: asaasPaymentId,
+          vendedor_id: vendedorId,
+          vendedor_codigo: vendedorCodigo,
           tipo_plano: tipoPlano,
           mensalidade_valor: mensalidadeValor,
           mensalidade_billing_type: mensalidadeBillingType,
@@ -514,7 +582,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (
-        /column .*sexo|sexo .*column|telefone_celular|estado_civil|nome_conjuge|escolaridade|situacao_profissional|profissao|rg|asaas_customer_id|asaas_payment_id|asaas_subscription_id|status|adesao_pago_em|mensalidade_billing_type|tipo_plano|mensalidade_valor/i.test(
+        /column .*sexo|sexo .*column|telefone_celular|estado_civil|nome_conjuge|escolaridade|situacao_profissional|profissao|rg|asaas_customer_id|asaas_payment_id|asaas_subscription_id|status|adesao_pago_em|mensalidade_billing_type|tipo_plano|mensalidade_valor|vendedor_id|vendedor_codigo/i.test(
           details
         )
       ) {
@@ -522,7 +590,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error:
-              'Banco desatualizado. Execute scripts/001_create_tables.sql, scripts/004_add_cadastro_pagamentos.sql, scripts/005_add_billing_settings_admin.sql e scripts/006_add_plan_type_pricing.sql no Supabase SQL Editor.',
+              'Banco desatualizado. Execute scripts/001_create_tables.sql, scripts/004_add_cadastro_pagamentos.sql, scripts/005_add_billing_settings_admin.sql, scripts/006_add_plan_type_pricing.sql e scripts/007_add_vendedores_module.sql no Supabase SQL Editor.',
           },
           { status: 500 }
         )
