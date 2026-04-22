@@ -1,61 +1,23 @@
-'use client'
+import CadastroPageClient from './CadastroPageClient'
 
-import { useState, useCallback, useMemo } from 'react'
-import { useSearchParams } from 'next/navigation'
-import { CadastroForm } from '@/components/cadastro/CadastroForm'
-import { CadastroSuccess } from '@/components/cadastro/CadastroSuccess'
+type SearchParamsValue = string | string[] | undefined
+type SearchParamsRecord = Record<string, SearchParamsValue>
 
-export default function CadastroPage() {
-  const searchParams = useSearchParams()
-  const [isSubmitted, setIsSubmitted] = useState(false)
-  const [cadastroData, setCadastroData] = useState<{
-    nome: string
-    email: string
-    id: string
-    status?: string
-    pagamento?: {
-      id: string
-      valor: number
-      vencimento: string
-      pixCopiaECola: string
-      qrCodeBase64: string
-    }
-  } | null>(null)
+type CadastroPageProps = {
+  searchParams?: SearchParamsRecord | Promise<SearchParamsRecord>
+}
 
-  const handleSuccess = useCallback((data: any) => {
-    setCadastroData({
-      nome: data.nome,
-      email: data.email,
-      id: data.id,
-      status: data.status,
-      pagamento: data.pagamento,
-    })
-    setIsSubmitted(true)
-  }, [])
-
-  const vendedorRef = useMemo(() => {
-    const ref = searchParams.get('ref')
-    return ref ? ref.trim().toUpperCase() : ''
-  }, [searchParams])
-
-  if (isSubmitted && cadastroData) {
-    return <CadastroSuccess data={cadastroData} />
+function toSingleValue(value: SearchParamsValue) {
+  if (Array.isArray(value)) {
+    return value[0] || ''
   }
 
-  return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-2xl mx-auto">
-        <div className="bg-white rounded-xl shadow-xl overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-8 sm:px-8">
-            <h1 className="text-3xl font-bold text-white">Cadastro SHALON Saúde</h1>
-            <p className="text-blue-100 mt-2">Preencha seus dados para adesão ao serviço</p>
-          </div>
-          
-          <div className="px-6 py-8 sm:px-8">
-            <CadastroForm onSuccess={handleSuccess} initialVendedorRef={vendedorRef} />
-          </div>
-        </div>
-      </div>
-    </main>
-  )
+  return value || ''
+}
+
+export default async function CadastroPage({ searchParams }: CadastroPageProps) {
+  const resolvedSearchParams = await Promise.resolve(searchParams || {})
+  const vendedorRef = toSingleValue(resolvedSearchParams.ref).trim().toUpperCase()
+
+  return <CadastroPageClient initialVendedorRef={vendedorRef} />
 }
