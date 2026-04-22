@@ -4,6 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 type Vendedor = {
   id: string
@@ -19,6 +27,7 @@ export default function AdminVendedoresPage() {
   const [vendedores, setVendedores] = useState<Vendedor[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -94,6 +103,7 @@ export default function AdminVendedoresPage() {
       setEmail('')
       setSenha('')
       setCodigoIndicacao('')
+      setIsCreateDialogOpen(false)
       await fetchVendedores()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao criar vendedor.')
@@ -131,6 +141,9 @@ export default function AdminVendedoresPage() {
             <p className="text-sm text-gray-600">Crie acessos e links de venda para cada vendedor</p>
           </div>
           <div className="flex items-center gap-2">
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
+              Cadastrar novo vendedor
+            </Button>
             <Link href="/admin/dashboard">
               <Button variant="outline">Voltar ao Dashboard</Button>
             </Link>
@@ -142,58 +155,6 @@ export default function AdminVendedoresPage() {
       </header>
 
       <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
-        <section className="rounded-lg bg-white p-6 shadow space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Novo Vendedor</h2>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <label className="space-y-1">
-              <span className="text-sm font-medium text-gray-700">Nome *</span>
-              <input
-                value={nome}
-                onChange={(event) => setNome(event.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                placeholder="Nome do vendedor"
-              />
-            </label>
-
-            <label className="space-y-1">
-              <span className="text-sm font-medium text-gray-700">Email *</span>
-              <input
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                placeholder="vendedor@empresa.com"
-              />
-            </label>
-
-            <label className="space-y-1">
-              <span className="text-sm font-medium text-gray-700">Senha inicial *</span>
-              <input
-                type="password"
-                value={senha}
-                onChange={(event) => setSenha(event.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                placeholder="Mínimo 6 caracteres"
-              />
-            </label>
-
-            <label className="space-y-1">
-              <span className="text-sm font-medium text-gray-700">Código de indicação (opcional)</span>
-              <input
-                value={codigoIndicacao}
-                onChange={(event) => setCodigoIndicacao(event.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                placeholder="Ex: JOAO-SILVA"
-              />
-            </label>
-          </div>
-
-          <Button onClick={handleCreate} disabled={isSaving}>
-            {isSaving ? 'Criando...' : 'Criar Vendedor'}
-          </Button>
-        </section>
-
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-3">
             <p className="text-sm text-red-700">{error}</p>
@@ -253,6 +214,98 @@ export default function AdminVendedoresPage() {
           )}
         </section>
       </div>
+
+      <Dialog
+        open={isCreateDialogOpen}
+        onOpenChange={(open) => {
+          if (!isSaving) {
+            setIsCreateDialogOpen(open)
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Novo vendedor</DialogTitle>
+            <DialogDescription>
+              Preencha os dados para criar o acesso e o link de venda do vendedor.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            className="space-y-4"
+            onSubmit={async (event) => {
+              event.preventDefault()
+              await handleCreate()
+            }}
+          >
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <label className="space-y-1">
+                <span className="text-sm font-medium text-gray-700">Nome *</span>
+                <input
+                  value={nome}
+                  onChange={(event) => setNome(event.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  placeholder="Nome do vendedor"
+                  required
+                  disabled={isSaving}
+                />
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-sm font-medium text-gray-700">Email *</span>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  placeholder="vendedor@empresa.com"
+                  required
+                  disabled={isSaving}
+                />
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-sm font-medium text-gray-700">Senha inicial *</span>
+                <input
+                  type="password"
+                  value={senha}
+                  onChange={(event) => setSenha(event.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  placeholder="Mínimo 6 caracteres"
+                  required
+                  minLength={6}
+                  disabled={isSaving}
+                />
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-sm font-medium text-gray-700">Código de indicação (opcional)</span>
+                <input
+                  value={codigoIndicacao}
+                  onChange={(event) => setCodigoIndicacao(event.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  placeholder="Ex: JOAO-SILVA"
+                  disabled={isSaving}
+                />
+              </label>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateDialogOpen(false)}
+                disabled={isSaving}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? 'Criando...' : 'Cadastrar vendedor'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </main>
   )
 }
