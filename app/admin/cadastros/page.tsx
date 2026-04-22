@@ -284,11 +284,8 @@ export default function AdminCadastrosPage() {
             <Link href="/admin/dashboard">
               <Button variant="outline">Dashboard</Button>
             </Link>
-            <Link href="/admin/termo-template">
-              <Button variant="outline">Atualizar Termo de Adesão</Button>
-            </Link>
-            <Link href="/admin/cobranca-configuracoes">
-              <Button variant="outline">Configurações de Cobrança</Button>
+            <Link href="/admin/configuracoes">
+              <Button variant="outline">Configurações</Button>
             </Link>
             <Button
               onClick={handleExportAllContracts}

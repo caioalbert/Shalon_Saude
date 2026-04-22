@@ -213,6 +213,9 @@ export default function AdminCobrancaConfiguracoesPage() {
             <Link href="/admin/dashboard">
               <Button variant="outline">Voltar ao Dashboard</Button>
             </Link>
+            <Link href="/admin/configuracoes">
+              <Button variant="outline">Configurações</Button>
+            </Link>
             <Button onClick={handleLogout} variant="outline">
               Sair
             </Button>
