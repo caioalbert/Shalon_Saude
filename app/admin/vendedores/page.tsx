@@ -189,7 +189,14 @@ export default function AdminVendedoresPage() {
                 <tbody>
                   {vendedores.map((vendedor) => (
                     <tr key={vendedor.id} className="border-b border-gray-100">
-                      <td className="py-2 pr-4 font-medium text-gray-900">{vendedor.nome}</td>
+                      <td className="py-2 pr-4 font-medium">
+                        <Link
+                          href={`/admin/vendedores/${vendedor.id}`}
+                          className="text-blue-700 hover:text-blue-800 hover:underline"
+                        >
+                          {vendedor.nome}
+                        </Link>
+                      </td>
                       <td className="py-2 pr-4 text-gray-700">{vendedor.email}</td>
                       <td className="py-2 pr-4 font-mono text-xs text-gray-700">{vendedor.codigo_indicacao}</td>
                       <td className="py-2 pr-4">
