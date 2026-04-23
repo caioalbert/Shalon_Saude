@@ -109,8 +109,7 @@ export async function GET(request: NextRequest) {
     })
 
     const totalPendentes = allCadastros.length - totalPagos
-
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, '')
+    const appBaseUrl = request.nextUrl.origin.replace(/\/$/, '')
 
     return NextResponse.json({
       success: true,
@@ -119,9 +118,7 @@ export async function GET(request: NextRequest) {
         nome: vendedor.nome,
         email: vendedor.email,
         codigoIndicacao: vendedor.codigo_indicacao,
-        linkVenda: appUrl
-          ? `${appUrl}/cadastro?ref=${encodeURIComponent(vendedor.codigo_indicacao)}`
-          : `/cadastro?ref=${encodeURIComponent(vendedor.codigo_indicacao)}`,
+        linkVenda: `${appBaseUrl}/cadastro?ref=${encodeURIComponent(vendedor.codigo_indicacao)}`,
       },
       resumo: {
         totalClientes: allCadastros.length,
