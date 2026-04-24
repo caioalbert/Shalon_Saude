@@ -58,6 +58,14 @@ type AsaasPaymentResponse = {
   value?: number
 }
 
+type AsaasListResponse<T> = {
+  data?: T[]
+}
+
+type AsaasSubscriptionPaymentListItem = {
+  id?: string
+}
+
 export type CreateAsaasCustomerInput = {
   name: string
   cpfCnpj: string
@@ -454,4 +462,36 @@ export async function createAsaasSubscription(
     id: data.id,
     nextDueDate: data.nextDueDate,
   }
+}
+
+export async function hasAsaasOverdueSubscriptionPayment(subscriptionId: string): Promise<boolean> {
+  const normalizedSubscriptionId = String(subscriptionId || '').trim()
+  if (!normalizedSubscriptionId) {
+    throw new AsaasIntegrationError(
+      'Identificador da assinatura no Asaas é obrigatório.',
+      'configuration',
+      500
+    )
+  }
+
+  const response = await asaasRequest(
+    `subscriptions/${encodeURIComponent(normalizedSubscriptionId)}/payments?status=OVERDUE&limit=1`,
+    { method: 'GET' },
+    'Não foi possível consultar as cobranças da assinatura no Asaas.'
+  )
+
+  const data = await parseAsaasJson<AsaasListResponse<AsaasSubscriptionPaymentListItem>>(
+    response,
+    'Asaas retornou uma resposta inválida ao consultar cobranças da assinatura.'
+  )
+
+  if (!Array.isArray(data.data)) {
+    throw new AsaasIntegrationError(
+      'Asaas retornou uma resposta inválida ao consultar cobranças da assinatura.',
+      'invalid_response',
+      502
+    )
+  }
+
+  return data.data.length > 0
 }

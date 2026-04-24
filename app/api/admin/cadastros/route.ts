@@ -1,3 +1,4 @@
+import { AsaasIntegrationError, hasAsaasOverdueSubscriptionPayment } from '@/lib/asaas'
 import { requireAdminAuth } from '@/lib/supabase/admin-auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
@@ -28,6 +29,7 @@ export async function GET(request: NextRequest) {
     const cadastroIds = (cadastros || []).map((cadastro) => cadastro.id)
     let dependentesSemRgByCadastroId = new Map<string, number>()
     let dependentesSemEmailByCadastroId = new Map<string, number>()
+    const financeiroStatusByCadastroId = new Map<string, 'EM_DIA' | 'EM_ATRASO'>()
 
     if (cadastroIds.length > 0) {
       const { data: dependentes, error: dependentesError } = await supabase
@@ -56,10 +58,44 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const cadastrosComAssinatura = (cadastros || []).filter(
+      (cadastro) =>
+        String(cadastro.asaas_subscription_id || '').trim()
+    )
+
+    if (cadastrosComAssinatura.length > 0 && process.env.ASAAS_API_KEY?.trim()) {
+      await Promise.all(
+        cadastrosComAssinatura.map(async (cadastro) => {
+          try {
+            const hasOverduePayment = await hasAsaasOverdueSubscriptionPayment(
+              String(cadastro.asaas_subscription_id)
+            )
+            financeiroStatusByCadastroId.set(cadastro.id, hasOverduePayment ? 'EM_ATRASO' : 'EM_DIA')
+          } catch (error) {
+            if (error instanceof AsaasIntegrationError) {
+              console.error('Asaas financial status lookup error:', {
+                cadastroId: cadastro.id,
+                kind: error.kind,
+                status: error.status,
+                message: error.message,
+              })
+              return
+            }
+
+            console.error('Asaas financial status lookup unexpected error:', {
+              cadastroId: cadastro.id,
+              error,
+            })
+          }
+        })
+      )
+    }
+
     const cadastrosComIndicadores = (cadastros || []).map((cadastro) => ({
       ...cadastro,
       dependentes_sem_rg_count: dependentesSemRgByCadastroId.get(cadastro.id) || 0,
       dependentes_sem_email_count: dependentesSemEmailByCadastroId.get(cadastro.id) || 0,
+      financeiro_status: financeiroStatusByCadastroId.get(cadastro.id) || null,
     }))
 
     return NextResponse.json({

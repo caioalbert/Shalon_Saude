@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { CheckCircle2, Eye, Loader2, Mail, Pencil, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
+import { Eye, Loader2, Mail, Pencil, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -403,25 +403,20 @@ export default function AdminCadastrosPage() {
                       </td>
                       <td className="px-6 py-4 text-sm">
                         <div className="flex flex-wrap gap-1">
-                          {cadastro.termo_pdf_path && (
-                            <span className="inline-flex items-center gap-1 rounded bg-purple-100 px-2 py-1 text-xs font-medium text-purple-700">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Termo gerado
+                          {cadastro.financeiro_status === 'EM_DIA' && (
+                            <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
+                              Em dias
                             </span>
                           )}
-                          {!cadastro.termo_pdf_path && (
-                            <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
-                              Termo pendente
+                          {cadastro.financeiro_status === 'EM_ATRASO' && (
+                            <span className="inline-flex items-center gap-1 rounded bg-rose-100 px-2 py-1 text-xs font-medium text-rose-700">
+                              Em atraso
                             </span>
                           )}
                           {(() => {
                             const missingFields = getMissingCadastroFields(cadastro)
                             if (missingFields.length === 0) {
-                              return (
-                                <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
-                                  Dados completos
-                                </span>
-                              )
+                              return null
                             }
 
                             return (
@@ -431,7 +426,7 @@ export default function AdminCadastrosPage() {
                                 title="Clique para ver os dados pendentes"
                                 className="inline-flex cursor-pointer items-center gap-1 rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-1"
                               >
-                                Dados faltantes ({missingFields.length})
+                                Dados pendentes ({missingFields.length})
                               </button>
                             )
                           })()}

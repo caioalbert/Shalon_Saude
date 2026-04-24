@@ -35,6 +35,7 @@ export interface Cadastro {
   email_enviado_em?: string
   dependentes_sem_rg_count?: number
   dependentes_sem_email_count?: number
+  financeiro_status?: 'EM_DIA' | 'EM_ATRASO' | string | null
   created_at: string
   updated_at: string
 }
