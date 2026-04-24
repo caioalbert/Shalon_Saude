@@ -70,23 +70,41 @@ function getNextMonthlyDueDate(baseDate: Date = new Date()) {
   return toIsoDate(next)
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 async function triggerTermoEmail(cadastroId: string, request: NextRequest) {
   const appBaseUrl = getAppBaseUrl(request)
-  const response = await fetch(`${appBaseUrl}/api/enviar-termo`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cadastroId }),
-    cache: 'no-store',
-  })
+  let lastErrorMessage = ''
 
-  if (!response.ok) {
-    const body = await response.text().catch(() => '')
-    console.error('Webhook: erro ao enviar termo após confirmação de pagamento', {
-      cadastroId,
-      status: response.status,
-      body,
-    })
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const response = await fetch(`${appBaseUrl}/api/enviar-termo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cadastroId }),
+        cache: 'no-store',
+      })
+
+      if (response.ok) {
+        return
+      }
+
+      const body = await response.text().catch(() => '')
+      lastErrorMessage = `status=${response.status} body=${body || 'sem corpo'}`
+    } catch (error) {
+      lastErrorMessage = error instanceof Error ? error.message : String(error)
+    }
+
+    if (attempt < 3) {
+      await wait(attempt * 500)
+    }
   }
+
+  throw new Error(
+    `Falha ao enviar termo após confirmação de pagamento para cadastro ${cadastroId}. ${lastErrorMessage}`
+  )
 }
 
 export async function POST(request: NextRequest) {

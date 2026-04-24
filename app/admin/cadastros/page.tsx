@@ -453,12 +453,17 @@ export default function AdminCadastrosPage() {
                             size="icon-sm"
                             variant="outline"
                             onClick={() => handleResendTerm(cadastro)}
-                            disabled={resendingId === cadastro.id || !cadastro.termo_pdf_path}
+                            disabled={
+                              resendingId === cadastro.id ||
+                              String(cadastro.status || '').toUpperCase() !== 'ATIVO'
+                            }
                             aria-label="Reenviar termo"
                             title={
-                              cadastro.termo_pdf_path
-                                ? 'Reenviar termo por email'
-                                : 'Termo ainda não gerado'
+                              String(cadastro.status || '').toUpperCase() !== 'ATIVO'
+                                ? 'Termo disponível somente após confirmação do pagamento'
+                                : cadastro.termo_pdf_path
+                                  ? 'Reenviar termo por email'
+                                  : 'Gerar e enviar termo por email'
                             }
                           >
                             {resendingId === cadastro.id ? (
