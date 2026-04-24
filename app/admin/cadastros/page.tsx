@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Eye, Loader2, Mail, Pencil, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
+import { Eye, Loader2, Mail, Menu, Pencil, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Cadastro } from '@/lib/types'
 import { getMissingCadastroFields } from '@/lib/cadastro-completeness'
 
@@ -330,12 +331,12 @@ export default function AdminCadastrosPage() {
   return (
     <main className="min-h-screen bg-gray-50">
       <header className="sticky top-0 z-50 border-b border-gray-200 bg-white">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Cadastros</h1>
-            <p className="text-sm text-gray-600">Busca e gestão detalhada dos registros</p>
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-bold text-gray-900 sm:text-2xl">Cadastros</h1>
+            <p className="text-xs text-gray-600 sm:text-sm">Busca e gestão detalhada dos registros</p>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="hidden flex-wrap items-center justify-end gap-2 lg:flex">
             <Link href="/admin/dashboard">
               <Button variant="outline">Dashboard</Button>
             </Link>
@@ -353,11 +354,58 @@ export default function AdminCadastrosPage() {
               Sair
             </Button>
           </div>
+
+          <div className="lg:hidden">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="icon" aria-label="Abrir menu">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right">
+                <SheetHeader>
+                  <SheetTitle>Menu Cadastros</SheetTitle>
+                </SheetHeader>
+                <div className="flex flex-col gap-2 px-4 pb-4">
+                  <SheetClose asChild>
+                    <Button asChild variant="outline" className="w-full justify-start">
+                      <Link href="/admin/dashboard">Dashboard</Link>
+                    </Button>
+                  </SheetClose>
+                  <SheetClose asChild>
+                    <Button asChild variant="outline" className="w-full justify-start">
+                      <Link href="/admin/configuracoes">Configurações</Link>
+                    </Button>
+                  </SheetClose>
+                  <SheetClose asChild>
+                    <Button onClick={fetchCadastros} variant="outline" className="w-full justify-start gap-2">
+                      <RefreshCw className="h-4 w-4" />
+                      Atualizar lista
+                    </Button>
+                  </SheetClose>
+                  <SheetClose asChild>
+                    <Button
+                      onClick={handleExportAllContracts}
+                      disabled={exportLoading || cadastros.length === 0}
+                      className="w-full justify-start bg-teal-700 hover:bg-teal-800"
+                    >
+                      {exportLoading ? 'Exportando...' : 'Exportar Contratos (.zip)'}
+                    </Button>
+                  </SheetClose>
+                  <SheetClose asChild>
+                    <Button onClick={handleLogout} variant="outline" className="w-full justify-start">
+                      Sair
+                    </Button>
+                  </SheetClose>
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
       </header>
 
       <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
           <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <p className="text-sm text-gray-600">Total de Cadastros</p>
             <p className="mt-1 text-2xl font-bold text-gray-900">{summary.total.toLocaleString('pt-BR')}</p>

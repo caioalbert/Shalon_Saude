@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import { Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 
 type ClienteVendedor = {
   id: string
@@ -114,17 +116,49 @@ export default function AdminVendedorDetalhePage() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
       <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Detalhes do Vendedor</h1>
-            <p className="text-sm text-gray-600">Acompanhe vendas, clientes e comissão devida</p>
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-bold text-gray-900 sm:text-2xl">Detalhes do Vendedor</h1>
+            <p className="text-xs text-gray-600 sm:text-sm">Acompanhe vendas, clientes e comissão devida</p>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="hidden flex-wrap items-center justify-end gap-2 lg:flex">
             <Button onClick={fetchDetalhes} variant="outline">Atualizar</Button>
             <Link href="/admin/vendedores">
               <Button variant="outline">Voltar para Vendedores</Button>
             </Link>
             <Button onClick={handleLogout} variant="outline">Sair</Button>
+          </div>
+
+          <div className="lg:hidden">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="icon" aria-label="Abrir menu">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right">
+                <SheetHeader>
+                  <SheetTitle>Menu Vendedor</SheetTitle>
+                </SheetHeader>
+                <div className="flex flex-col gap-2 px-4 pb-4">
+                  <SheetClose asChild>
+                    <Button onClick={fetchDetalhes} variant="outline" className="w-full justify-start">
+                      Atualizar
+                    </Button>
+                  </SheetClose>
+                  <SheetClose asChild>
+                    <Button asChild variant="outline" className="w-full justify-start">
+                      <Link href="/admin/vendedores">Voltar para Vendedores</Link>
+                    </Button>
+                  </SheetClose>
+                  <SheetClose asChild>
+                    <Button onClick={handleLogout} variant="outline" className="w-full justify-start">
+                      Sair
+                    </Button>
+                  </SheetClose>
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </header>
