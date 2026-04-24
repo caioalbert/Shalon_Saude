@@ -19,11 +19,13 @@ import {
   Download,
   FileSignature,
   ImageIcon,
+  Menu,
   RefreshCw,
   Users,
   type LucideIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Cadastro } from '@/lib/types'
 
 type RankingItem = {
@@ -45,12 +47,12 @@ const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'S
 
 function KpiCard({ title, value, subtitle, valueClassName, icon: Icon, iconClassName }: KpiCardProps) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-gray-600">{title}</p>
-          <p className={`mt-2 text-3xl font-bold ${valueClassName}`}>{value.toLocaleString('pt-BR')}</p>
-          <p className="mt-1 text-xs text-gray-500">{subtitle}</p>
+          <p className="text-xs font-medium text-gray-600 sm:text-sm">{title}</p>
+          <p className={`mt-2 text-2xl font-bold sm:text-3xl ${valueClassName}`}>{value.toLocaleString('pt-BR')}</p>
+          <p className="mt-1 text-[11px] text-gray-500 sm:text-xs">{subtitle}</p>
         </div>
         <div className={`rounded-xl p-2.5 ${iconClassName}`}>
           <Icon className="h-5 w-5" />
@@ -297,12 +299,12 @@ export default function AdminDashboard() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
       <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">SHALON Saúde - Admin</h1>
-            <p className="text-sm text-gray-600">Dashboard de Cadastros e Indicadores</p>
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-bold text-gray-900 sm:text-2xl">SHALON Saúde - Admin</h1>
+            <p className="text-xs text-gray-600 sm:text-sm">Dashboard de Cadastros e Indicadores</p>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="hidden flex-wrap items-center justify-end gap-2 lg:flex">
             <Link href="/admin/cadastros">
               <Button variant="outline">Cadastros</Button>
             </Link>
@@ -322,6 +324,58 @@ export default function AdminDashboard() {
             <Button onClick={handleLogout} variant="outline">
               Sair
             </Button>
+          </div>
+
+          <div className="lg:hidden">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="icon" aria-label="Abrir menu">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right">
+                <SheetHeader>
+                  <SheetTitle>Menu Administrativo</SheetTitle>
+                </SheetHeader>
+                <div className="flex flex-col gap-2 px-4 pb-4">
+                  <SheetClose asChild>
+                    <Button asChild variant="outline" className="w-full justify-start">
+                      <Link href="/admin/cadastros">Cadastros</Link>
+                    </Button>
+                  </SheetClose>
+                  <SheetClose asChild>
+                    <Button asChild variant="outline" className="w-full justify-start">
+                      <Link href="/admin/vendedores">Vendedores</Link>
+                    </Button>
+                  </SheetClose>
+                  <SheetClose asChild>
+                    <Button asChild variant="outline" className="w-full justify-start">
+                      <Link href="/admin/configuracoes">Configurações</Link>
+                    </Button>
+                  </SheetClose>
+                  <SheetClose asChild>
+                    <Button onClick={fetchCadastros} variant="outline" className="w-full justify-start gap-2">
+                      <RefreshCw className="h-4 w-4" />
+                      Atualizar indicadores
+                    </Button>
+                  </SheetClose>
+                  <SheetClose asChild>
+                    <Button
+                      onClick={handleExportAllContracts}
+                      disabled={exportLoading || cadastros.length === 0}
+                      className="w-full justify-start bg-teal-700 hover:bg-teal-800"
+                    >
+                      {exportLoading ? 'Exportando...' : 'Exportar Contratos (.zip)'}
+                    </Button>
+                  </SheetClose>
+                  <SheetClose asChild>
+                    <Button onClick={handleLogout} variant="outline" className="w-full justify-start">
+                      Sair
+                    </Button>
+                  </SheetClose>
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </header>
@@ -346,7 +400,7 @@ export default function AdminDashboard() {
           </div>
         ) : (
           <>
-            <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="mb-4 grid grid-cols-2 gap-4 xl:grid-cols-4">
               <KpiCard
                 title="Total de Cadastros"
                 value={summary.total}
@@ -381,7 +435,7 @@ export default function AdminDashboard() {
               />
             </div>
 
-            <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="mb-8 grid grid-cols-2 gap-4 xl:grid-cols-4">
               <KpiCard
                 title="Com Selfie"
                 value={summary.withSelfie}
@@ -416,70 +470,68 @@ export default function AdminDashboard() {
               />
             </div>
 
-            <div className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-3">
-              <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm xl:col-span-2">
-                <div className="mb-4">
-                  <h2 className="text-lg font-semibold text-gray-900">Cadastros por Período (6 meses)</h2>
-                  <p className="text-sm text-gray-600">Evolução mensal da base de adesões</p>
+            <section className="mb-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Cadastros por Período (6 meses)</h2>
+                <p className="text-sm text-gray-600">Evolução mensal da base de adesões</p>
+              </div>
+
+              {summary.total === 0 ? (
+                <div className="flex h-72 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
+                  Sem dados para exibir gráfico.
                 </div>
-
-                {summary.total === 0 ? (
-                  <div className="flex h-72 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
-                    Sem dados para exibir gráfico.
-                  </div>
-                ) : (
-                  <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={monthlyTrendData} margin={{ top: 8, right: 20, left: 0, bottom: 8 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="monthLabel" tickLine={false} axisLine={false} />
-                        <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
-                        <Tooltip
-                          formatter={(value: number | string) => [Number(value).toLocaleString('pt-BR'), 'Cadastros']}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="total"
-                          stroke="#0f766e"
-                          strokeWidth={3}
-                          dot={{ r: 4, strokeWidth: 2, fill: '#0f766e' }}
-                          activeDot={{ r: 6 }}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </section>
-
-              <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                <div className="mb-4">
-                  <h2 className="text-lg font-semibold text-gray-900">Recorte Rápido</h2>
-                  <p className="text-sm text-gray-600">Cadastros acumulados por janela de tempo</p>
+              ) : (
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={monthlyTrendData} margin={{ top: 8, right: 20, left: 0, bottom: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="monthLabel" tickLine={false} axisLine={false} />
+                      <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                      <Tooltip
+                        formatter={(value: number | string) => [Number(value).toLocaleString('pt-BR'), 'Cadastros']}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="total"
+                        stroke="#0f766e"
+                        strokeWidth={3}
+                        dot={{ r: 4, strokeWidth: 2, fill: '#0f766e' }}
+                        activeDot={{ r: 6 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
+              )}
+            </section>
 
-                {summary.total === 0 ? (
-                  <div className="flex h-72 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
-                    Sem dados para exibir gráfico.
-                  </div>
-                ) : (
-                  <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={periodChartData} margin={{ top: 8, right: 10, left: -15, bottom: 8 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="period" tickLine={false} axisLine={false} />
-                        <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
-                        <Tooltip
-                          formatter={(value: number | string) => [Number(value).toLocaleString('pt-BR'), 'Cadastros']}
-                        />
-                        <Bar dataKey="total" fill="#0284c7" radius={[8, 8, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </section>
-            </div>
+            <section className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Recorte Rápido</h2>
+                <p className="text-sm text-gray-600">Cadastros acumulados por janela de tempo</p>
+              </div>
 
-            <div className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
+              {summary.total === 0 ? (
+                <div className="flex h-72 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
+                  Sem dados para exibir gráfico.
+                </div>
+              ) : (
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={periodChartData} margin={{ top: 8, right: 10, left: -15, bottom: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="period" tickLine={false} axisLine={false} />
+                      <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                      <Tooltip
+                        formatter={(value: number | string) => [Number(value).toLocaleString('pt-BR'), 'Cadastros']}
+                      />
+                      <Bar dataKey="total" fill="#0284c7" radius={[8, 8, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </section>
+
+            <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
               <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div>

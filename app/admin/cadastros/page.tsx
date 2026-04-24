@@ -14,55 +14,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Cadastro } from '@/lib/types'
+import { getMissingCadastroFields } from '@/lib/cadastro-completeness'
 
-const REQUIRED_CADASTRO_FIELDS: Array<{ key: keyof Cadastro; label: string }> = [
-  { key: 'nome', label: 'Nome' },
-  { key: 'email', label: 'Email' },
-  { key: 'cpf', label: 'CPF' },
-  { key: 'rg', label: 'RG' },
-  { key: 'telefone', label: 'Telefone' },
-  { key: 'sexo', label: 'Sexo' },
-  { key: 'data_nascimento', label: 'Data de nascimento' },
-  { key: 'estado_civil', label: 'Estado civil' },
-  { key: 'escolaridade', label: 'Escolaridade' },
-  { key: 'situacao_profissional', label: 'Situação profissional' },
-  { key: 'endereco', label: 'Endereço' },
-  { key: 'numero', label: 'Número' },
-  { key: 'bairro', label: 'Bairro' },
-  { key: 'cidade', label: 'Cidade' },
-  { key: 'estado', label: 'Estado' },
-  { key: 'cep', label: 'CEP' },
-]
-
-function getMissingCadastroFields(cadastro: Cadastro) {
-  const missing = REQUIRED_CADASTRO_FIELDS.filter(({ key }) => !String(cadastro[key] || '').trim()).map(
-    ({ label }) => label
-  )
-
-  if (cadastro.estado_civil === 'Casado(a)' && !String(cadastro.nome_conjuge || '').trim()) {
-    missing.push('Nome do cônjuge')
-  }
-
-  const dependentesSemRgCount = cadastro.dependentes_sem_rg_count || 0
-  if (cadastro.tem_dependentes && dependentesSemRgCount > 0) {
-    missing.push(
-      dependentesSemRgCount === 1
-        ? 'RG de 1 dependente'
-        : `RG de ${dependentesSemRgCount} dependentes`
-    )
-  }
-
-  const dependentesSemEmailCount = cadastro.dependentes_sem_email_count || 0
-  if (cadastro.tem_dependentes && dependentesSemEmailCount > 0) {
-    missing.push(
-      dependentesSemEmailCount === 1
-        ? 'Email de 1 dependente'
-        : `Email de ${dependentesSemEmailCount} dependentes`
-    )
-  }
-
-  return missing
-}
+type FinanceiroFilterOption = 'TODOS' | 'EM_DIA' | 'EM_ATRASO' | 'ADESAO_NAO_CONCLUIDA'
+type DadosFilterOption = 'TODOS' | 'PENDENTES' | 'COMPLETOS'
+type ExportScopeOption = 'FILTRADOS' | 'TODOS'
 
 export default function AdminCadastrosPage() {
   const router = useRouter()
@@ -71,6 +27,10 @@ export default function AdminCadastrosPage() {
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [exportLoading, setExportLoading] = useState(false)
+  const [exportListLoading, setExportListLoading] = useState<'CSV' | 'PDF' | null>(null)
+  const [financeiroFilter, setFinanceiroFilter] = useState<FinanceiroFilterOption>('TODOS')
+  const [dadosFilter, setDadosFilter] = useState<DadosFilterOption>('TODOS')
+  const [exportScope, setExportScope] = useState<ExportScopeOption>('FILTRADOS')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [resendingId, setResendingId] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -195,8 +155,8 @@ export default function AdminCadastrosPage() {
   }
 
   const handleResendTerm = async (cadastro: Cadastro) => {
-    if (!cadastro.termo_pdf_path) {
-      setError('Este cadastro ainda não possui termo gerado para reenvio.')
+    if (String(cadastro.status || '').toUpperCase() !== 'ATIVO') {
+      setError('Termo disponível somente após confirmação do pagamento da adesão.')
       return
     }
 
@@ -221,7 +181,11 @@ export default function AdminCadastrosPage() {
         throw new Error(data.error || 'Erro ao reenviar termo')
       }
 
-      setSuccessMessage(`Termo reenviado com sucesso para ${cadastro.email}.`)
+      setSuccessMessage(
+        cadastro.termo_pdf_path
+          ? `Termo reenviado com sucesso para ${cadastro.email}.`
+          : `Termo gerado e enviado com sucesso para ${cadastro.email}.`
+      )
       setCadastros((prev) =>
         prev.map((item) =>
           item.id === cadastro.id
@@ -239,6 +203,78 @@ export default function AdminCadastrosPage() {
     }
   }
 
+  const handleExportCadastros = async (
+    format: 'csv' | 'pdf',
+    options?: { template?: 'default' | 'partner'; days?: number; scope?: 'all' | 'filtered' }
+  ) => {
+    try {
+      setExportListLoading(format === 'csv' ? 'CSV' : 'PDF')
+      setError(null)
+      setSuccessMessage(null)
+
+      const params = new URLSearchParams()
+      params.set('format', format)
+      params.set('template', options?.template || 'default')
+
+      if (options?.template === 'partner') {
+        params.set('days', String(options.days || 30))
+      }
+
+      params.set('scope', options?.scope || (exportScope === 'TODOS' ? 'all' : 'filtered'))
+
+      if (exportScope === 'FILTRADOS') {
+        const normalizedSearch = searchTerm.trim()
+        if (normalizedSearch) {
+          params.set('search', normalizedSearch)
+        }
+
+        if (financeiroFilter !== 'TODOS') {
+          params.set('financeiroStatus', financeiroFilter)
+        }
+
+        if (dadosFilter !== 'TODOS') {
+          params.set('dadosStatus', dadosFilter)
+        }
+      }
+
+      const response = await fetch(`/api/admin/cadastros/exportar?${params.toString()}`)
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.push('/admin/login')
+          return
+        }
+
+        let message = 'Erro ao exportar lista de cadastros'
+        try {
+          const data = await response.json()
+          message = data.error || message
+        } catch {
+          // ignore parse error
+        }
+
+        throw new Error(message)
+      }
+
+      const blob = await response.blob()
+      const contentDisposition = response.headers.get('content-disposition')
+      const filenameMatch = contentDisposition?.match(/filename="?([^"]+)"?/)
+      const filename = filenameMatch?.[1] || `cadastros.${format}`
+
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao exportar lista de cadastros')
+    } finally {
+      setExportListLoading(null)
+    }
+  }
+
   const summary = useMemo(() => {
     const withDependentes = cadastros.filter((item) => item.tem_dependentes).length
     const withSelfie = cadastros.filter((item) => item.selfie_path).length
@@ -253,13 +289,32 @@ export default function AdminCadastrosPage() {
 
   const filteredCadastros = useMemo(
     () =>
-      cadastros.filter(
-        (cadastro) =>
-          cadastro.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          cadastro.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          cadastro.cpf.includes(searchTerm)
-      ),
-    [cadastros, searchTerm]
+      cadastros.filter((cadastro) => {
+        const normalizedSearch = searchTerm.trim().toLowerCase()
+        const matchesSearch =
+          !normalizedSearch ||
+          cadastro.nome.toLowerCase().includes(normalizedSearch) ||
+          cadastro.email.toLowerCase().includes(normalizedSearch) ||
+          cadastro.cpf.includes(normalizedSearch)
+
+        if (!matchesSearch) return false
+
+        if (financeiroFilter !== 'TODOS' && cadastro.financeiro_status !== financeiroFilter) {
+          return false
+        }
+
+        if (dadosFilter === 'TODOS') {
+          return true
+        }
+
+        const missingFields = getMissingCadastroFields(cadastro)
+        if (dadosFilter === 'PENDENTES') {
+          return missingFields.length > 0
+        }
+
+        return missingFields.length === 0
+      }),
+    [cadastros, searchTerm, financeiroFilter, dadosFilter]
   )
 
   const openMissingFieldsDialog = (cadastro: Cadastro) => {
@@ -326,18 +381,91 @@ export default function AdminCadastrosPage() {
         </div>
 
         <div className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
             <input
               type="text"
               placeholder="Pesquisar por nome, email ou CPF..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-teal-600"
+              className="rounded-lg border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-teal-600 lg:col-span-2"
             />
-            <Button onClick={fetchCadastros} variant="outline" className="gap-2">
-              <RefreshCw className="h-4 w-4" />
-              Atualizar lista
-            </Button>
+            <select
+              value={financeiroFilter}
+              onChange={(e) => setFinanceiroFilter(e.target.value as FinanceiroFilterOption)}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+            >
+              <option value="TODOS">Financeiro: Todos</option>
+              <option value="EM_DIA">Financeiro: Em dias</option>
+              <option value="EM_ATRASO">Financeiro: Em atraso</option>
+              <option value="ADESAO_NAO_CONCLUIDA">Financeiro: Adesão não concluída</option>
+            </select>
+            <select
+              value={dadosFilter}
+              onChange={(e) => setDadosFilter(e.target.value as DadosFilterOption)}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+            >
+              <option value="TODOS">Dados: Todos</option>
+              <option value="PENDENTES">Dados: Pendentes</option>
+              <option value="COMPLETOS">Dados: Completos</option>
+            </select>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={fetchCadastros} variant="outline" className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Atualizar lista
+              </Button>
+              <Button
+                onClick={() => {
+                  setSearchTerm('')
+                  setFinanceiroFilter('TODOS')
+                  setDadosFilter('TODOS')
+                }}
+                variant="outline"
+              >
+                Limpar filtros
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={exportScope}
+                onChange={(e) => setExportScope(e.target.value as ExportScopeOption)}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+              >
+                <option value="FILTRADOS">Exportar: Filtros aplicados</option>
+                <option value="TODOS">Exportar: Todos os cadastros</option>
+              </select>
+              <Button
+                variant="outline"
+                onClick={() => handleExportCadastros('csv')}
+                disabled={isLoading || exportListLoading !== null || cadastros.length === 0}
+              >
+                {exportListLoading === 'CSV' ? 'Exportando CSV...' : 'Exportar CSV'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleExportCadastros('pdf')}
+                disabled={isLoading || exportListLoading !== null || cadastros.length === 0}
+              >
+                {exportListLoading === 'PDF' ? 'Exportando PDF...' : 'Exportar PDF'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() =>
+                  handleExportCadastros('csv', {
+                    template: 'partner',
+                    days: 30,
+                    scope: 'all',
+                  })
+                }
+                disabled={isLoading || exportListLoading !== null || cadastros.length === 0}
+                title="Layout da empresa parceira com cadastros dos últimos 30 dias"
+              >
+                CSV Parceiro (30 dias)
+              </Button>
+            </div>
           </div>
         </div>
 
