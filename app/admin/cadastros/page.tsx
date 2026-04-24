@@ -413,6 +413,11 @@ export default function AdminCadastrosPage() {
                               Em atraso
                             </span>
                           )}
+                          {cadastro.financeiro_status === 'ADESAO_NAO_CONCLUIDA' && (
+                            <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
+                              Adesão não concluída
+                            </span>
+                          )}
                           {(() => {
                             const missingFields = getMissingCadastroFields(cadastro)
                             if (missingFields.length === 0) {

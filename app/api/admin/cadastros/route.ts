@@ -91,12 +91,20 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const cadastrosComIndicadores = (cadastros || []).map((cadastro) => ({
-      ...cadastro,
-      dependentes_sem_rg_count: dependentesSemRgByCadastroId.get(cadastro.id) || 0,
-      dependentes_sem_email_count: dependentesSemEmailByCadastroId.get(cadastro.id) || 0,
-      financeiro_status: financeiroStatusByCadastroId.get(cadastro.id) || null,
-    }))
+    const cadastrosComIndicadores = (cadastros || []).map((cadastro) => {
+      const financeiroStatusDaAssinatura = financeiroStatusByCadastroId.get(cadastro.id)
+      const statusCadastro = String(cadastro.status || '').trim().toUpperCase()
+      const financeiroStatus =
+        financeiroStatusDaAssinatura ||
+        (statusCadastro && statusCadastro !== 'ATIVO' ? 'ADESAO_NAO_CONCLUIDA' : null)
+
+      return {
+        ...cadastro,
+        dependentes_sem_rg_count: dependentesSemRgByCadastroId.get(cadastro.id) || 0,
+        dependentes_sem_email_count: dependentesSemEmailByCadastroId.get(cadastro.id) || 0,
+        financeiro_status: financeiroStatus,
+      }
+    })
 
     return NextResponse.json({
       success: true,
