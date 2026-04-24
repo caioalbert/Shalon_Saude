@@ -44,7 +44,7 @@ export default function CadastroPageClient({ initialVendedorRef = '' }: Cadastro
       <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-xl shadow-xl overflow-hidden">
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-8 sm:px-8">
-            <h1 className="text-3xl font-bold text-white">Cadastro SHALON Saúde</h1>
+            <h1 className="text-3xl font-bold text-white">Cadastro SHALOM Saúde</h1>
             <p className="text-blue-100 mt-2">Preencha seus dados para adesão ao serviço</p>
           </div>
 

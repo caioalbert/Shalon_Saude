@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
 
     if (cadastrosError) {
       return NextResponse.json(
-        { error: 'Erro ao buscar cadastros' },
+        { error: 'Erro ao buscar clientes' },
         { status: 500 }
       )
     }
@@ -133,7 +133,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse(zipBuffer, {
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="contratos-shalon-${date}.zip"`,
+        'Content-Disposition': `attachment; filename="contratos-shalom-${date}.zip"`,
       },
     })
   } catch (error) {

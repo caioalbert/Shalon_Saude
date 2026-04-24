@@ -2,6 +2,6 @@ import { registerOTel } from '@vercel/otel'
 
 export function register() {
   registerOTel({
-    serviceName: 'shalon-saude',
+    serviceName: 'shalom-saude',
   })
 }

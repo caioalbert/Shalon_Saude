@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     if (cadastroError || !cadastro) {
       return NextResponse.json(
-        { error: 'Cadastro não encontrado' },
+        { error: 'Cliente não encontrado' },
         { status: 404 }
       )
     }

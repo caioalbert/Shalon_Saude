@@ -103,7 +103,7 @@ export default function Home() {
               <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                 <Image
                   src="/logo-horizontal-v2.png"
-                  alt="SHALON Saúde"
+                  alt="SHALOM Saúde"
                   width={520}
                   height={169}
                   priority
@@ -323,7 +323,7 @@ export default function Home() {
               <div className="mb-4 flex items-center gap-3">
                 <Image
                   src="/logo-horizontal-v2.png"
-                  alt="SHALON Saúde"
+                  alt="SHALOM Saúde"
                   width={200}
                   height={65}
                   unoptimized
@@ -357,14 +357,14 @@ export default function Home() {
             <div>
               <h3 className="mb-4 font-semibold text-gray-900">Contato</h3>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li>suporte@shalon.com.br</li>
+                <li>suporte@shalom.com.br</li>
                 <li>+55 (11) 3000-0000</li>
               </ul>
             </div>
           </div>
           <div className="border-t border-gray-200 pt-8">
             <p className="text-center text-sm text-gray-600">
-              © 2024 SHALON Saúde. Todos os direitos reservados.
+              © 2024 SHALOM Saúde. Todos os direitos reservados.
             </p>
           </div>
         </div>

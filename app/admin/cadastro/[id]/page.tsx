@@ -33,7 +33,7 @@ export default function CadastroDetail() {
           router.push('/admin/login')
           return
         }
-        throw new Error('Cadastro não encontrado')
+        throw new Error('Cliente não encontrado')
       }
 
       const data = await response.json()
@@ -94,7 +94,7 @@ export default function CadastroDetail() {
       <main className="min-h-screen bg-gray-50">
         <header className="bg-white border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <Link href="/admin/cadastros">
+            <Link href="/admin/clientes">
               <Button variant="outline">← Voltar</Button>
             </Link>
           </div>
@@ -111,14 +111,14 @@ export default function CadastroDetail() {
       <main className="min-h-screen bg-gray-50">
         <header className="bg-white border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <Link href="/admin/cadastros">
+            <Link href="/admin/clientes">
               <Button variant="outline">← Voltar</Button>
             </Link>
           </div>
         </header>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-red-700 font-medium">{error || 'Cadastro não encontrado'}</p>
+            <p className="text-red-700 font-medium">{error || 'Cliente não encontrado'}</p>
           </div>
         </div>
       </main>
@@ -132,11 +132,11 @@ export default function CadastroDetail() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="truncate text-lg font-bold text-gray-900 sm:text-2xl">{cadastro.nome}</h1>
-            <p className="text-xs text-gray-600 sm:text-sm">Detalhes do cadastro</p>
+            <p className="text-xs text-gray-600 sm:text-sm">Detalhes do cliente</p>
           </div>
 
           <div className="hidden items-center gap-2 lg:flex">
-            <Link href="/admin/cadastros">
+            <Link href="/admin/clientes">
               <Button variant="outline" size="sm">
                 ← Voltar
               </Button>
@@ -155,12 +155,12 @@ export default function CadastroDetail() {
               </SheetTrigger>
               <SheetContent side="right">
                 <SheetHeader>
-                  <SheetTitle>Menu Cadastro</SheetTitle>
+                  <SheetTitle>Menu Cliente</SheetTitle>
                 </SheetHeader>
                 <div className="flex flex-col gap-2 px-4 pb-4">
                   <SheetClose asChild>
                     <Button asChild variant="outline" className="w-full justify-start">
-                      <Link href="/admin/cadastros">Voltar</Link>
+                      <Link href="/admin/clientes">Voltar</Link>
                     </Button>
                   </SheetClose>
                   <SheetClose asChild>
@@ -186,7 +186,7 @@ export default function CadastroDetail() {
                 <div className="aspect-square bg-gray-200 rounded-lg overflow-hidden">
                   <img
                     src={selfieUrl}
-                    alt="Selfie do cadastrado"
+                    alt="Selfie do cliente"
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -336,7 +336,7 @@ export default function CadastroDetail() {
                 <h2 className="text-lg font-semibold text-gray-900">Termo de Adesão</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
-                    <p className="text-xs text-gray-600 uppercase font-medium">Cadastro em</p>
+                    <p className="text-xs text-gray-600 uppercase font-medium">Cliente desde</p>
                     <p className="text-lg font-medium text-gray-900">
                       {new Date(cadastro.created_at).toLocaleDateString('pt-BR', {
                         year: 'numeric',

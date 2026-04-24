@@ -216,7 +216,7 @@ export default function VendedorDashboardPage() {
                         <th className="py-2 pr-4">Status</th>
                         <th className="py-2 pr-4">Valor da adesão</th>
                         <th className="py-2 pr-4">Pago em</th>
-                        <th className="py-2">Cadastro em</th>
+                        <th className="py-2">Cliente desde</th>
                       </tr>
                     </thead>
                     <tbody>

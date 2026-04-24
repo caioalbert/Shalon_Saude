@@ -12,8 +12,8 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'SHALON Saúde - Cadastro e Adesão',
-  description: 'Sistema de cadastro e adesão ao serviço SHALON Saúde com captura de selfie e termo digital',
+  title: 'SHALOM Saúde - Cadastro e Adesão',
+  description: 'Sistema de cadastro e adesão ao serviço SHALOM Saúde com captura de selfie e termo digital',
   generator: 'v0.app',
   icons: {
     icon: [

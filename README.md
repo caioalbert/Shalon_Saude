@@ -1,6 +1,6 @@
-# SHALON Saúde - Sistema de Cadastro Digital
+# SHALOM Saúde - Sistema de Cadastro Digital
 
-Sistema completo de cadastro, adesão e gerenciamento de termos digitais para o SHALON Saúde. Inclui formulário multi-step, captura de selfie, geração de PDF dinâmico e painel administrativo.
+Sistema completo de cadastro, adesão e gerenciamento de termos digitais para o SHALOM Saúde. Inclui formulário multi-step, captura de selfie, geração de PDF dinâmico e painel administrativo.
 
 ## Funcionalidades:
 
@@ -59,7 +59,7 @@ Sistema completo de cadastro, adesão e gerenciamento de termos digitais para o 
 
 ```bash
 git clone <repo-url>
-cd shalon-saude
+cd shalom-saude
 ```
 
 ### 2. Instalar dependências

@@ -52,7 +52,7 @@ export default function AdminCadastrosPage() {
           router.push('/admin/login')
           return
         }
-        throw new Error('Erro ao carregar cadastros')
+        throw new Error('Erro ao carregar clientes')
       }
 
       const data = await response.json()
@@ -104,7 +104,7 @@ export default function AdminCadastrosPage() {
       const blob = await response.blob()
       const contentDisposition = response.headers.get('content-disposition')
       const filenameMatch = contentDisposition?.match(/filename="?([^"]+)"?/)
-      const filename = filenameMatch?.[1] || 'contratos-shalon.zip'
+      const filename = filenameMatch?.[1] || 'contratos-shalom.zip'
 
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -123,7 +123,7 @@ export default function AdminCadastrosPage() {
 
   const handleDeleteCadastro = async (cadastro: Cadastro) => {
     const confirmed = window.confirm(
-      `Tem certeza que deseja excluir o cadastro de "${cadastro.nome}"?\n\nEsta ação não pode ser desfeita.`
+      `Tem certeza que deseja excluir o cliente "${cadastro.nome}"?\n\nEsta ação não pode ser desfeita.`
     )
 
     if (!confirmed) return
@@ -144,12 +144,12 @@ export default function AdminCadastrosPage() {
           router.push('/admin/login')
           return
         }
-        throw new Error(data.error || 'Erro ao excluir cadastro')
+        throw new Error(data.error || 'Erro ao excluir cliente')
       }
 
       setCadastros((prev) => prev.filter((item) => item.id !== cadastro.id))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao excluir cadastro')
+      setError(err instanceof Error ? err.message : 'Erro ao excluir cliente')
     } finally {
       setDeletingId(null)
     }
@@ -245,7 +245,7 @@ export default function AdminCadastrosPage() {
           return
         }
 
-        let message = 'Erro ao exportar lista de cadastros'
+        let message = 'Erro ao exportar lista de clientes'
         try {
           const data = await response.json()
           message = data.error || message
@@ -259,7 +259,7 @@ export default function AdminCadastrosPage() {
       const blob = await response.blob()
       const contentDisposition = response.headers.get('content-disposition')
       const filenameMatch = contentDisposition?.match(/filename="?([^"]+)"?/)
-      const filename = filenameMatch?.[1] || `cadastros.${format}`
+      const filename = filenameMatch?.[1] || `clientes.${format}`
 
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -270,7 +270,7 @@ export default function AdminCadastrosPage() {
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao exportar lista de cadastros')
+      setError(err instanceof Error ? err.message : 'Erro ao exportar lista de clientes')
     } finally {
       setExportListLoading(null)
     }
@@ -333,7 +333,7 @@ export default function AdminCadastrosPage() {
       <header className="sticky top-0 z-50 border-b border-gray-200 bg-white">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
           <div className="min-w-0">
-            <h1 className="truncate text-xl font-bold text-gray-900 sm:text-2xl">Cadastros</h1>
+            <h1 className="truncate text-xl font-bold text-gray-900 sm:text-2xl">Clientes</h1>
             <p className="text-xs text-gray-600 sm:text-sm">Busca e gestão detalhada dos registros</p>
           </div>
           <div className="hidden flex-wrap items-center justify-end gap-2 lg:flex">
@@ -364,7 +364,7 @@ export default function AdminCadastrosPage() {
               </SheetTrigger>
               <SheetContent side="right">
                 <SheetHeader>
-                  <SheetTitle>Menu Cadastros</SheetTitle>
+                  <SheetTitle>Menu Clientes</SheetTitle>
                 </SheetHeader>
                 <div className="flex flex-col gap-2 px-4 pb-4">
                   <SheetClose asChild>
@@ -407,7 +407,7 @@ export default function AdminCadastrosPage() {
       <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
           <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <p className="text-sm text-gray-600">Total de Cadastros</p>
+            <p className="text-sm text-gray-600">Total de Clientes</p>
             <p className="mt-1 text-2xl font-bold text-gray-900">{summary.total.toLocaleString('pt-BR')}</p>
           </div>
           <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
@@ -483,7 +483,7 @@ export default function AdminCadastrosPage() {
                 className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
               >
                 <option value="FILTRADOS">Exportar: Filtros aplicados</option>
-                <option value="TODOS">Exportar: Todos os cadastros</option>
+                <option value="TODOS">Exportar: Todos os clientes</option>
               </select>
               <Button
                 variant="outline"
@@ -509,7 +509,7 @@ export default function AdminCadastrosPage() {
                   })
                 }
                 disabled={isLoading || exportListLoading !== null || cadastros.length === 0}
-                title="Layout da empresa parceira com cadastros dos últimos 30 dias"
+                title="Layout da empresa parceira com clientes dos últimos 30 dias"
               >
                 CSV Parceiro (30 dias)
               </Button>
@@ -531,17 +531,17 @@ export default function AdminCadastrosPage() {
 
         {isLoading ? (
           <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
-            <p className="text-gray-600">Carregando cadastros...</p>
+            <p className="text-gray-600">Carregando clientes...</p>
           </div>
         ) : filteredCadastros.length === 0 ? (
           <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
-            <p className="text-gray-600">Nenhum cadastro encontrado</p>
+            <p className="text-gray-600">Nenhum cliente encontrado</p>
           </div>
         ) : (
           <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Lista de Cadastros</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Lista de Clientes</h2>
                 <p className="text-sm text-gray-600">Resultados conforme filtro aplicado</p>
               </div>
               <div className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
@@ -558,7 +558,7 @@ export default function AdminCadastrosPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">Email</th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">CPF</th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">
-                      Data do Cadastro
+                      Cliente desde
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">Ações</th>
@@ -615,13 +615,13 @@ export default function AdminCadastrosPage() {
                       </td>
                       <td className="px-6 py-4 text-sm">
                         <div className="flex items-center gap-2">
-                          <Link href={`/admin/cadastro/${cadastro.id}`} title="Ver detalhes">
+                          <Link href={`/admin/cliente/${cadastro.id}`} title="Ver detalhes">
                             <Button size="icon-sm" variant="outline" aria-label="Ver detalhes">
                               <Eye className="h-4 w-4" />
                             </Button>
                           </Link>
-                          <Link href={`/admin/cadastro/${cadastro.id}/editar`} title="Editar cadastro">
-                            <Button size="icon-sm" variant="outline" aria-label="Editar cadastro">
+                          <Link href={`/admin/cliente/${cadastro.id}/editar`} title="Editar cliente">
+                            <Button size="icon-sm" variant="outline" aria-label="Editar cliente">
                               <Pencil className="h-4 w-4" />
                             </Button>
                           </Link>
@@ -653,8 +653,8 @@ export default function AdminCadastrosPage() {
                             variant="destructive"
                             onClick={() => handleDeleteCadastro(cadastro)}
                             disabled={deletingId === cadastro.id}
-                            aria-label="Excluir cadastro"
-                            title="Excluir cadastro"
+                            aria-label="Excluir cliente"
+                            title="Excluir cliente"
                           >
                             {deletingId === cadastro.id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -681,11 +681,11 @@ export default function AdminCadastrosPage() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Dados pendentes do cadastro</DialogTitle>
+            <DialogTitle>Dados pendentes do cliente</DialogTitle>
             <DialogDescription>
               {missingFieldsDialog
                 ? `Campos pendentes para ${missingFieldsDialog.cadastroNome}:`
-                : 'Campos pendentes do cadastro selecionado.'}
+                : 'Campos pendentes do cliente selecionado.'}
             </DialogDescription>
           </DialogHeader>
 

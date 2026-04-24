@@ -301,7 +301,7 @@ export default function AdminCobrancaConfiguracoesPage() {
               </div>
 
               <div className="space-y-3 rounded-lg border border-gray-200 p-4">
-                <p className="text-sm font-medium text-gray-800">Plano padrão do cadastro</p>
+                <p className="text-sm font-medium text-gray-800">Plano padrão para novos clientes</p>
                 <RadioGroup
                   value={defaultPlanType}
                   onValueChange={(value) => setDefaultPlanType(value as PlanType)}
@@ -322,7 +322,7 @@ export default function AdminCobrancaConfiguracoesPage() {
               <div className="space-y-3 rounded-lg border border-gray-200 p-4">
                 <p className="text-sm font-medium text-gray-800">Formas de cobrança da mensalidade</p>
                 <p className="text-xs text-gray-600">
-                  Se houver mais de uma opção marcada, o cliente escolherá no fim do cadastro.
+                  Se houver mais de uma opção marcada, o cliente escolherá no fim da adesão.
                 </p>
 
                 <div className="space-y-2">

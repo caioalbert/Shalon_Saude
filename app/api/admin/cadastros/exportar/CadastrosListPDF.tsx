@@ -73,7 +73,7 @@ export function CadastrosListPDF({
   return (
     <Document>
       <Page size="A4" orientation="landscape" style={styles.page}>
-        <Text style={styles.title}>Lista de Cadastros - SHALON Saúde</Text>
+        <Text style={styles.title}>Lista de Clientes - SHALOM Saúde</Text>
         <Text style={styles.meta}>Gerado em: {generatedAt}</Text>
         <Text style={styles.meta}>Escopo: {scopeLabel}</Text>
         <Text style={styles.meta}>Filtros: {filtersSummary}</Text>
@@ -91,7 +91,7 @@ export function CadastrosListPDF({
               <Text style={styles.headerText}>CPF</Text>
             </View>
             <View style={styles.colData}>
-              <Text style={styles.headerText}>Cadastro</Text>
+              <Text style={styles.headerText}>Cliente desde</Text>
             </View>
             <View style={styles.colFinanceiro}>
               <Text style={styles.headerText}>Financeiro</Text>

@@ -1,4 +1,4 @@
-# Guia Rápido de Início - SHALON Saúde
+# Guia Rápido de Início - SHALOM Saúde
 
 ## Começar em 5 Minutos
 

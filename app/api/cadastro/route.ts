@@ -488,7 +488,7 @@ export async function POST(request: NextRequest) {
         customer: asaasCustomerId,
         value: adesaoValue,
         dueDate: adesaoDueDate,
-        description: 'Taxa de adesão SHALON Saúde',
+        description: 'Taxa de adesão SHALOM Saúde',
         externalReference: cadastroId,
       })
       asaasPaymentId = payment.id

@@ -119,7 +119,7 @@ export default function AdminCadastroEditPage() {
             router.push('/admin/login')
             return
           }
-          throw new Error('Cadastro não encontrado')
+          throw new Error('Cliente não encontrado')
         }
 
         const data = await response.json()
@@ -147,7 +147,7 @@ export default function AdminCadastroEditPage() {
           cep: cadastro.cep || '',
         })
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erro ao carregar cadastro')
+        setError(err instanceof Error ? err.message : 'Erro ao carregar cliente')
       } finally {
         setIsLoading(false)
       }
@@ -214,12 +214,12 @@ export default function AdminCadastroEditPage() {
           router.push('/admin/login')
           return
         }
-        throw new Error(data.error || 'Erro ao atualizar cadastro')
+        throw new Error(data.error || 'Erro ao atualizar cliente')
       }
 
-      router.push(`/admin/cadastro/${id}`)
+      router.push(`/admin/cliente/${id}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar cadastro')
+      setError(err instanceof Error ? err.message : 'Erro ao atualizar cliente')
     } finally {
       setIsSaving(false)
     }
@@ -229,7 +229,7 @@ export default function AdminCadastroEditPage() {
     return (
       <main className="min-h-screen bg-gray-50">
         <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-          <p className="text-gray-600">Carregando cadastro...</p>
+          <p className="text-gray-600">Carregando cliente...</p>
         </div>
       </main>
     )
@@ -239,10 +239,10 @@ export default function AdminCadastroEditPage() {
     <main className="min-h-screen bg-gray-50">
       <header className="sticky top-0 z-50 border-b border-gray-200 bg-white">
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
-          <h1 className="truncate text-lg font-bold text-gray-900 sm:text-xl">Editar Cadastro</h1>
+          <h1 className="truncate text-lg font-bold text-gray-900 sm:text-xl">Editar Cliente</h1>
 
           <div className="hidden items-center gap-2 lg:flex">
-            <Link href="/admin/cadastros">
+            <Link href="/admin/clientes">
               <Button variant="outline" className="gap-2">
                 <ArrowLeft className="h-4 w-4" />
                 Voltar
@@ -268,7 +268,7 @@ export default function AdminCadastroEditPage() {
                 <div className="flex flex-col gap-2 px-4 pb-4">
                   <SheetClose asChild>
                     <Button asChild variant="outline" className="w-full justify-start gap-2">
-                      <Link href="/admin/cadastros">
+                      <Link href="/admin/clientes">
                         <ArrowLeft className="h-4 w-4" />
                         Voltar
                       </Link>

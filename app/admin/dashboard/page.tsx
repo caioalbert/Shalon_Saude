@@ -114,7 +114,7 @@ export default function AdminDashboard() {
           router.push('/admin/login')
           return
         }
-        throw new Error('Erro ao carregar cadastros')
+        throw new Error('Erro ao carregar clientes')
       }
 
       const data = await response.json()
@@ -165,7 +165,7 @@ export default function AdminDashboard() {
       const blob = await response.blob()
       const contentDisposition = response.headers.get('content-disposition')
       const filenameMatch = contentDisposition?.match(/filename="?([^"]+)"?/)
-      const filename = filenameMatch?.[1] || 'contratos-shalon.zip'
+      const filename = filenameMatch?.[1] || 'contratos-shalom.zip'
 
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -301,12 +301,12 @@ export default function AdminDashboard() {
       <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
           <div className="min-w-0">
-            <h1 className="truncate text-xl font-bold text-gray-900 sm:text-2xl">SHALON Saúde - Admin</h1>
-            <p className="text-xs text-gray-600 sm:text-sm">Dashboard de Cadastros e Indicadores</p>
+            <h1 className="truncate text-xl font-bold text-gray-900 sm:text-2xl">SHALOM Saúde - Admin</h1>
+            <p className="text-xs text-gray-600 sm:text-sm">Dashboard de Clientes e Indicadores</p>
           </div>
           <div className="hidden flex-wrap items-center justify-end gap-2 lg:flex">
-            <Link href="/admin/cadastros">
-              <Button variant="outline">Cadastros</Button>
+            <Link href="/admin/clientes">
+              <Button variant="outline">Clientes</Button>
             </Link>
             <Link href="/admin/vendedores">
               <Button variant="outline">Vendedores</Button>
@@ -340,7 +340,7 @@ export default function AdminDashboard() {
                 <div className="flex flex-col gap-2 px-4 pb-4">
                   <SheetClose asChild>
                     <Button asChild variant="outline" className="w-full justify-start">
-                      <Link href="/admin/cadastros">Cadastros</Link>
+                      <Link href="/admin/clientes">Clientes</Link>
                     </Button>
                   </SheetClose>
                   <SheetClose asChild>
@@ -396,13 +396,13 @@ export default function AdminDashboard() {
 
         {isLoading ? (
           <div className="rounded-xl border border-gray-200 bg-white p-10 text-center shadow-sm">
-            <p className="text-gray-600">Carregando cadastros...</p>
+            <p className="text-gray-600">Carregando clientes...</p>
           </div>
         ) : (
           <>
             <div className="mb-4 grid grid-cols-2 gap-4 xl:grid-cols-4">
               <KpiCard
-                title="Total de Cadastros"
+                title="Total de Clientes"
                 value={summary.total}
                 subtitle="Base geral de contratantes"
                 valueClassName="text-gray-900"
@@ -410,7 +410,7 @@ export default function AdminDashboard() {
                 iconClassName="bg-slate-100 text-slate-700"
               />
               <KpiCard
-                title="Cadastros Hoje"
+                title="Clientes Hoje"
                 value={summary.today}
                 subtitle="Entradas registradas hoje"
                 valueClassName="text-cyan-700"
@@ -428,7 +428,7 @@ export default function AdminDashboard() {
               <KpiCard
                 title="Mês Atual"
                 value={summary.currentMonth}
-                subtitle="Cadastros no mês corrente"
+                subtitle="Clientes no mês corrente"
                 valueClassName="text-indigo-700"
                 icon={Download}
                 iconClassName="bg-indigo-100 text-indigo-700"
@@ -472,7 +472,7 @@ export default function AdminDashboard() {
 
             <section className="mb-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
               <div className="mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">Cadastros por Período (6 meses)</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Clientes por Período (6 meses)</h2>
                 <p className="text-sm text-gray-600">Evolução mensal da base de adesões</p>
               </div>
 
@@ -488,7 +488,7 @@ export default function AdminDashboard() {
                       <XAxis dataKey="monthLabel" tickLine={false} axisLine={false} />
                       <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
                       <Tooltip
-                        formatter={(value: number | string) => [Number(value).toLocaleString('pt-BR'), 'Cadastros']}
+                        formatter={(value: number | string) => [Number(value).toLocaleString('pt-BR'), 'Clientes']}
                       />
                       <Line
                         type="monotone"
@@ -507,7 +507,7 @@ export default function AdminDashboard() {
             <section className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
               <div className="mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">Recorte Rápido</h2>
-                <p className="text-sm text-gray-600">Cadastros acumulados por janela de tempo</p>
+                <p className="text-sm text-gray-600">Clientes acumulados por janela de tempo</p>
               </div>
 
               {summary.total === 0 ? (
@@ -522,7 +522,7 @@ export default function AdminDashboard() {
                       <XAxis dataKey="period" tickLine={false} axisLine={false} />
                       <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
                       <Tooltip
-                        formatter={(value: number | string) => [Number(value).toLocaleString('pt-BR'), 'Cadastros']}
+                        formatter={(value: number | string) => [Number(value).toLocaleString('pt-BR'), 'Clientes']}
                       />
                       <Bar dataKey="total" fill="#0284c7" radius={[8, 8, 0, 0]} />
                     </BarChart>
@@ -535,7 +535,7 @@ export default function AdminDashboard() {
               <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900">Cadastros por Estado Civil</h2>
+                    <h2 className="text-lg font-semibold text-gray-900">Clientes por Estado Civil</h2>
                     <p className="text-sm text-gray-600">Distribuição dos perfis civis cadastrados</p>
                   </div>
                   <div className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
@@ -565,7 +565,7 @@ export default function AdminDashboard() {
                           axisLine={false}
                         />
                         <Tooltip
-                          formatter={(value: number | string) => [Number(value).toLocaleString('pt-BR'), 'Cadastros']}
+                          formatter={(value: number | string) => [Number(value).toLocaleString('pt-BR'), 'Clientes']}
                           labelFormatter={(label, payload) => {
                             if (!payload || payload.length === 0) return label
                             return payload[0].payload.name
@@ -581,7 +581,7 @@ export default function AdminDashboard() {
               <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900">Cadastros por Situação Profissional</h2>
+                    <h2 className="text-lg font-semibold text-gray-900">Clientes por Situação Profissional</h2>
                     <p className="text-sm text-gray-600">Distribuição por vínculo profissional</p>
                   </div>
                   <div className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">
@@ -611,7 +611,7 @@ export default function AdminDashboard() {
                           axisLine={false}
                         />
                         <Tooltip
-                          formatter={(value: number | string) => [Number(value).toLocaleString('pt-BR'), 'Cadastros']}
+                          formatter={(value: number | string) => [Number(value).toLocaleString('pt-BR'), 'Clientes']}
                           labelFormatter={(label, payload) => {
                             if (!payload || payload.length === 0) return label
                             return payload[0].payload.name

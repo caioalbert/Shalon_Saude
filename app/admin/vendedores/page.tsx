@@ -139,7 +139,7 @@ export default function AdminVendedoresPage() {
       <header className="sticky top-0 z-50 border-b border-gray-200 bg-white">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
           <div className="min-w-0">
-            <h1 className="truncate text-xl font-bold text-gray-900 sm:text-2xl">Cadastro de Vendedores</h1>
+            <h1 className="truncate text-xl font-bold text-gray-900 sm:text-2xl">Vendedores</h1>
             <p className="text-xs text-gray-600 sm:text-sm">Crie acessos e links de venda para cada vendedor</p>
           </div>
           <div className="hidden items-center gap-2 lg:flex">

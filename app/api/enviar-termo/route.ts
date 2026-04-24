@@ -58,20 +58,20 @@ export async function POST(request: NextRequest) {
 
       if (cadastroError.code === 'PGRST116') {
         return NextResponse.json(
-          { error: 'Cadastro não encontrado' },
+          { error: 'Cliente não encontrado' },
           { status: 404 }
         )
       }
 
       return NextResponse.json(
-        { error: cadastroError.message || 'Erro ao consultar cadastro' },
+        { error: cadastroError.message || 'Erro ao consultar cliente' },
         { status: 500 }
       )
     }
 
     if (!cadastro) {
       return NextResponse.json(
-        { error: 'Cadastro não encontrado' },
+        { error: 'Cliente não encontrado' },
         { status: 404 }
       )
     }
@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: 'Cadastro processado. Configure RESEND_API_KEY para enviar emails.',
+        message: 'Cliente processado. Configure RESEND_API_KEY para enviar emails.',
       })
     }
 
@@ -183,9 +183,9 @@ export async function POST(request: NextRequest) {
     const resend = new Resend(process.env.RESEND_API_KEY)
 
     const { error: emailError } = await resend.emails.send({
-      from: `SHALON Saúde <${fromEmail}>`,
+      from: `SHALOM Saúde <${fromEmail}>`,
       to: cadastro.email,
-      subject: 'Seu Termo de Adesão - SHALON Saúde',
+      subject: 'Seu Termo de Adesão - SHALOM Saúde',
       attachments: [
         {
           filename: attachmentFileName,
@@ -198,24 +198,24 @@ export async function POST(request: NextRequest) {
         <html>
         <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
           <div style="background: linear-gradient(135deg, #1d4ed8, #4f46e5); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
-            <h1 style="color: white; margin: 0; font-size: 24px;">SHALON Saúde</h1>
+            <h1 style="color: white; margin: 0; font-size: 24px;">SHALOM Saúde</h1>
             <p style="color: #bfdbfe; margin: 8px 0 0 0;">Confirmação de Adesão</p>
           </div>
           <div style="background: #f8fafc; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #e2e8f0; border-top: none;">
             <h2 style="color: #1e40af; margin-top: 0;">Olá, ${cadastro.nome}!</h2>
-            <p>Seu cadastro foi realizado com sucesso e o Termo de Adesão ao serviço SHALON Saúde foi gerado.</p>
+            <p>Seu cadastro foi realizado com sucesso e o Termo de Adesão ao serviço SHALOM Saúde foi gerado.</p>
             <div style="background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 20px; margin: 20px 0;">
-              <h3 style="margin-top: 0; color: #374151; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">Dados do Cadastro</h3>
+              <h3 style="margin-top: 0; color: #374151; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">Dados do Cliente</h3>
               <table style="width: 100%; border-collapse: collapse;">
                 <tr><td style="padding: 6px 0; color: #6b7280; font-size: 13px; width: 40%;">Nome:</td><td style="padding: 6px 0; font-weight: 500; font-size: 13px;">${cadastro.nome}</td></tr>
                 <tr><td style="padding: 6px 0; color: #6b7280; font-size: 13px;">CPF:</td><td style="padding: 6px 0; font-weight: 500; font-size: 13px;">${cadastro.cpf}</td></tr>
                 <tr><td style="padding: 6px 0; color: #6b7280; font-size: 13px;">Email:</td><td style="padding: 6px 0; font-weight: 500; font-size: 13px;">${cadastro.email}</td></tr>
-                <tr><td style="padding: 6px 0; color: #6b7280; font-size: 13px;">Cadastrado em:</td><td style="padding: 6px 0; font-weight: 500; font-size: 13px;">${cadastro.created_at ? new Date(cadastro.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}</td></tr>
+                <tr><td style="padding: 6px 0; color: #6b7280; font-size: 13px;">Cliente desde:</td><td style="padding: 6px 0; font-weight: 500; font-size: 13px;">${cadastro.created_at ? new Date(cadastro.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}</td></tr>
               </table>
             </div>
             <p style="font-size: 13px; color: #6b7280;">Seu termo segue em anexo neste email em formato PDF.</p>
             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
-            <p style="font-size: 12px; color: #9ca3af; margin: 0;">Este é um email automático do sistema SHALON Saúde. Não responda a este email.</p>
+            <p style="font-size: 12px; color: #9ca3af; margin: 0;">Este é um email automático do sistema SHALOM Saúde. Não responda a este email.</p>
           </div>
         </body>
         </html>

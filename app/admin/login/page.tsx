@@ -53,7 +53,7 @@ export default function AdminLogin() {
               <div className="rounded-2xl bg-white/95 px-4 py-3 shadow-lg">
                 <Image
                   src="/logo-horizontal-v2.png"
-                  alt="SHALON Saúde"
+                  alt="SHALOM Saúde"
                   width={220}
                   height={72}
                   className="h-10 w-auto object-contain"
@@ -67,7 +67,7 @@ export default function AdminLogin() {
                 Parceria Igreja + Saúde
               </p>
               <h2 className="mt-4 text-4xl font-bold leading-tight xl:text-5xl">
-                Gestão segura dos cadastros com foco em cuidado e proteção de dados.
+                Gestão segura dos clientes com foco em cuidado e proteção de dados.
               </h2>
               <p className="mt-4 max-w-xl text-base text-cyan-50/95">
                 Área administrativa para acompanhar adesões, contratos e dependentes com
@@ -107,7 +107,7 @@ export default function AdminLogin() {
                 <div className="flex flex-wrap items-center gap-3">
                   <Image
                     src="/logo-horizontal-v2.png"
-                    alt="SHALON Saúde"
+                    alt="SHALOM Saúde"
                     width={190}
                     height={62}
                     className="h-10 w-auto object-contain"
@@ -175,7 +175,7 @@ export default function AdminLogin() {
                 <p className="text-center text-sm text-gray-600">
                   Não tem acesso admin?{' '}
                   <Link href="/" className="font-medium text-teal-700 hover:text-teal-800">
-                    Voltar ao cadastro
+                    Voltar para adesão
                   </Link>
                 </p>
               </div>

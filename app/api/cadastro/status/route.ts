@@ -46,11 +46,11 @@ export async function GET(request: NextRequest) {
       }
 
       console.error('Cadastro status error:', error)
-      return NextResponse.json({ error: 'Erro ao consultar status do cadastro.' }, { status: 500 })
+      return NextResponse.json({ error: 'Erro ao consultar status do cliente.' }, { status: 500 })
     }
 
     if (!data) {
-      return NextResponse.json({ error: 'Cadastro não encontrado.' }, { status: 404 })
+      return NextResponse.json({ error: 'Cliente não encontrado.' }, { status: 404 })
     }
 
     let asaasPaymentStatus: string | null = null

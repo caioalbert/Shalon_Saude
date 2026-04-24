@@ -40,12 +40,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
       console.error('Cadastro error:', cadastroError)
       if (cadastroError.code === 'PGRST116') {
         return NextResponse.json(
-          { error: 'Cadastro não encontrado' },
+          { error: 'Cliente não encontrado' },
           { status: 404 }
         )
       }
 
-      return NextResponse.json({ error: 'Erro ao buscar cadastro' }, { status: 500 })
+      return NextResponse.json({ error: 'Erro ao buscar cliente' }, { status: 500 })
     }
 
     // Buscar dependentes
@@ -168,7 +168,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     if (error) {
       console.error('Patch cadastro error:', error)
-      return NextResponse.json({ error: 'Erro ao atualizar cadastro' }, { status: 500 })
+      return NextResponse.json({ error: 'Erro ao atualizar cliente' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, cadastro: data })
@@ -195,7 +195,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
     if (error) {
       console.error('Delete cadastro error:', error)
-      return NextResponse.json({ error: 'Erro ao excluir cadastro' }, { status: 500 })
+      return NextResponse.json({ error: 'Erro ao excluir cliente' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })

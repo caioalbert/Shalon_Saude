@@ -133,10 +133,10 @@ function buildCsvContent(rows: ExportRow[]) {
     'Nome',
     'Email',
     'CPF',
-    'Data do cadastro',
+    'Data do cliente',
     'Status financeiro',
     'Status dos dados',
-    'Status do cadastro',
+    'Status do cliente',
     'Plano',
     'Mensalidade',
     'Telefone',
@@ -321,7 +321,7 @@ export async function GET(request: NextRequest) {
 
     const now = new Date()
     const dateStamp = now.toISOString().slice(0, 10)
-    const scopeLabel = scope === 'all' ? 'Todos os cadastros' : 'Somente filtros aplicados'
+    const scopeLabel = scope === 'all' ? 'Todos os clientes' : 'Somente filtros aplicados'
     const filtrosSummary =
       scope === 'all'
         ? 'Sem filtros'
@@ -332,8 +332,8 @@ export async function GET(request: NextRequest) {
         template === 'PARTNER' ? buildPartnerCsvContent(cadastros) : buildCsvContent(rows)
       const fileName =
         template === 'PARTNER'
-          ? `cadastros-parceiro-${partnerDays}dias-${dateStamp}.csv`
-          : `cadastros-${scope}-${dateStamp}.csv`
+          ? `clientes-parceiro-${partnerDays}dias-${dateStamp}.csv`
+          : `clientes-${scope}-${dateStamp}.csv`
 
       return new NextResponse(csv, {
         status: 200,
@@ -368,7 +368,7 @@ export async function GET(request: NextRequest) {
     }) as unknown as React.ReactElement<DocumentProps>
 
     const pdfBuffer = Buffer.from(await renderToBuffer(pdfDocument))
-    const fileName = `cadastros-${scope}-${dateStamp}.pdf`
+    const fileName = `clientes-${scope}-${dateStamp}.pdf`
 
     return new NextResponse(pdfBuffer, {
       status: 200,
@@ -379,9 +379,9 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Cadastros export API error:', error)
+    console.error('Clientes export API error:', error)
     return NextResponse.json(
-      { error: 'Erro ao exportar lista de cadastros.' },
+      { error: 'Erro ao exportar lista de clientes.' },
       { status: 500 }
     )
   }

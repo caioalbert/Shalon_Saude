@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
       }
 
       console.error('Webhook: erro ao buscar cadastro', cadastroResult.error)
-      return NextResponse.json({ error: 'Erro ao buscar cadastro local.' }, { status: 500 })
+      return NextResponse.json({ error: 'Erro ao buscar cliente local.' }, { status: 500 })
     }
 
     const cadastro = cadastroResult.data
@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         received: true,
         ignored: true,
-        reason: 'Cadastro local não encontrado para este pagamento.',
+        reason: 'Cliente local não encontrado para este pagamento.',
       })
     }
 
@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
     if (!subscriptionId) {
       if (!cadastro.asaas_customer_id) {
         return NextResponse.json(
-          { error: 'Cadastro sem asaas_customer_id. Não é possível criar assinatura.' },
+          { error: 'Cliente sem asaas_customer_id. Não é possível criar assinatura.' },
           { status: 500 }
         )
       }
@@ -249,7 +249,7 @@ export async function POST(request: NextRequest) {
         value: mensalidadeValue,
         nextDueDate,
         cycle: 'MONTHLY',
-        description: 'Mensalidade SHALON Saúde',
+        description: 'Mensalidade SHALOM Saúde',
         externalReference: cadastro.id,
       })
 
@@ -268,7 +268,7 @@ export async function POST(request: NextRequest) {
 
     if (updateError) {
       console.error('Webhook: erro ao atualizar cadastro', updateError)
-      return NextResponse.json({ error: 'Erro ao ativar cadastro.' }, { status: 500 })
+      return NextResponse.json({ error: 'Erro ao ativar cliente.' }, { status: 500 })
     }
 
     try {
