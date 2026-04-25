@@ -5,27 +5,86 @@ import { getAgeFromIsoDate, isValidCPF, isValidEmail } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
-type PlanType = 'INDIVIDUAL' | 'FAMILIAR'
+type PlanOption = {
+  codigo: string
+  nome: string
+  valor: number
+  permiteDependentes: boolean
+  maxDependentes: number
+}
 
 interface StepDependentesProps {
   data: Partial<CadastroFormData>
   onUpdate: (data: Partial<CadastroFormData>) => void
-  planValues?: {
-    INDIVIDUAL: number
-    FAMILIAR: number
-  } | null
+  planOptions?: PlanOption[] | null
   showValidation?: boolean
+}
+
+const FALLBACK_PLAN_OPTIONS: PlanOption[] = [
+  {
+    codigo: 'INDIVIDUAL',
+    nome: 'Plano Individual',
+    valor: 0,
+    permiteDependentes: false,
+    maxDependentes: 0,
+  },
+  {
+    codigo: 'FAMILIAR',
+    nome: 'Plano Familiar',
+    valor: 0,
+    permiteDependentes: true,
+    maxDependentes: 4,
+  },
+]
+
+function normalizePlanOptions(planOptions?: PlanOption[] | null) {
+  if (!Array.isArray(planOptions) || planOptions.length === 0) {
+    return FALLBACK_PLAN_OPTIONS
+  }
+
+  const mapped = planOptions
+    .map((plan) => {
+      const codigo = String(plan.codigo || '').trim().toUpperCase()
+      const nome = String(plan.nome || '').trim()
+      const valor = Number(plan.valor)
+      if (!codigo || !nome || !Number.isFinite(valor) || valor < 0) {
+        return null
+      }
+
+      const permiteDependentes = Boolean(plan.permiteDependentes || codigo === 'FAMILIAR')
+      const maxDependentes = permiteDependentes
+        ? Math.max(1, Number(plan.maxDependentes || (codigo === 'FAMILIAR' ? 4 : 0)) || 4)
+        : 0
+
+      return {
+        codigo,
+        nome,
+        valor,
+        permiteDependentes,
+        maxDependentes,
+      } satisfies PlanOption
+    })
+    .filter((value): value is PlanOption => Boolean(value))
+
+  if (mapped.length === 0) {
+    return FALLBACK_PLAN_OPTIONS
+  }
+
+  return mapped
 }
 
 export function StepDependentes({
   data,
   onUpdate,
-  planValues,
+  planOptions,
   showValidation = false,
 }: StepDependentesProps) {
-  const [tipo_plano, setTipoPlano] = useState<PlanType>(data.tipo_plano || 'INDIVIDUAL')
+  const availablePlans = useMemo(() => normalizePlanOptions(planOptions), [planOptions])
+  const fallbackPlanCode = availablePlans[0]?.codigo || 'INDIVIDUAL'
+
+  const [tipo_plano, setTipoPlano] = useState<string>(data.tipo_plano || fallbackPlanCode)
   const [dependentes, setDependentes] = useState<DependenteFormData[]>(data.dependentes || [])
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [cpfError, setCpfError] = useState<string | null>(null)
@@ -47,14 +106,47 @@ export function StepDependentes({
     }
   }, [data.tipo_plano, tipo_plano])
 
-  const tem_dependentes = tipo_plano === 'FAMILIAR'
+  const selectedPlan = availablePlans.find((plan) => plan.codigo === tipo_plano) || availablePlans[0]
+  const planPermiteDependentes = Boolean(selectedPlan?.permiteDependentes)
+  const dependentesLimit = selectedPlan?.permiteDependentes
+    ? Math.max(1, Number(selectedPlan.maxDependentes || 4))
+    : 0
+
+  const resetDependenteForm = () => {
+    setEditingIndex(null)
+    setFormData({
+      nome: '',
+      rg: '',
+      cpf: '',
+      data_nascimento: '',
+      relacao: '',
+      email: '',
+      telefone_celular: '',
+      sexo: '',
+    })
+    setCpfError(null)
+    setEmailError(null)
+  }
+
+  useEffect(() => {
+    if (!selectedPlan) return
+    if (tipo_plano && availablePlans.some((plan) => plan.codigo === tipo_plano)) return
+
+    const nextPlanCode = selectedPlan.codigo
+    setTipoPlano(nextPlanCode)
+    onUpdate({
+      tipo_plano: nextPlanCode,
+      tem_dependentes: selectedPlan.permiteDependentes,
+      dependentes: selectedPlan.permiteDependentes ? dependentes : [],
+    })
+  }, [availablePlans, dependentes, onUpdate, selectedPlan, tipo_plano])
 
   const handleAddDependente = () => {
-    if (tipo_plano !== 'FAMILIAR') {
+    if (!planPermiteDependentes) {
       return
     }
 
-    if (editingIndex === null && dependentes.length >= 4) {
+    if (editingIndex === null && dependentes.length >= dependentesLimit) {
       return
     }
 
@@ -113,7 +205,11 @@ export function StepDependentes({
         : [...dependentes, dependente]
 
     setDependentes(nextDependentes)
-    onUpdate({ tipo_plano, tem_dependentes: true, dependentes: nextDependentes })
+    onUpdate({
+      tipo_plano: selectedPlan?.codigo || tipo_plano,
+      tem_dependentes: planPermiteDependentes,
+      dependentes: nextDependentes,
+    })
 
     setFormData({
       nome: '',
@@ -134,7 +230,11 @@ export function StepDependentes({
   const handleRemoveDependente = (index: number) => {
     const newDependentes = dependentes.filter((_, i) => i !== index)
     setDependentes(newDependentes)
-    onUpdate({ tipo_plano, tem_dependentes: true, dependentes: newDependentes })
+    onUpdate({
+      tipo_plano: selectedPlan?.codigo || tipo_plano,
+      tem_dependentes: planPermiteDependentes,
+      dependentes: newDependentes,
+    })
   }
 
   const handleEditDependente = (index: number) => {
@@ -151,33 +251,22 @@ export function StepDependentes({
     setEmailError(null)
   }
 
-  const resetDependenteForm = () => {
-    setEditingIndex(null)
-    setFormData({
-      nome: '',
-      rg: '',
-      cpf: '',
-      data_nascimento: '',
-      relacao: '',
-      email: '',
-      telefone_celular: '',
-      sexo: '',
-    })
-    setCpfError(null)
-    setEmailError(null)
-  }
-
-  const handleTipoPlanoChange = (value: PlanType) => {
-    setTipoPlano(value)
-
-    if (value === 'INDIVIDUAL') {
-      setDependentes([])
-      resetDependenteForm()
-      onUpdate({ tipo_plano: value, tem_dependentes: false, dependentes: [] })
+  const handleTipoPlanoChange = (planCode: string) => {
+    const selected = availablePlans.find((plan) => plan.codigo === planCode)
+    if (!selected) {
       return
     }
 
-    onUpdate({ tipo_plano: value, tem_dependentes: true, dependentes })
+    setTipoPlano(selected.codigo)
+
+    if (!selected.permiteDependentes) {
+      setDependentes([])
+      resetDependenteForm()
+      onUpdate({ tipo_plano: selected.codigo, tem_dependentes: false, dependentes: [] })
+      return
+    }
+
+    onUpdate({ tipo_plano: selected.codigo, tem_dependentes: true, dependentes })
   }
 
   const formatCPF = (value: string) => {
@@ -197,7 +286,7 @@ export function StepDependentes({
       .substring(0, 15)
   }
 
-  const highlightRequired = showValidation && tem_dependentes && dependentes.length === 0
+  const highlightRequired = showValidation && planPermiteDependentes && dependentes.length === 0
   const formatCurrency = (value: number) =>
     value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -206,59 +295,53 @@ export function StepDependentes({
       <div className="space-y-3 rounded-lg border border-gray-200 p-4">
         <p className="text-sm font-medium text-gray-800">Tipo de plano *</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => handleTipoPlanoChange('INDIVIDUAL')}
-            className={`rounded-md border px-4 py-3 text-left ${
-              tipo_plano === 'INDIVIDUAL'
-                ? 'border-blue-600 bg-blue-50'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-          >
-            <p className="text-sm font-semibold text-gray-900">Individual</p>
-            <p className="text-xs text-gray-600">Cobertura apenas para o titular.</p>
-            {planValues ? (
-              <p className="mt-2 text-xs text-gray-700">
-                Valor do plano individual: {formatCurrency(planValues.INDIVIDUAL)}
-              </p>
-            ) : null}
-          </button>
+          {availablePlans.map((plan) => {
+            const isSelected = selectedPlan?.codigo === plan.codigo
+            const dependentesDescription = plan.permiteDependentes
+              ? plan.maxDependentes > 0
+                ? `Permite incluir até ${plan.maxDependentes} dependentes.`
+                : 'Permite incluir dependentes.'
+              : 'Cobertura apenas para o titular.'
 
-          <button
-            type="button"
-            onClick={() => handleTipoPlanoChange('FAMILIAR')}
-            className={`rounded-md border px-4 py-3 text-left ${
-              tipo_plano === 'FAMILIAR'
-                ? 'border-blue-600 bg-blue-50'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-          >
-            <p className="text-sm font-semibold text-gray-900">Familiar</p>
-            <p className="text-xs text-gray-600">Permite incluir até 4 dependentes.</p>
-            {planValues ? (
-              <p className="mt-2 text-xs text-gray-700">
-                Valor do plano familiar: {formatCurrency(planValues.FAMILIAR)}
-              </p>
-            ) : null}
-          </button>
+            return (
+              <button
+                key={plan.codigo}
+                type="button"
+                onClick={() => handleTipoPlanoChange(plan.codigo)}
+                className={`rounded-md border px-4 py-3 text-left ${
+                  isSelected
+                    ? 'border-blue-600 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <p className="text-sm font-semibold text-gray-900">{plan.nome}</p>
+                <p className="text-xs text-gray-600">{dependentesDescription}</p>
+                <p className="mt-2 text-xs text-gray-700">
+                  Valor do plano: {formatCurrency(plan.valor)}
+                </p>
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      {tipo_plano === 'INDIVIDUAL' ? (
+      {!planPermiteDependentes ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-          <p className="text-sm text-amber-900">Plano individual selecionado. Dependentes não são permitidos.</p>
+          <p className="text-sm text-amber-900">
+            Plano sem dependentes selecionado. A cobertura será apenas para o titular.
+          </p>
         </div>
       ) : null}
 
-      {tipo_plano === 'FAMILIAR' && (
+      {planPermiteDependentes ? (
         <p className="text-xs text-gray-500">
-          Cada dependente deve ter email. Se for menor de idade, pode usar o mesmo email do titular. Máximo de 4 dependentes.
+          Cada dependente deve ter email. Se for menor de idade, pode usar o mesmo email do titular.
+          {dependentesLimit > 0 ? ` Máximo de ${dependentesLimit} dependentes.` : ''}
         </p>
-      )}
+      ) : null}
 
-      {tipo_plano === 'FAMILIAR' && tem_dependentes && (
+      {planPermiteDependentes && (
         <div className="space-y-6 border-t pt-6">
-          {/* Formulário de adição */}
           <div className="bg-blue-50 p-6 rounded-lg space-y-4">
             <h3 className="font-semibold text-gray-800">
               {editingIndex !== null ? 'Editar Dependente' : 'Adicionar Dependente'}
@@ -443,7 +526,7 @@ export function StepDependentes({
                 onClick={handleAddDependente}
                 className="bg-blue-600 hover:bg-blue-700"
                 disabled={
-                  (editingIndex === null && dependentes.length >= 4) ||
+                  (editingIndex === null && dependentesLimit > 0 && dependentes.length >= dependentesLimit) ||
                   !formData.nome ||
                   !formData.rg ||
                   !formData.relacao ||
@@ -464,14 +547,13 @@ export function StepDependentes({
               )}
             </div>
 
-            {dependentes.length >= 4 && editingIndex === null && (
+            {dependentesLimit > 0 && dependentes.length >= dependentesLimit && editingIndex === null && (
               <p className="text-xs text-amber-700">
-                Limite atingido: o plano familiar permite no máximo 4 dependentes.
+                Limite atingido: este plano permite no máximo {dependentesLimit} dependentes.
               </p>
             )}
           </div>
 
-          {/* Lista de dependentes */}
           {dependentes.length > 0 && (
             <div className="space-y-3">
               <h3 className="font-semibold text-gray-800">Dependentes Adicionados</h3>

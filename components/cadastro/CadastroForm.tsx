@@ -26,14 +26,19 @@ interface CadastroFormProps {
 }
 
 type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD'
-type PlanType = 'INDIVIDUAL' | 'FAMILIAR'
-
-const PLAN_TYPES: PlanType[] = ['INDIVIDUAL', 'FAMILIAR']
+type PlanOption = {
+  codigo: string
+  nome: string
+  valor: number
+  permiteDependentes: boolean
+  maxDependentes: number
+}
 
 type PublicBillingConfig = {
-  adesaoByPlanType: Record<PlanType, number>
-  mensalidadeByPlanType: Record<PlanType, number>
-  defaultPlanType: PlanType
+  adesaoByPlanType: Record<string, number>
+  mensalidadeByPlanType: Record<string, number>
+  defaultPlanType: string
+  planos: PlanOption[]
   mensalidadeBillingTypes: BillingType[]
   defaultMensalidadeBillingType: BillingType
 }
@@ -82,7 +87,7 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
   const [formData, setFormData] = useState<Partial<CadastroFormData>>({
     dependentes: [],
     tem_dependentes: false,
-    tipo_plano: 'INDIVIDUAL',
+    tipo_plano: '',
     mensalidade_billing_type: 'PIX',
   })
   const vendedorRef = initialVendedorRef.trim().toUpperCase()
@@ -102,30 +107,133 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
           throw new Error(payload?.error || 'Não foi possível carregar configurações de cobrança.')
         }
 
+        const toUpperTrim = (value: unknown) => String(value || '').trim().toUpperCase()
+        const toAmount = (value: unknown, fallback: number) => {
+          const parsed = Number(value)
+          if (!Number.isFinite(parsed) || parsed <= 0) {
+            return fallback
+          }
+
+          return Math.round((parsed + Number.EPSILON) * 100) / 100
+        }
+        const isBillingType = (value: string): value is BillingType =>
+          value === 'PIX' || value === 'BOLETO' || value === 'CREDIT_CARD'
+
+        const payloadObj =
+          payload && typeof payload === 'object'
+            ? (payload as Record<string, unknown>)
+            : {}
+        const mensalidadeByPlanTypePayload =
+          payloadObj.mensalidadeByPlanType && typeof payloadObj.mensalidadeByPlanType === 'object'
+            ? (payloadObj.mensalidadeByPlanType as Record<string, unknown>)
+            : {}
+        const adesaoByPlanTypePayload =
+          payloadObj.adesaoByPlanType && typeof payloadObj.adesaoByPlanType === 'object'
+            ? (payloadObj.adesaoByPlanType as Record<string, unknown>)
+            : {}
+
+        const parsedPlanos: PlanOption[] = (Array.isArray(payloadObj.planos) ? payloadObj.planos : [])
+          .map((rawPlan) => {
+            const plan =
+              rawPlan && typeof rawPlan === 'object'
+                ? (rawPlan as Record<string, unknown>)
+                : {}
+            const codigo = toUpperTrim(plan.codigo)
+            const nome = String(plan.nome || '').trim()
+            const valor = toAmount(plan.valor, 0)
+            if (!codigo || !nome || valor <= 0) {
+              return null
+            }
+
+            const permiteDependentes = Boolean(plan.permiteDependentes || codigo === 'FAMILIAR')
+            const maxDependentes = permiteDependentes
+              ? Math.max(1, Number(plan.maxDependentes || (codigo === 'FAMILIAR' ? 4 : 0)) || 4)
+              : 0
+
+            return {
+              codigo,
+              nome,
+              valor,
+              permiteDependentes,
+              maxDependentes,
+            } satisfies PlanOption
+          })
+          .filter((plan): plan is PlanOption => Boolean(plan))
+
+        const fallbackPlanos: PlanOption[] = [
+          {
+            codigo: 'INDIVIDUAL',
+            nome: 'Plano Individual',
+            valor: toAmount(
+              mensalidadeByPlanTypePayload.INDIVIDUAL ?? payloadObj.mensalidadeValue,
+              0
+            ),
+            permiteDependentes: false,
+            maxDependentes: 0,
+          },
+          {
+            codigo: 'FAMILIAR',
+            nome: 'Plano Familiar',
+            valor: toAmount(
+              mensalidadeByPlanTypePayload.FAMILIAR ?? payloadObj.mensalidadeValue,
+              0
+            ),
+            permiteDependentes: true,
+            maxDependentes: 4,
+          },
+        ].filter((plan) => plan.valor > 0)
+
+        const planos: PlanOption[] = parsedPlanos.length > 0
+          ? parsedPlanos
+          : fallbackPlanos
+
+        if (planos.length === 0) {
+          throw new Error('Nenhum plano ativo disponível para cadastro no momento.')
+        }
+
+        const mensalidadeByPlanType = planos.reduce((acc: Record<string, number>, plan: PlanOption) => {
+          acc[plan.codigo] = toAmount(
+            mensalidadeByPlanTypePayload[plan.codigo] ?? plan.valor,
+            plan.valor
+          )
+          return acc
+        }, {})
+        const adesaoByPlanType = planos.reduce((acc: Record<string, number>, plan: PlanOption) => {
+          acc[plan.codigo] = toAmount(
+            adesaoByPlanTypePayload[plan.codigo] ?? mensalidadeByPlanType[plan.codigo],
+            mensalidadeByPlanType[plan.codigo]
+          )
+          return acc
+        }, {})
+
+        const allowedPlanTypes = planos.map((plan) => plan.codigo)
+        const defaultPlanTypeRequested = toUpperTrim(payloadObj.defaultPlanType)
+        const defaultPlanType = allowedPlanTypes.includes(defaultPlanTypeRequested)
+          ? defaultPlanTypeRequested
+          : allowedPlanTypes[0]
+
+        const mensalidadeBillingTypes: BillingType[] = Array.isArray(payloadObj.mensalidadeBillingTypes)
+          ? payloadObj.mensalidadeBillingTypes
+              .map((item: unknown) => toUpperTrim(item))
+              .filter((item: string): item is BillingType => isBillingType(item))
+          : ['PIX']
+
+        const normalizedBillingTypes: BillingType[] =
+          mensalidadeBillingTypes.length > 0 ? mensalidadeBillingTypes : ['PIX']
+        const requestedDefaultBillingType = toUpperTrim(payloadObj.defaultMensalidadeBillingType)
+        const defaultMensalidadeBillingType = normalizedBillingTypes.includes(
+          requestedDefaultBillingType as BillingType
+        )
+          ? (requestedDefaultBillingType as BillingType)
+          : normalizedBillingTypes[0]
+
         const config: PublicBillingConfig = {
-          adesaoByPlanType: {
-            INDIVIDUAL: Number(
-              payload?.adesaoByPlanType?.INDIVIDUAL ||
-              payload?.mensalidadeByPlanType?.INDIVIDUAL ||
-              payload?.mensalidadeValue ||
-              0
-            ),
-            FAMILIAR: Number(
-              payload?.adesaoByPlanType?.FAMILIAR ||
-              payload?.mensalidadeByPlanType?.FAMILIAR ||
-              payload?.mensalidadeValue ||
-              0
-            ),
-          },
-          mensalidadeByPlanType: {
-            INDIVIDUAL: Number(payload?.mensalidadeByPlanType?.INDIVIDUAL || payload?.mensalidadeValue || 0),
-            FAMILIAR: Number(payload?.mensalidadeByPlanType?.FAMILIAR || payload?.mensalidadeValue || 0),
-          },
-          defaultPlanType: (payload?.defaultPlanType || 'INDIVIDUAL') as PlanType,
-          mensalidadeBillingTypes: Array.isArray(payload?.mensalidadeBillingTypes)
-            ? payload.mensalidadeBillingTypes
-            : ['PIX'],
-          defaultMensalidadeBillingType: (payload?.defaultMensalidadeBillingType || 'PIX') as BillingType,
+          adesaoByPlanType,
+          mensalidadeByPlanType,
+          defaultPlanType,
+          planos,
+          mensalidadeBillingTypes: normalizedBillingTypes,
+          defaultMensalidadeBillingType,
         }
 
         if (!active) return
@@ -133,7 +241,7 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
         setFormData((prev) => ({
           ...prev,
           tipo_plano:
-            prev.tipo_plano && PLAN_TYPES.includes(prev.tipo_plano)
+            prev.tipo_plano && allowedPlanTypes.includes(prev.tipo_plano)
               ? prev.tipo_plano
               : config.defaultPlanType,
           mensalidade_billing_type:
@@ -228,6 +336,13 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
   }
 
   const hasValue = (value?: string) => Boolean(value?.trim())
+  const getPlanByCode = (planCode: string | null | undefined) => {
+    if (!billingConfig || !planCode) {
+      return null
+    }
+
+    return billingConfig.planos.find((plan) => plan.codigo === planCode) || null
+  }
 
   const getStepValidationError = (currentStep: number) => {
     if (currentStep === 0) {
@@ -272,15 +387,18 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
       }
     }
 
-    if (currentStep === 2 && formData.tipo_plano === 'FAMILIAR') {
-      const dependentes = formData.dependentes || []
+    const selectedPlan = getPlanByCode(formData.tipo_plano)
 
-      if (dependentes.length > 4) {
-        return 'Plano familiar permite no máximo 4 dependentes.'
+    if (currentStep === 2 && selectedPlan?.permiteDependentes) {
+      const dependentes = formData.dependentes || []
+      const maxDependentes = Math.max(1, Number(selectedPlan.maxDependentes || 4))
+
+      if (dependentes.length > maxDependentes) {
+        return `O plano selecionado permite no máximo ${maxDependentes} dependentes.`
       }
 
       if (dependentes.length === 0) {
-        return 'Plano familiar exige ao menos um dependente.'
+        return 'O plano selecionado exige ao menos um dependente.'
       }
 
       const invalidDependente = dependentes.find(
@@ -326,7 +444,7 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
     }
 
     if (currentStep === 5) {
-      if (!formData.tipo_plano || !PLAN_TYPES.includes(formData.tipo_plano)) {
+      if (!formData.tipo_plano || !selectedPlan) {
         return 'Selecione o tipo de plano.'
       }
 
@@ -377,6 +495,11 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
         throw new Error('Email do titular inválido')
       }
 
+      const selectedPlan = getPlanByCode(formData.tipo_plano)
+      if (!formData.tipo_plano || !selectedPlan) {
+        throw new Error('Selecione um plano válido')
+      }
+
       const invalidDependente = (formData.dependentes || []).find(
         (dependente) =>
           !dependente.nome?.trim() ||
@@ -387,26 +510,23 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
           !dependente.sexo?.trim()
       )
 
-      if (formData.tipo_plano === 'FAMILIAR' && invalidDependente) {
+      if (selectedPlan.permiteDependentes && invalidDependente) {
         throw new Error(
           `Cada dependente precisa ter nome, RG, relação, email, sexo e telefone celular (${invalidDependente.nome || 'sem nome'}).`
         )
       }
 
-      if (!formData.tipo_plano || !PLAN_TYPES.includes(formData.tipo_plano)) {
-        throw new Error('Selecione o tipo de plano')
+      if (!selectedPlan.permiteDependentes && (formData.dependentes || []).length > 0) {
+        throw new Error('O plano selecionado não permite dependentes')
       }
 
-      if (formData.tipo_plano === 'INDIVIDUAL' && formData.tem_dependentes) {
-        throw new Error('Plano individual não permite dependentes')
+      if (selectedPlan.permiteDependentes && (formData.dependentes || []).length === 0) {
+        throw new Error('O plano selecionado exige ao menos um dependente')
       }
 
-      if (formData.tipo_plano === 'FAMILIAR' && (formData.dependentes || []).length === 0) {
-        throw new Error('Plano familiar exige ao menos um dependente')
-      }
-
-      if (formData.tipo_plano === 'FAMILIAR' && (formData.dependentes || []).length > 4) {
-        throw new Error('Plano familiar permite no máximo 4 dependentes')
+      const maxDependentes = Math.max(1, Number(selectedPlan.maxDependentes || 4))
+      if (selectedPlan.permiteDependentes && (formData.dependentes || []).length > maxDependentes) {
+        throw new Error(`O plano selecionado permite no máximo ${maxDependentes} dependentes`)
       }
 
       const invalidDependenteEmail = (formData.dependentes || []).find(
@@ -479,7 +599,7 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
       submitData.append('cidade', formData.cidade || '')
       submitData.append('estado', formData.estado || '')
       submitData.append('cep', formData.cep || '')
-      submitData.append('tem_dependentes', String(formData.tipo_plano === 'FAMILIAR'))
+      submitData.append('tem_dependentes', String(selectedPlan.permiteDependentes))
       submitData.append('dependentes', JSON.stringify(formData.dependentes || []))
       submitData.append('tipo_plano', formData.tipo_plano)
       submitData.append('mensalidade_billing_type', formData.mensalidade_billing_type)
@@ -533,7 +653,7 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
           <StepDependentes
             data={formData}
             onUpdate={updateFormData}
-            planValues={billingConfig?.mensalidadeByPlanType || null}
+            planOptions={billingConfig?.planos || null}
             showValidation={validationStep === 2}
           />
         )

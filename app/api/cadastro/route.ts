@@ -6,10 +6,8 @@ import {
 } from '@/lib/asaas'
 import {
   getBillingSettings,
-  getMensalidadeValueByPlanType,
   MIN_ASAAS_CHARGE_VALUE,
   type BillingTypeOption,
-  type PlanTypeOption,
 } from '@/lib/billing-settings'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
@@ -30,6 +28,95 @@ function onlyDigits(value: string) {
 
 function toIsoDate(date: Date) {
   return date.toISOString().slice(0, 10)
+}
+
+type CadastroPlanOption = {
+  codigo: string
+  nome: string
+  valor: number
+  permiteDependentes: boolean
+  maxDependentes: number
+}
+
+function normalizePlanCode(value: unknown) {
+  return String(value || '').trim().toUpperCase()
+}
+
+function toPositiveNumber(value: unknown, fallback: number) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback
+  }
+
+  return Math.round((parsed + Number.EPSILON) * 100) / 100
+}
+
+function mapLegacyCadastroPlans(settings: Awaited<ReturnType<typeof getBillingSettings>>): CadastroPlanOption[] {
+  return [
+    {
+      codigo: 'INDIVIDUAL',
+      nome: 'Plano Individual',
+      valor: settings.mensalidadeIndividualValue,
+      permiteDependentes: false,
+      maxDependentes: 0,
+    },
+    {
+      codigo: 'FAMILIAR',
+      nome: 'Plano Familiar',
+      valor: settings.mensalidadeFamiliarValue,
+      permiteDependentes: true,
+      maxDependentes: 4,
+    },
+  ]
+}
+
+async function loadCadastroPlanOptions(settings: Awaited<ReturnType<typeof getBillingSettings>>) {
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from('planos')
+      .select('codigo, nome, valor, ordem, created_at')
+      .eq('ativo', true)
+      .order('ordem', { ascending: true })
+      .order('created_at', { ascending: true })
+
+    if (error) {
+      throw error
+    }
+
+    const mapped = (data || [])
+      .map((plan) => {
+        const codigo = normalizePlanCode(plan.codigo)
+        const nome = String(plan.nome || '').trim()
+        const valor = toPositiveNumber(plan.valor, 0)
+
+        if (!codigo || !nome || valor <= 0) {
+          return null
+        }
+
+        const isFamiliar = codigo === 'FAMILIAR'
+
+        return {
+          codigo,
+          nome,
+          valor,
+          permiteDependentes: isFamiliar,
+          maxDependentes: isFamiliar ? 4 : 0,
+        } satisfies CadastroPlanOption
+      })
+      .filter((value): value is CadastroPlanOption => Boolean(value))
+
+    if (mapped.length > 0) {
+      return mapped
+    }
+  } catch (error) {
+    const details = error instanceof Error ? error.message : String(error)
+    if (!/relation .*planos|does not exist|42P01/i.test(details)) {
+      throw error
+    }
+  }
+
+  return mapLegacyCadastroPlans(settings)
 }
 
 async function cleanupSelfieBlob(selfiePath: string | null) {
@@ -107,7 +194,7 @@ export async function POST(request: NextRequest) {
     const estadoValue = estado?.trim()
     const cepValue = cep?.trim()
     const tipoPlanoRequested = tipo_plano?.trim().toUpperCase()
-    const tem_dependentes = tipoPlanoRequested === 'FAMILIAR' ? true : temDependentesPayload
+    const temDependentesInformado = temDependentesPayload
     const mensalidadeBillingTypeRequested = mensalidade_billing_type?.trim().toUpperCase()
     const vendedorRefValue = vendedor_ref?.trim().toUpperCase()
 
@@ -158,114 +245,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    let dependentes: Array<{
-      nome: string
-      rg: string
-      cpf?: string
-      data_nascimento?: string
-      relacao: string
-      email: string
-      telefone_celular: string
-      sexo: string
-    }> = []
+    let dependentesPayload: unknown[] = []
 
-    if (tem_dependentes) {
-      if (!dependentes_json) {
-        return NextResponse.json(
-          { error: 'Informe ao menos um dependente para continuar' },
-          { status: 400 }
-        )
-      }
-
+    if (dependentes_json) {
       try {
         const parsed = JSON.parse(dependentes_json)
-        if (!Array.isArray(parsed) || parsed.length === 0) {
+        if (!Array.isArray(parsed)) {
           return NextResponse.json(
-            { error: 'Informe ao menos um dependente para continuar' },
+            { error: 'Formato inválido de dependentes' },
             { status: 400 }
           )
         }
 
-        const toTrimmed = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
-
-        const invalidDependente = parsed.find(
-          (dep) =>
-            !toTrimmed(dep?.nome) ||
-            !toTrimmed(dep?.rg) ||
-            !toTrimmed(dep?.relacao) ||
-            !toTrimmed(dep?.email) ||
-            !toTrimmed(dep?.telefone_celular) ||
-            !toTrimmed(dep?.sexo)
-        )
-
-        if (invalidDependente) {
-          return NextResponse.json(
-            {
-              error:
-                'Cada dependente precisa ter nome, RG, relação, email, sexo e telefone celular para acesso à telemedicina',
-            },
-            { status: 400 }
-          )
-        }
-
-        const invalidDependenteEmail = parsed.find((dep) => !isValidEmail(toTrimmed(dep?.email)))
-
-        if (invalidDependenteEmail) {
-          return NextResponse.json(
-            { error: `Email inválido para dependente: ${invalidDependenteEmail.nome || 'sem nome'}` },
-            { status: 400 }
-          )
-        }
-
-        const titularEmail = emailValue.toLowerCase()
-        const dependenteComMesmoEmailTitularSemRegra = parsed.find((dep) => {
-          const dependenteEmail = toTrimmed(dep?.email).toLowerCase()
-          if (!titularEmail || dependenteEmail !== titularEmail) return false
-
-          const age = getAgeFromIsoDate(toTrimmed(dep?.data_nascimento))
-          return age === null || age >= 18
-        })
-
-        if (dependenteComMesmoEmailTitularSemRegra) {
-          return NextResponse.json(
-            {
-              error: `Dependente ${dependenteComMesmoEmailTitularSemRegra.nome || 'sem nome'} só pode usar email do titular se for menor de idade`,
-            },
-            { status: 400 }
-          )
-        }
-
-        const invalidDependenteCpf = parsed.find(
-          (dep) => {
-            const cpf = toTrimmed(dep?.cpf)
-            return cpf && !isValidCPF(cpf)
-          }
-        )
-
-        if (invalidDependenteCpf) {
-          return NextResponse.json(
-            { error: `CPF inválido para dependente: ${invalidDependenteCpf.nome || 'sem nome'}` },
-            { status: 400 }
-          )
-        }
-
-        dependentes = parsed.map((dep) => ({
-          nome: toTrimmed(dep?.nome),
-          rg: toTrimmed(dep?.rg),
-          cpf: toTrimmed(dep?.cpf) || undefined,
-          data_nascimento: toTrimmed(dep?.data_nascimento) || undefined,
-          relacao: toTrimmed(dep?.relacao),
-          email: toTrimmed(dep?.email),
-          telefone_celular: toTrimmed(dep?.telefone_celular),
-          sexo: toTrimmed(dep?.sexo),
-        }))
-
-        if (dependentes.length > 4) {
-          return NextResponse.json(
-            { error: 'Plano familiar permite no máximo 4 dependentes.' },
-            { status: 400 }
-          )
-        }
+        dependentesPayload = parsed
       } catch {
         return NextResponse.json(
           { error: 'Formato inválido de dependentes' },
@@ -410,29 +402,148 @@ export async function POST(request: NextRequest) {
     const cadastroId = crypto.randomUUID()
 
     const billingSettings = await getBillingSettings()
+    const planOptions = await loadCadastroPlanOptions(billingSettings)
     const adesaoDueDate = toIsoDate(new Date())
     const tipoPlano = (() => {
-      if (!tipoPlanoRequested) {
-        return billingSettings.defaultPlanType
+      if (planOptions.length === 0) {
+        throw new Error('Nenhum plano ativo disponível no momento.')
       }
 
-      if (!['INDIVIDUAL', 'FAMILIAR'].includes(tipoPlanoRequested)) {
+      if (!tipoPlanoRequested) {
+        const defaultPlanFromSettings = planOptions.find(
+          (plan) => plan.codigo === billingSettings.defaultPlanType
+        )
+        return defaultPlanFromSettings?.codigo || planOptions[0].codigo
+      }
+
+      const selected = planOptions.find((plan) => plan.codigo === tipoPlanoRequested)
+      if (!selected) {
         throw new Error('Tipo de plano inválido.')
       }
 
-      return tipoPlanoRequested as PlanTypeOption
+      return selected.codigo
     })()
+    const selectedPlan = planOptions.find((plan) => plan.codigo === tipoPlano)
 
-    if (tipoPlano === 'INDIVIDUAL' && tem_dependentes) {
+    if (!selectedPlan) {
+      throw new Error('Tipo de plano inválido.')
+    }
+
+    const tem_dependentes = selectedPlan.permiteDependentes
+
+    if (!tem_dependentes && (temDependentesInformado || dependentesPayload.length > 0)) {
       return NextResponse.json(
-        { error: 'Plano individual não permite dependentes.' },
+        { error: 'O plano selecionado não permite dependentes.' },
         { status: 400 }
       )
     }
 
-    if (tipoPlano === 'FAMILIAR' && dependentes.length === 0) {
+    let dependentes: Array<{
+      nome: string
+      rg: string
+      cpf?: string
+      data_nascimento?: string
+      relacao: string
+      email: string
+      telefone_celular: string
+      sexo: string
+    }> = []
+
+    if (tem_dependentes) {
+      if (dependentesPayload.length === 0) {
+        return NextResponse.json(
+          { error: 'Informe ao menos um dependente para continuar.' },
+          { status: 400 }
+        )
+      }
+
+      const toTrimmed = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
+      const toRecord = (value: unknown) =>
+        value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+
+      dependentes = dependentesPayload.map((item) => {
+        const dep = toRecord(item)
+        return {
+          nome: toTrimmed(dep.nome),
+          rg: toTrimmed(dep.rg),
+          cpf: toTrimmed(dep.cpf) || undefined,
+          data_nascimento: toTrimmed(dep.data_nascimento) || undefined,
+          relacao: toTrimmed(dep.relacao),
+          email: toTrimmed(dep.email),
+          telefone_celular: toTrimmed(dep.telefone_celular),
+          sexo: toTrimmed(dep.sexo),
+        }
+      })
+
+      const invalidDependente = dependentes.find(
+        (dep) =>
+          !dep.nome ||
+          !dep.rg ||
+          !dep.relacao ||
+          !dep.email ||
+          !dep.telefone_celular ||
+          !dep.sexo
+      )
+
+      if (invalidDependente) {
+        return NextResponse.json(
+          {
+            error:
+              'Cada dependente precisa ter nome, RG, relação, email, sexo e telefone celular para acesso à telemedicina',
+          },
+          { status: 400 }
+        )
+      }
+
+      const invalidDependenteEmail = dependentes.find((dep) => !isValidEmail(dep.email))
+
+      if (invalidDependenteEmail) {
+        return NextResponse.json(
+          { error: `Email inválido para dependente: ${invalidDependenteEmail.nome || 'sem nome'}` },
+          { status: 400 }
+        )
+      }
+
+      const titularEmail = emailValue.toLowerCase()
+      const dependenteComMesmoEmailTitularSemRegra = dependentes.find((dep) => {
+        const dependenteEmail = dep.email.toLowerCase()
+        if (!titularEmail || dependenteEmail !== titularEmail) return false
+
+        const age = getAgeFromIsoDate(dep.data_nascimento || '')
+        return age === null || age >= 18
+      })
+
+      if (dependenteComMesmoEmailTitularSemRegra) {
+        return NextResponse.json(
+          {
+            error: `Dependente ${dependenteComMesmoEmailTitularSemRegra.nome || 'sem nome'} só pode usar email do titular se for menor de idade`,
+          },
+          { status: 400 }
+        )
+      }
+
+      const invalidDependenteCpf = dependentes.find((dep) => dep.cpf && !isValidCPF(dep.cpf))
+
+      if (invalidDependenteCpf) {
+        return NextResponse.json(
+          { error: `CPF inválido para dependente: ${invalidDependenteCpf.nome || 'sem nome'}` },
+          { status: 400 }
+        )
+      }
+    }
+
+    if (tem_dependentes && dependentes.length === 0) {
       return NextResponse.json(
-        { error: 'Plano familiar exige ao menos um dependente.' },
+        { error: 'O plano selecionado exige ao menos um dependente.' },
+        { status: 400 }
+      )
+    }
+
+    if (selectedPlan.maxDependentes > 0 && dependentes.length > selectedPlan.maxDependentes) {
+      return NextResponse.json(
+        {
+          error: `O plano selecionado permite no máximo ${selectedPlan.maxDependentes} dependentes.`,
+        },
         { status: 400 }
       )
     }
@@ -452,7 +563,7 @@ export async function POST(request: NextRequest) {
 
       return mensalidadeBillingTypeRequested
     })()
-    const mensalidadeValor = getMensalidadeValueByPlanType(billingSettings, tipoPlano)
+    const mensalidadeValor = selectedPlan.valor
     const adesaoValue = mensalidadeValor
 
     if (adesaoValue < MIN_ASAAS_CHARGE_VALUE) {
@@ -679,7 +790,7 @@ export async function POST(request: NextRequest) {
 
     const message = error instanceof Error ? error.message : String(error)
     if (
-      /forma de cobrança mensal inválida|tipo de plano inválido|plano familiar permite no máximo 4 dependentes/i.test(
+      /forma de cobrança mensal inválida|tipo de plano inválido|nenhum plano ativo disponível/i.test(
         message
       )
     ) {

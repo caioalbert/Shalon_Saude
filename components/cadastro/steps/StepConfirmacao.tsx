@@ -5,12 +5,20 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 
 type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD'
-type PlanType = 'INDIVIDUAL' | 'FAMILIAR'
+
+type PlanOption = {
+  codigo: string
+  nome: string
+  valor: number
+  permiteDependentes: boolean
+  maxDependentes: number
+}
 
 type BillingConfig = {
-  adesaoByPlanType: Record<PlanType, number>
-  mensalidadeByPlanType: Record<PlanType, number>
-  defaultPlanType: PlanType
+  adesaoByPlanType: Record<string, number>
+  mensalidadeByPlanType: Record<string, number>
+  defaultPlanType: string
+  planos: PlanOption[]
   mensalidadeBillingTypes: BillingType[]
   defaultMensalidadeBillingType: BillingType
 } | null
@@ -52,9 +60,14 @@ export function StepConfirmacao({
     'PIX'
 
   const selectedPlanType =
-    (data.tipo_plano as PlanType | undefined) ||
+    (data.tipo_plano as string | undefined) ||
     billingConfig?.defaultPlanType ||
-    'INDIVIDUAL'
+    (billingConfig?.planos[0]?.codigo || '')
+
+  const selectedPlan =
+    billingConfig?.planos?.find((plan) => plan.codigo === selectedPlanType) ||
+    billingConfig?.planos?.[0] ||
+    null
 
   const selectedMensalidadeValue =
     billingConfig?.mensalidadeByPlanType?.[selectedPlanType] ?? 0
@@ -170,10 +183,17 @@ export function StepConfirmacao({
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
                   <p className="text-xs text-gray-600">Tipo de plano escolhido</p>
                   <p className="text-base font-semibold text-gray-900">
-                    {selectedPlanType === 'FAMILIAR'
-                      ? 'Familiar (até 4 dependentes)'
-                      : 'Individual (sem dependentes)'}
+                    {selectedPlan?.nome || 'Plano não identificado'}
                   </p>
+                  {selectedPlan ? (
+                    <p className="text-xs text-gray-600">
+                      {selectedPlan.permiteDependentes
+                        ? selectedPlan.maxDependentes > 0
+                          ? `Permite até ${selectedPlan.maxDependentes} dependentes`
+                          : 'Permite dependentes'
+                        : 'Sem dependentes'}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -185,7 +205,7 @@ export function StepConfirmacao({
                   </div>
                   <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
                     <p className="text-xs text-gray-600">
-                      Mensalidade ({selectedPlanType === 'FAMILIAR' ? 'Plano Familiar' : 'Plano Individual'})
+                      Mensalidade ({selectedPlan?.nome || 'Plano selecionado'})
                     </p>
                     <p className="text-base font-semibold text-gray-900">
                       {formatCurrency(selectedMensalidadeValue)}

@@ -82,7 +82,7 @@ export interface CadastroFormData {
   dependentes: DependenteFormData[]
 
   // Plano
-  tipo_plano: 'INDIVIDUAL' | 'FAMILIAR'
+  tipo_plano: string
   
   // Selfie
   selfie_blob?: Blob
