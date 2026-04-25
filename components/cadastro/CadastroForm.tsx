@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { CadastroFormData } from '@/lib/types'
 import { getAgeFromIsoDate, isValidCPF, isValidEmail } from '@/lib/utils'
+import { StepPlano } from './steps/StepPlano'
 import { StepPessoal } from './steps/StepPessoal'
 import { StepEndereco } from './steps/StepEndereco'
 import { StepDependentes } from './steps/StepDependentes'
@@ -12,6 +13,7 @@ import { StepConfirmacao } from './steps/StepConfirmacao'
 import { Button } from '@/components/ui/button'
 
 const STEPS = [
+  'Escolha do Plano',
   'Dados Pessoais',
   'Endereço',
   'Dependentes',
@@ -357,14 +359,14 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
       return
     }
 
-    if (step === 0 && formData.cpf) {
+    if (step === 1 && formData.cpf) {
       try {
         setIsCheckingCpf(true)
         const alreadyRegistered = await checkCpfAlreadyRegistered(formData.cpf)
 
         if (alreadyRegistered) {
           setError('CPF já identificado na nossa base de cadastrados.')
-          setValidationStep(0)
+          setValidationStep(1)
           return
         }
       } catch (cpfCheckError) {
@@ -373,7 +375,7 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
             ? cpfCheckError.message
             : CPF_CHECK_FALLBACK_ERROR
         )
-        setValidationStep(0)
+        setValidationStep(1)
         return
       } finally {
         setIsCheckingCpf(false)
@@ -413,6 +415,12 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
 
   const getStepValidationError = (currentStep: number) => {
     if (currentStep === 0) {
+      if (!hasValue(formData.tipo_plano)) {
+        return 'Selecione um plano para continuar.'
+      }
+    }
+
+    if (currentStep === 1) {
       if (
         !hasValue(formData.nome) ||
         !hasValue(formData.cpf) ||
@@ -441,7 +449,7 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
       }
     }
 
-    if (currentStep === 1) {
+    if (currentStep === 2) {
       if (
         !hasValue(formData.endereco) ||
         !hasValue(formData.numero) ||
@@ -456,7 +464,7 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
 
     const selectedPlan = getPlanByCode(formData.tipo_plano)
 
-    if (currentStep === 2 && selectedPlan?.permiteDependentes) {
+    if (currentStep === 3 && selectedPlan?.permiteDependentes) {
       const dependentes = formData.dependentes || []
       const minDependentes = Math.max(0, Number(selectedPlan.minDependentes || 0))
 
@@ -509,11 +517,11 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
       }
     }
 
-    if (currentStep === 3 && !formData.selfie_blob) {
+    if (currentStep === 4 && !formData.selfie_blob) {
       return 'Capture ou envie uma selfie para continuar.'
     }
 
-    if (currentStep === 5) {
+    if (currentStep === 6) {
       if (!formData.tipo_plano || !selectedPlan) {
         return 'Selecione o tipo de plano.'
       }
@@ -710,15 +718,17 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
     switch (step) {
       case 0:
         return (
-          <StepPessoal
-            data={formData}
-            onUpdate={updateFormData}
-            showValidation={validationStep === 0}
+          <StepPlano
+            planos={billingConfig?.planos || []}
+            selectedPlanCode={formData.tipo_plano || ''}
+            onSelectPlan={(codigo) => updateFormData({ tipo_plano: codigo })}
+            onNext={handleNext}
+            isLoading={isLoadingBillingConfig}
           />
         )
       case 1:
         return (
-          <StepEndereco
+          <StepPessoal
             data={formData}
             onUpdate={updateFormData}
             showValidation={validationStep === 1}
@@ -726,24 +736,32 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
         )
       case 2:
         return (
-          <StepDependentes
+          <StepEndereco
             data={formData}
             onUpdate={updateFormData}
-            planOptions={billingConfig?.planos || null}
             showValidation={validationStep === 2}
           />
         )
       case 3:
         return (
-          <StepSelfie
+          <StepDependentes
             data={formData}
             onUpdate={updateFormData}
+            planOptions={billingConfig?.planos || null}
             showValidation={validationStep === 3}
           />
         )
       case 4:
-        return <StepTermo data={formData} />
+        return (
+          <StepSelfie
+            data={formData}
+            onUpdate={updateFormData}
+            showValidation={validationStep === 4}
+          />
+        )
       case 5:
+        return <StepTermo data={formData} />
+      case 6:
         return (
           <StepConfirmacao
             data={formData}
@@ -756,7 +774,7 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
             onMensalidadeBillingTypeChange={(value) =>
               updateFormData({ mensalidade_billing_type: value })
             }
-            showValidation={validationStep === 5}
+            showValidation={validationStep === 6}
           />
         )
       default:
@@ -788,37 +806,39 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
       </div>
 
       {/* Navigation Buttons */}
-      <div className="pt-6 border-t border-gray-200 space-y-4">
-        {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg" role="alert">
-            <p className="text-red-700 text-sm font-medium">{error}</p>
-          </div>
-        )}
-
-        <div className="flex justify-between">
-          <Button
-            onClick={handlePrev}
-            disabled={step === 0 || isLoading}
-            variant="outline"
-          >
-            Voltar
-          </Button>
-
-          {step === STEPS.length - 1 ? (
-            <Button
-              onClick={handleSubmit}
-              disabled={isLoading || isLoadingBillingConfig || !aceiteTermos || !aceitePrivacidade}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {isLoading ? 'Enviando...' : 'Concluir Cadastro'}
-            </Button>
-          ) : (
-            <Button onClick={handleNext} disabled={isLoading || isCheckingCpf}>
-              {isCheckingCpf ? 'Validando CPF...' : 'Próximo'}
-            </Button>
+      {step !== 0 && (
+        <div className="pt-6 border-t border-gray-200 space-y-4">
+          {error && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg" role="alert">
+              <p className="text-red-700 text-sm font-medium">{error}</p>
+            </div>
           )}
+
+          <div className="flex justify-between">
+            <Button
+              onClick={handlePrev}
+              disabled={step === 0 || isLoading}
+              variant="outline"
+            >
+              Voltar
+            </Button>
+
+            {step === STEPS.length - 1 ? (
+              <Button
+                onClick={handleSubmit}
+                disabled={isLoading || isLoadingBillingConfig || !aceiteTermos || !aceitePrivacidade}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {isLoading ? 'Enviando...' : 'Concluir Cadastro'}
+              </Button>
+            ) : (
+              <Button onClick={handleNext} disabled={isLoading || isCheckingCpf}>
+                {isCheckingCpf ? 'Validando CPF...' : 'Próximo'}
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
