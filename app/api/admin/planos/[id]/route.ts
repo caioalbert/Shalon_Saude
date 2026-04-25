@@ -31,6 +31,10 @@ function mapDatabaseErrorMessage(error: unknown) {
     return 'Banco desatualizado. Execute scripts/010_add_planos_dependentes_rules.sql no Supabase SQL Editor.'
   }
 
+  if (/descricao_publica|beneficios_publicos/i.test(details)) {
+    return 'Banco desatualizado. Execute scripts/011_add_planos_publico_conteudo.sql no Supabase SQL Editor.'
+  }
+
   if (/relation .*cobranca_configuracoes|does not exist|42P01/i.test(details)) {
     return 'Banco desatualizado. Execute scripts/005_add_billing_settings_admin.sql e scripts/006_add_plan_type_pricing.sql no Supabase SQL Editor.'
   }
@@ -153,6 +157,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const body = (await request.json().catch(() => null)) as
       | {
           nome?: string
+          descricao_publica?: string | null
+          beneficios_publicos?: string | null
           valor?: number | string
           ativo?: boolean
           permite_dependentes?: boolean
@@ -170,6 +176,16 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       body.nome === undefined
         ? undefined
         : String(body.nome || '').trim()
+    const hasDescricaoPublicaField = body.descricao_publica !== undefined
+    const descricaoPublica =
+      body.descricao_publica === undefined
+        ? undefined
+        : String(body.descricao_publica || '').trim()
+    const hasBeneficiosPublicosField = body.beneficios_publicos !== undefined
+    const beneficiosPublicos =
+      body.beneficios_publicos === undefined
+        ? undefined
+        : String(body.beneficios_publicos || '').trim()
 
     const hasValorField = body.valor !== undefined
     const valor = hasValorField ? Number(body.valor) : undefined
@@ -195,6 +211,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     if (
       nome === undefined &&
+      !hasDescricaoPublicaField &&
+      !hasBeneficiosPublicosField &&
       !hasValorField &&
       typeof body.ativo !== 'boolean' &&
       !hasPermiteDependentesField &&
@@ -210,7 +228,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { data: currentPlan, error: currentPlanError } = await supabase
       .from('planos')
       .select(
-        'id, codigo, nome, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, created_at, updated_at'
+        'id, codigo, nome, descricao_publica, beneficios_publicos, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, created_at, updated_at'
       )
       .eq('id', planId)
       .maybeSingle()
@@ -294,6 +312,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     const payload: {
       nome?: string
+      descricao_publica?: string | null
+      beneficios_publicos?: string | null
       valor?: number
       ativo?: boolean
       permite_dependentes?: boolean
@@ -306,6 +326,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     if (nome !== undefined) payload.nome = nome
+    if (hasDescricaoPublicaField) payload.descricao_publica = descricaoPublica || null
+    if (hasBeneficiosPublicosField) payload.beneficios_publicos = beneficiosPublicos || null
     if (hasValorField && valor !== undefined) payload.valor = valor
     if (typeof body.ativo === 'boolean') payload.ativo = body.ativo
     if (
@@ -325,7 +347,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       .update(payload)
       .eq('id', planId)
       .select(
-        'id, codigo, nome, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, created_at, updated_at'
+        'id, codigo, nome, descricao_publica, beneficios_publicos, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, created_at, updated_at'
       )
       .single()
 

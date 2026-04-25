@@ -12,6 +12,8 @@ function formatCurrency(value: number) {
 type PublicPlanOption = {
   codigo: string
   nome: string
+  descricao: string
+  beneficios: Array<{ texto: string; inclui: boolean }>
   valor: number
   permiteDependentes: boolean
   minDependentes: number
@@ -63,11 +65,33 @@ function toNonNegativeAmount(value: unknown, fallback: number) {
   return Math.round((parsed + Number.EPSILON) * 100) / 100
 }
 
+function parsePublicBenefits(value: unknown) {
+  const lines = String(value || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  return lines
+    .map((line) => {
+      const marker = line[0]
+      if (marker === '+' || marker === '-') {
+        const texto = line.slice(1).trim()
+        if (!texto) return null
+        return { texto, inclui: marker === '+' }
+      }
+
+      return { texto: line, inclui: true }
+    })
+    .filter((item): item is { texto: string; inclui: boolean } => Boolean(item))
+}
+
 function mapLegacyPlanOptions(settings: Awaited<ReturnType<typeof getBillingSettings>>): PublicPlanOption[] {
   return [
     {
       codigo: 'INDIVIDUAL',
       nome: 'Plano Individual',
+      descricao: 'Cobertura para o titular.',
+      beneficios: [],
       valor: settings.mensalidadeIndividualValue,
       permiteDependentes: false,
       minDependentes: 0,
@@ -77,6 +101,8 @@ function mapLegacyPlanOptions(settings: Awaited<ReturnType<typeof getBillingSett
     {
       codigo: 'FAMILIAR',
       nome: 'Plano Familiar',
+      descricao: 'Cobertura para titular e dependentes.',
+      beneficios: [],
       valor: settings.mensalidadeFamiliarValue,
       permiteDependentes: true,
       minDependentes: 1,
@@ -92,7 +118,7 @@ async function loadPublicPlanOptions(settings: Awaited<ReturnType<typeof getBill
     const { data, error } = await supabase
       .from('planos')
       .select(
-        'codigo, nome, valor, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, ordem, created_at'
+        'codigo, nome, descricao_publica, beneficios_publicos, valor, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, ordem, created_at'
       )
       .eq('ativo', true)
       .order('ordem', { ascending: true })
@@ -106,6 +132,8 @@ async function loadPublicPlanOptions(settings: Awaited<ReturnType<typeof getBill
       .map((plan) => {
         const codigo = normalizePlanCode(plan.codigo)
         const nome = String(plan.nome || '').trim()
+        const descricao = String(plan.descricao_publica || '').trim()
+        const beneficios = parsePublicBenefits(plan.beneficios_publicos)
         const valor = toPositiveNumber(plan.valor, 0)
 
         if (!codigo || !nome || valor <= 0) {
@@ -127,6 +155,8 @@ async function loadPublicPlanOptions(settings: Awaited<ReturnType<typeof getBill
         return {
           codigo,
           nome,
+          descricao,
+          beneficios,
           valor,
           permiteDependentes,
           minDependentes,
@@ -142,7 +172,7 @@ async function loadPublicPlanOptions(settings: Awaited<ReturnType<typeof getBill
   } catch (error) {
     const details = error instanceof Error ? error.message : String(error)
     if (
-      !/relation .*planos|does not exist|42P01|permite_dependentes|dependentes_minimos|max_dependentes|valor_dependente_adicional/i.test(
+      !/relation .*planos|does not exist|42P01|permite_dependentes|dependentes_minimos|max_dependentes|valor_dependente_adicional|descricao_publica|beneficios_publicos/i.test(
         details
       )
     ) {

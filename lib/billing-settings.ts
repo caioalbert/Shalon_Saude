@@ -30,7 +30,7 @@ export type BillingSettings = {
   mensalidadeFamiliarValue: number
   mensalidadeBillingTypes: BillingTypeOption[]
   defaultMensalidadeBillingType: BillingTypeOption
-  defaultPlanType: PlanTypeOption
+  defaultPlanType: string
   updatedAt?: string
   source: 'database' | 'env'
 }
@@ -54,13 +54,12 @@ function isBillingTypeOption(value: string): value is BillingTypeOption {
   return BILLING_TYPE_OPTIONS.includes(value as BillingTypeOption)
 }
 
-function isPlanTypeOption(value: string): value is PlanTypeOption {
-  return PLAN_TYPE_OPTIONS.includes(value as PlanTypeOption)
-}
-
-function normalizePlanType(value: string | null | undefined, fallback: PlanTypeOption = 'INDIVIDUAL') {
+function normalizePlanType(value: string | null | undefined, fallback = 'INDIVIDUAL') {
   const normalized = toUpperTrim(value)
-  return isPlanTypeOption(normalized) ? normalized : fallback
+  if (normalized) return normalized
+
+  const normalizedFallback = toUpperTrim(fallback)
+  return normalizedFallback || 'INDIVIDUAL'
 }
 
 function normalizeBillingTypeList(values: string[]) {
@@ -94,7 +93,16 @@ export function getPlanValueByPlanType(
   planType: string | null | undefined
 ) {
   const normalizedPlanType = normalizePlanType(planType, settings.defaultPlanType)
-  return normalizedPlanType === 'FAMILIAR'
+  if (normalizedPlanType === 'FAMILIAR') {
+    return settings.mensalidadeFamiliarValue
+  }
+
+  if (normalizedPlanType === 'INDIVIDUAL') {
+    return settings.mensalidadeIndividualValue
+  }
+
+  const normalizedDefaultPlanType = normalizePlanType(settings.defaultPlanType, 'INDIVIDUAL')
+  return normalizedDefaultPlanType === 'FAMILIAR'
     ? settings.mensalidadeFamiliarValue
     : settings.mensalidadeIndividualValue
 }
@@ -107,7 +115,8 @@ function buildBillingSettings(params: {
   mensalidadeFamiliarValue: number
   mensalidadeBillingTypes: BillingTypeOption[]
   defaultMensalidadeBillingType: BillingTypeOption
-  defaultPlanType: PlanTypeOption
+  defaultPlanType: string
+  defaultPlanValue?: number
   source: 'database' | 'env'
   updatedAt?: string
 }): BillingSettings {
@@ -116,7 +125,12 @@ function buildBillingSettings(params: {
     FAMILIAR: params.mensalidadeFamiliarValue,
   }
 
-  const defaultPlanValue = valorByPlanType[params.defaultPlanType]
+  const normalizedDefaultPlanType = normalizePlanType(params.defaultPlanType, 'INDIVIDUAL')
+  const defaultPlanValue =
+    params.defaultPlanValue ??
+    (normalizedDefaultPlanType === 'FAMILIAR'
+      ? params.mensalidadeFamiliarValue
+      : params.mensalidadeIndividualValue)
 
   return {
     adesaoValue: defaultPlanValue,
@@ -127,7 +141,7 @@ function buildBillingSettings(params: {
     mensalidadeFamiliarValue: params.mensalidadeFamiliarValue,
     mensalidadeBillingTypes: params.mensalidadeBillingTypes,
     defaultMensalidadeBillingType: params.defaultMensalidadeBillingType,
-    defaultPlanType: params.defaultPlanType,
+    defaultPlanType: normalizedDefaultPlanType,
     updatedAt: params.updatedAt,
     source: params.source,
   }
@@ -193,13 +207,19 @@ function normalizeSettingsRow(row: BillingSettingsRow): BillingSettings {
   )
     ? (requestedDefault as BillingTypeOption)
     : mensalidadeBillingTypes[0]
+  const normalizedDefaultPlanType = normalizePlanType(row.default_plan_type, 'INDIVIDUAL')
+  const defaultPlanValue = parsePositiveAmount(
+    legacyMensalidadeValue ?? mensalidadeIndividualValue,
+    'valor padrão do plano'
+  )
 
   return buildBillingSettings({
     mensalidadeIndividualValue,
     mensalidadeFamiliarValue,
     mensalidadeBillingTypes,
     defaultMensalidadeBillingType,
-    defaultPlanType: normalizePlanType(row.default_plan_type, 'INDIVIDUAL'),
+    defaultPlanType: normalizedDefaultPlanType,
+    defaultPlanValue,
     updatedAt: row.updated_at,
     source: 'database',
   })
@@ -318,6 +338,47 @@ export async function getBillingSettings(): Promise<BillingSettings> {
   }
 }
 
+async function resolveDefaultPlanValue(params: {
+  supabase: ReturnType<typeof createAdminClient>
+  defaultPlanType: string
+  mensalidadeIndividualValue: number
+  mensalidadeFamiliarValue: number
+}) {
+  const normalizedDefaultPlanType = normalizePlanType(params.defaultPlanType, 'INDIVIDUAL')
+
+  if (normalizedDefaultPlanType === 'INDIVIDUAL') {
+    return params.mensalidadeIndividualValue
+  }
+
+  if (normalizedDefaultPlanType === 'FAMILIAR') {
+    return params.mensalidadeFamiliarValue
+  }
+
+  try {
+    const { data, error } = await params.supabase
+      .from('planos')
+      .select('valor')
+      .eq('codigo', normalizedDefaultPlanType)
+      .maybeSingle()
+
+    if (error) {
+      throw error
+    }
+
+    const parsedPlanValue = Number(data?.valor)
+    if (Number.isFinite(parsedPlanValue) && parsedPlanValue >= MIN_ASAAS_CHARGE_VALUE) {
+      return Math.round((parsedPlanValue + Number.EPSILON) * 100) / 100
+    }
+  } catch (error) {
+    const details = error instanceof Error ? error.message : String(error)
+    if (!/relation .*planos|does not exist|42P01/i.test(details)) {
+      throw error
+    }
+  }
+
+  return params.mensalidadeIndividualValue
+}
+
 export async function updateBillingSettings(input: UpdateBillingSettingsInput): Promise<BillingSettings> {
   const mensalidadeIndividualValue = parsePositiveAmount(
     input.mensalidadeIndividualValue,
@@ -350,10 +411,15 @@ export async function updateBillingSettings(input: UpdateBillingSettingsInput): 
     : mensalidadeBillingTypes[0]
 
   const defaultPlanType = normalizePlanType(input.defaultPlanType, 'INDIVIDUAL')
-  const defaultPlanValue =
-    defaultPlanType === 'FAMILIAR' ? mensalidadeFamiliarValue : mensalidadeIndividualValue
 
   const supabase = createAdminClient()
+  const defaultPlanValue = await resolveDefaultPlanValue({
+    supabase,
+    defaultPlanType,
+    mensalidadeIndividualValue,
+    mensalidadeFamiliarValue,
+  })
+
   const { data, error } = await supabase
     .from('cobranca_configuracoes')
     .upsert(

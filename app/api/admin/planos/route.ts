@@ -38,6 +38,10 @@ function mapDatabaseErrorMessage(error: unknown) {
     return 'Banco desatualizado. Execute scripts/010_add_planos_dependentes_rules.sql no Supabase SQL Editor.'
   }
 
+  if (/descricao_publica|beneficios_publicos/i.test(details)) {
+    return 'Banco desatualizado. Execute scripts/011_add_planos_publico_conteudo.sql no Supabase SQL Editor.'
+  }
+
   if (/duplicate key|planos_codigo_idx/i.test(details)) {
     return 'Já existe um plano com este código.'
   }
@@ -127,7 +131,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase
       .from('planos')
       .select(
-        'id, codigo, nome, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, created_at, updated_at'
+        'id, codigo, nome, descricao_publica, beneficios_publicos, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, created_at, updated_at'
       )
       .order('ordem', { ascending: true })
       .order('created_at', { ascending: true })
@@ -158,6 +162,8 @@ export async function POST(request: NextRequest) {
     const body = (await request.json().catch(() => null)) as
       | {
           nome?: string
+          descricao_publica?: string | null
+          beneficios_publicos?: string | null
           valor?: number | string
           permite_dependentes?: boolean
           dependentes_minimos?: number | string
@@ -171,6 +177,8 @@ export async function POST(request: NextRequest) {
     }
 
     const nome = String(body.nome || '').trim()
+    const descricaoPublica = String(body.descricao_publica || '').trim()
+    const beneficiosPublicos = String(body.beneficios_publicos || '').trim()
     const valor = Number(body.valor)
     const permiteDependentes = body.permite_dependentes === true
 
@@ -252,6 +260,8 @@ export async function POST(request: NextRequest) {
       .insert({
         nome,
         codigo: code,
+        descricao_publica: descricaoPublica || null,
+        beneficios_publicos: beneficiosPublicos || null,
         valor,
         ativo: true,
         ordem: nextOrder,
@@ -261,7 +271,7 @@ export async function POST(request: NextRequest) {
         valor_dependente_adicional: valorDependenteAdicional,
       })
       .select(
-        'id, codigo, nome, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, created_at, updated_at'
+        'id, codigo, nome, descricao_publica, beneficios_publicos, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, created_at, updated_at'
       )
       .single()
 

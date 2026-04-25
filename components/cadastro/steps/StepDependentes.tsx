@@ -10,6 +10,8 @@ import { useEffect, useMemo, useState } from 'react'
 type PlanOption = {
   codigo: string
   nome: string
+  descricao: string
+  beneficios: Array<{ texto: string; inclui: boolean }>
   valor: number
   permiteDependentes: boolean
   minDependentes: number
@@ -28,6 +30,8 @@ const FALLBACK_PLAN_OPTIONS: PlanOption[] = [
   {
     codigo: 'INDIVIDUAL',
     nome: 'Plano Individual',
+    descricao: 'Cobertura para o titular.',
+    beneficios: [],
     valor: 0,
     permiteDependentes: false,
     minDependentes: 0,
@@ -37,6 +41,8 @@ const FALLBACK_PLAN_OPTIONS: PlanOption[] = [
   {
     codigo: 'FAMILIAR',
     nome: 'Plano Familiar',
+    descricao: 'Cobertura para titular e dependentes.',
+    beneficios: [],
     valor: 0,
     permiteDependentes: true,
     minDependentes: 1,
@@ -54,6 +60,19 @@ function normalizePlanOptions(planOptions?: PlanOption[] | null) {
     .map((plan) => {
       const codigo = String(plan.codigo || '').trim().toUpperCase()
       const nome = String(plan.nome || '').trim()
+      const descricao = String(plan.descricao || '').trim()
+      const beneficios = Array.isArray(plan.beneficios)
+        ? plan.beneficios
+            .map((item) => {
+              const texto = String(item?.texto || '').trim()
+              if (!texto) return null
+              return {
+                texto,
+                inclui: item?.inclui !== false,
+              }
+            })
+            .filter((item): item is { texto: string; inclui: boolean } => Boolean(item))
+        : []
       const valor = Number(plan.valor)
       if (!codigo || !nome || !Number.isFinite(valor) || valor < 0) {
         return null
@@ -75,6 +94,8 @@ function normalizePlanOptions(planOptions?: PlanOption[] | null) {
       return {
         codigo,
         nome,
+        descricao,
+        beneficios,
         valor,
         permiteDependentes,
         minDependentes,
@@ -316,7 +337,7 @@ export function StepDependentes({
     <div className="space-y-6">
       <div className="space-y-3 rounded-lg border border-gray-200 p-4">
         <p className="text-sm font-medium text-gray-800">Tipo de plano *</p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {availablePlans.map((plan) => {
             const isSelected = selectedPlan?.codigo === plan.codigo
             const dependentesDescription = plan.permiteDependentes
@@ -330,19 +351,48 @@ export function StepDependentes({
                 key={plan.codigo}
                 type="button"
                 onClick={() => handleTipoPlanoChange(plan.codigo)}
-                className={`rounded-md border px-4 py-3 text-left ${
+                className={`h-full rounded-2xl border p-4 text-left shadow-sm transition ${
                   isSelected
-                    ? 'border-blue-600 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-200'
+                    : 'border-gray-200 bg-white hover:border-gray-300'
                 }`}
               >
-                <p className="text-sm font-semibold text-gray-900">{plan.nome}</p>
-                <p className="text-xs text-gray-600">{dependentesDescription}</p>
-                <p className="mt-2 text-xs text-gray-700">
-                  Valor do plano: {formatCurrency(plan.valor)}
+                <p className="text-base font-semibold text-gray-900">{plan.nome}</p>
+                <p className="mt-1 text-xs text-gray-600">
+                  {plan.descricao || dependentesDescription}
                 </p>
+
+                <div className="mt-3 rounded-lg bg-gray-100 px-3 py-2">
+                  <p className="text-sm font-semibold text-gray-900">
+                    {formatCurrency(plan.valor)}
+                    <span className="ml-1 text-xs font-medium text-gray-600">/ mês</span>
+                  </p>
+                </div>
+
+                <div className="mt-3 space-y-2">
+                  {plan.beneficios.length > 0 ? (
+                    plan.beneficios.map((beneficio, index) => (
+                      <div key={`${plan.codigo}-beneficio-${index}`} className="flex items-start gap-2 text-xs">
+                        <span
+                          className={`mt-0.5 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                            beneficio.inclui
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}
+                          aria-hidden
+                        >
+                          {beneficio.inclui ? '✓' : '✕'}
+                        </span>
+                        <span className={beneficio.inclui ? 'text-gray-700' : 'text-gray-500'}>{beneficio.texto}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-gray-600">{dependentesDescription}</p>
+                  )}
+                </div>
+
                 {plan.permiteDependentes && plan.valorDependenteAdicional > 0 ? (
-                  <p className="mt-1 text-xs text-gray-700">
+                  <p className="mt-3 text-xs text-gray-700">
                     Acréscimo por dependente excedente: {formatCurrency(plan.valorDependenteAdicional)}
                   </p>
                 ) : null}

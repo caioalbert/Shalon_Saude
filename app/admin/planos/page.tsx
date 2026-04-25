@@ -9,12 +9,13 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 
 type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD'
-type PlanType = 'INDIVIDUAL' | 'FAMILIAR'
 
 type Plano = {
   id: string
   codigo: string
   nome: string
+  descricao_publica: string | null
+  beneficios_publicos: string | null
   valor: number
   ativo: boolean
   ordem: number
@@ -28,6 +29,8 @@ type Plano = {
 
 type EditablePlan = {
   nome: string
+  descricao_publica: string
+  beneficios_publicos: string
   valor: string
   ativo: boolean
   permite_dependentes: boolean
@@ -37,11 +40,6 @@ type EditablePlan = {
 }
 
 const MIN_CHARGE_VALUE = 5
-
-const PLAN_TYPE_LABEL: Record<PlanType, string> = {
-  INDIVIDUAL: 'Individual',
-  FAMILIAR: 'Familiar',
-}
 
 export default function AdminPlanosPage() {
   const router = useRouter()
@@ -53,8 +51,7 @@ export default function AdminPlanosPage() {
   const [savingPlanId, setSavingPlanId] = useState<string | null>(null)
   const [isSavingDefaultPlan, setIsSavingDefaultPlan] = useState(false)
 
-  const [allowedPlanTypes, setAllowedPlanTypes] = useState<PlanType[]>(['INDIVIDUAL', 'FAMILIAR'])
-  const [defaultPlanType, setDefaultPlanType] = useState<PlanType>('INDIVIDUAL')
+  const [defaultPlanType, setDefaultPlanType] = useState('')
   const [mensalidadeBillingTypes, setMensalidadeBillingTypes] = useState<BillingType[]>(['PIX'])
   const [defaultMensalidadeBillingType, setDefaultMensalidadeBillingType] =
     useState<BillingType>('PIX')
@@ -88,6 +85,8 @@ export default function AdminPlanosPage() {
       const editable = list.reduce<Record<string, EditablePlan>>((acc, plano) => {
         acc[plano.id] = {
           nome: String(plano.nome || ''),
+          descricao_publica: String(plano.descricao_publica || ''),
+          beneficios_publicos: String(plano.beneficios_publicos || ''),
           valor: String(plano.valor ?? ''),
           ativo: Boolean(plano.ativo),
           permite_dependentes: Boolean(plano.permite_dependentes),
@@ -123,13 +122,13 @@ export default function AdminPlanosPage() {
       const types = Array.isArray(payload?.settings?.mensalidadeBillingTypes)
         ? payload.settings.mensalidadeBillingTypes
         : ['PIX']
+      const nextDefaultPlanType = String(payload?.settings?.defaultPlanType || '')
+        .trim()
+        .toUpperCase()
 
-      setAllowedPlanTypes(
-        Array.isArray(payload?.allowedPlanTypes) && payload.allowedPlanTypes.length > 0
-          ? payload.allowedPlanTypes
-          : ['INDIVIDUAL', 'FAMILIAR']
-      )
-      setDefaultPlanType((payload?.settings?.defaultPlanType || 'INDIVIDUAL') as PlanType)
+      if (nextDefaultPlanType) {
+        setDefaultPlanType(nextDefaultPlanType)
+      }
       setMensalidadeBillingTypes(types)
       setDefaultMensalidadeBillingType(
         (payload?.settings?.defaultMensalidadeBillingType || types[0] || 'PIX') as BillingType
@@ -162,15 +161,31 @@ export default function AdminPlanosPage() {
     [planos]
   )
 
-  const individualPlan = useMemo(
-    () => sortedPlanos.find((plano) => plano.codigo === 'INDIVIDUAL') || null,
+  const defaultPlanOptions = useMemo(
+    () =>
+      sortedPlanos.reduce<Array<{ codigo: string; nome: string }>>((acc, plano) => {
+        const codigo = String(plano.codigo || '').trim().toUpperCase()
+        if (!codigo || acc.some((entry) => entry.codigo === codigo)) {
+          return acc
+        }
+
+        acc.push({
+          codigo,
+          nome: String(plano.nome || '').trim() || codigo,
+        })
+
+        return acc
+      }, []),
     [sortedPlanos]
   )
 
-  const familiarPlan = useMemo(
-    () => sortedPlanos.find((plano) => plano.codigo === 'FAMILIAR') || null,
-    [sortedPlanos]
-  )
+  useEffect(() => {
+    if (defaultPlanOptions.length === 0) return
+
+    if (!defaultPlanOptions.some((plan) => plan.codigo === defaultPlanType)) {
+      setDefaultPlanType(defaultPlanOptions[0].codigo)
+    }
+  }, [defaultPlanOptions, defaultPlanType])
 
   const updateEditablePlan = (planId: string, next: Partial<EditablePlan>) => {
     setEditablePlanos((prev) => ({
@@ -178,6 +193,8 @@ export default function AdminPlanosPage() {
       [planId]: {
         ...(prev[planId] || {
           nome: '',
+          descricao_publica: '',
+          beneficios_publicos: '',
           valor: '',
           ativo: true,
           permite_dependentes: false,
@@ -247,6 +264,8 @@ export default function AdminPlanosPage() {
       setMessage(null)
 
       const nome = plan.nome.trim()
+      const descricaoPublica = String(plan.descricao_publica || '').trim()
+      const beneficiosPublicos = String(plan.beneficios_publicos || '').trim()
       const valor = Number(plan.valor)
       const permiteDependentes = Boolean(plan.permite_dependentes)
 
@@ -290,6 +309,8 @@ export default function AdminPlanosPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nome,
+          descricao_publica: descricaoPublica || null,
+          beneficios_publicos: beneficiosPublicos || null,
           valor,
           ativo: plan.ativo,
           permite_dependentes: permiteDependentes,
@@ -320,16 +341,9 @@ export default function AdminPlanosPage() {
   }
 
   const handleSaveDefaultPlan = async () => {
-    if (!individualPlan || !familiarPlan) {
-      setError('Planos base INDIVIDUAL e FAMILIAR são obrigatórios para definir plano padrão.')
-      return
-    }
-
-    const individualEditable = editablePlanos[individualPlan.id]
-    const familiarEditable = editablePlanos[familiarPlan.id]
-
-    if (!individualEditable || !familiarEditable) {
-      setError('Não foi possível carregar valores dos planos base para salvar o plano padrão.')
+    const selectedDefaultPlan = defaultPlanOptions.find((plan) => plan.codigo === defaultPlanType)
+    if (!selectedDefaultPlan) {
+      setError('Selecione um plano padrão válido.')
       return
     }
 
@@ -338,26 +352,13 @@ export default function AdminPlanosPage() {
       setError(null)
       setMessage(null)
 
-      const individualValue = Number(individualEditable.valor)
-      const familiarValue = Number(familiarEditable.valor)
-
-      if (!Number.isFinite(individualValue) || individualValue < MIN_CHARGE_VALUE) {
-        throw new Error('Valor do Plano Individual inválido. Mínimo R$ 5,00.')
-      }
-
-      if (!Number.isFinite(familiarValue) || familiarValue < MIN_CHARGE_VALUE) {
-        throw new Error('Valor do Plano Familiar inválido. Mínimo R$ 5,00.')
-      }
-
       const response = await fetch('/api/admin/cobranca-configuracoes', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          mensalidadeIndividualValue: individualValue,
-          mensalidadeFamiliarValue: familiarValue,
           mensalidadeBillingTypes,
           defaultMensalidadeBillingType,
-          defaultPlanType,
+          defaultPlanType: selectedDefaultPlan.codigo,
         }),
       })
 
@@ -373,7 +374,10 @@ export default function AdminPlanosPage() {
       }
 
       setMessage('Plano padrão atualizado com sucesso.')
-      setDefaultPlanType((payload?.settings?.defaultPlanType || defaultPlanType) as PlanType)
+      const nextDefaultPlanType = String(payload?.settings?.defaultPlanType || selectedDefaultPlan.codigo)
+        .trim()
+        .toUpperCase()
+      setDefaultPlanType(nextDefaultPlanType || selectedDefaultPlan.codigo)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao atualizar plano padrão.')
     } finally {
@@ -451,22 +455,26 @@ export default function AdminPlanosPage() {
         <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">Plano padrão para novos clientes</h2>
 
-          <RadioGroup
-            value={defaultPlanType}
-            onValueChange={(value) => setDefaultPlanType(value as PlanType)}
-            className="space-y-2"
-          >
-            {allowedPlanTypes.map((planType) => (
-              <label key={planType} className="flex items-center gap-3">
-                <RadioGroupItem
-                  value={planType}
-                  id={`plan-${planType}`}
-                  disabled={isSavingDefaultPlan}
-                />
-                <span className="text-sm text-gray-800">{PLAN_TYPE_LABEL[planType]}</span>
-              </label>
-            ))}
-          </RadioGroup>
+          {defaultPlanOptions.length === 0 ? (
+            <p className="text-sm text-gray-600">Cadastre ao menos um plano para definir o padrão.</p>
+          ) : (
+            <RadioGroup
+              value={defaultPlanType}
+              onValueChange={(value) => setDefaultPlanType(String(value || '').trim().toUpperCase())}
+              className="space-y-2"
+            >
+              {defaultPlanOptions.map((plan) => (
+                <label key={plan.codigo} className="flex items-center gap-3">
+                  <RadioGroupItem
+                    value={plan.codigo}
+                    id={`plan-${plan.codigo}`}
+                    disabled={isSavingDefaultPlan}
+                  />
+                  <span className="text-sm text-gray-800">{plan.nome}</span>
+                </label>
+              ))}
+            </RadioGroup>
+          )}
 
           <p className="text-xs text-gray-600">
             As regras de dependentes são configuradas individualmente em cada plano.
@@ -524,6 +532,10 @@ export default function AdminPlanosPage() {
           <p className="mt-1 text-xs text-gray-600">
             O mínimo e máximo de dependentes podem ser configurados em qualquer plano. Use "Sem limite" quando necessário.
           </p>
+          <p className="mt-1 text-xs text-gray-600">
+            Benefícios: informe um item por linha, começando com <span className="font-mono">+</span> para incluído
+            ou <span className="font-mono">-</span> para não incluído.
+          </p>
 
           {isLoading ? (
             <p className="mt-4 text-sm text-gray-600">Carregando planos...</p>
@@ -536,6 +548,8 @@ export default function AdminPlanosPage() {
                   <tr className="border-b border-gray-200 text-left text-gray-600">
                     <th className="py-2 pr-4">Código</th>
                     <th className="py-2 pr-4">Nome</th>
+                    <th className="py-2 pr-4">Descrição</th>
+                    <th className="py-2 pr-4">Benefícios</th>
                     <th className="py-2 pr-4">Valor (R$)</th>
                     <th className="py-2 pr-4">Permite Dependentes</th>
                     <th className="py-2 pr-4">Mínimo</th>
@@ -549,6 +563,8 @@ export default function AdminPlanosPage() {
                   {sortedPlanos.map((plano) => {
                     const editable = editablePlanos[plano.id] || {
                       nome: plano.nome,
+                      descricao_publica: String(plano.descricao_publica || ''),
+                      beneficios_publicos: String(plano.beneficios_publicos || ''),
                       valor: String(plano.valor),
                       ativo: plano.ativo,
                       permite_dependentes: Boolean(plano.permite_dependentes),
@@ -567,6 +583,28 @@ export default function AdminPlanosPage() {
                             value={editable.nome}
                             onChange={(event) => updateEditablePlan(plano.id, { nome: event.target.value })}
                             className="w-full min-w-[180px] rounded-md border border-gray-300 px-2 py-1.5"
+                            disabled={isSavingThisPlan}
+                          />
+                        </td>
+                        <td className="py-2 pr-4">
+                          <textarea
+                            value={editable.descricao_publica}
+                            onChange={(event) =>
+                              updateEditablePlan(plano.id, { descricao_publica: event.target.value })
+                            }
+                            className="min-h-[72px] w-full min-w-[220px] rounded-md border border-gray-300 px-2 py-1.5"
+                            placeholder="Resumo comercial do plano"
+                            disabled={isSavingThisPlan}
+                          />
+                        </td>
+                        <td className="py-2 pr-4">
+                          <textarea
+                            value={editable.beneficios_publicos}
+                            onChange={(event) =>
+                              updateEditablePlan(plano.id, { beneficios_publicos: event.target.value })
+                            }
+                            className="min-h-[96px] w-full min-w-[260px] rounded-md border border-gray-300 px-2 py-1.5 font-mono text-xs"
+                            placeholder={'+ Telemedicina 24h\n+ Clube de descontos\n- Odontologia'}
                             disabled={isSavingThisPlan}
                           />
                         </td>

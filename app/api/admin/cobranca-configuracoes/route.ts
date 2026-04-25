@@ -5,6 +5,7 @@ import {
   getBillingSettings,
   updateBillingSettings,
 } from '@/lib/billing-settings'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdminAuth } from '@/lib/supabase/admin-auth'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -25,6 +26,43 @@ function mapDatabaseErrorMessage(error: unknown) {
   return null
 }
 
+function normalizePlanCode(value: unknown) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+}
+
+async function loadPlanCodesForDefaultSelection() {
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from('planos')
+      .select('codigo, ordem, created_at')
+      .order('ordem', { ascending: true })
+      .order('created_at', { ascending: true })
+
+    if (error) {
+      throw error
+    }
+
+    const codes = Array.from(
+      new Set(
+        (data || [])
+          .map((row) => normalizePlanCode(row.codigo))
+          .filter(Boolean)
+      )
+    )
+
+    return codes.length > 0 ? codes : [...PLAN_TYPE_OPTIONS]
+  } catch (error) {
+    const details = error instanceof Error ? error.message : String(error)
+    if (/relation .*planos|does not exist|42P01/i.test(details)) {
+      return [...PLAN_TYPE_OPTIONS]
+    }
+    throw error
+  }
+}
+
 export async function GET(request: NextRequest) {
   const authResult = await requireAdminAuth(request)
   if (!authResult.ok) {
@@ -33,6 +71,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const settings = await getBillingSettings()
+    const allowedPlanTypes = await loadPlanCodesForDefaultSelection()
+    const defaultPlanType = allowedPlanTypes.includes(settings.defaultPlanType)
+      ? settings.defaultPlanType
+      : (allowedPlanTypes[0] || settings.defaultPlanType)
+
     return NextResponse.json({
       success: true,
       settings: {
@@ -44,12 +87,12 @@ export async function GET(request: NextRequest) {
         mensalidadeFamiliarValue: settings.mensalidadeFamiliarValue,
         mensalidadeBillingTypes: settings.mensalidadeBillingTypes,
         defaultMensalidadeBillingType: settings.defaultMensalidadeBillingType,
-        defaultPlanType: settings.defaultPlanType,
+        defaultPlanType,
         source: settings.source,
         updatedAt: settings.updatedAt || null,
       },
       allowedBillingTypes: BILLING_TYPE_OPTIONS,
-      allowedPlanTypes: PLAN_TYPE_OPTIONS,
+      allowedPlanTypes,
     })
   } catch (error) {
     const mappedMessage = mapDatabaseErrorMessage(error)
@@ -85,12 +128,16 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Payload inválido.' }, { status: 400 })
     }
 
-    const legacyMensalidadeValue = Number(body.mensalidadeValue)
+    const currentSettings = await getBillingSettings()
+    const legacyMensalidadeValue =
+      body.mensalidadeValue === undefined || body.mensalidadeValue === null
+        ? currentSettings.mensalidadeValue
+        : Number(body.mensalidadeValue)
     const mensalidadeIndividualValue = Number(
-      body.mensalidadeIndividualValue ?? legacyMensalidadeValue
+      body.mensalidadeIndividualValue ?? legacyMensalidadeValue ?? currentSettings.mensalidadeIndividualValue
     )
     const mensalidadeFamiliarValue = Number(
-      body.mensalidadeFamiliarValue ?? legacyMensalidadeValue
+      body.mensalidadeFamiliarValue ?? legacyMensalidadeValue ?? currentSettings.mensalidadeFamiliarValue
     )
 
     if (
@@ -120,10 +167,16 @@ export async function PUT(request: NextRequest) {
       mensalidadeFamiliarValue,
       mensalidadeBillingTypes: Array.isArray(body.mensalidadeBillingTypes)
         ? body.mensalidadeBillingTypes
-        : [],
-      defaultMensalidadeBillingType: String(body.defaultMensalidadeBillingType || ''),
-      defaultPlanType: String(body.defaultPlanType || ''),
+        : currentSettings.mensalidadeBillingTypes,
+      defaultMensalidadeBillingType: String(
+        body.defaultMensalidadeBillingType || currentSettings.defaultMensalidadeBillingType
+      ),
+      defaultPlanType: String(body.defaultPlanType || currentSettings.defaultPlanType),
     })
+    const allowedPlanTypes = await loadPlanCodesForDefaultSelection()
+    const defaultPlanType = allowedPlanTypes.includes(updated.defaultPlanType)
+      ? updated.defaultPlanType
+      : (allowedPlanTypes[0] || updated.defaultPlanType)
 
     return NextResponse.json({
       success: true,
@@ -137,12 +190,12 @@ export async function PUT(request: NextRequest) {
         mensalidadeFamiliarValue: updated.mensalidadeFamiliarValue,
         mensalidadeBillingTypes: updated.mensalidadeBillingTypes,
         defaultMensalidadeBillingType: updated.defaultMensalidadeBillingType,
-        defaultPlanType: updated.defaultPlanType,
+        defaultPlanType,
         source: updated.source,
         updatedAt: updated.updatedAt || null,
       },
       allowedBillingTypes: BILLING_TYPE_OPTIONS,
-      allowedPlanTypes: PLAN_TYPE_OPTIONS,
+      allowedPlanTypes,
     })
   } catch (error) {
     const mappedMessage = mapDatabaseErrorMessage(error)

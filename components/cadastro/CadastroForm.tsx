@@ -29,6 +29,8 @@ type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD'
 type PlanOption = {
   codigo: string
   nome: string
+  descricao: string
+  beneficios: Array<{ texto: string; inclui: boolean }>
   valor: number
   permiteDependentes: boolean
   minDependentes: number
@@ -170,6 +172,23 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
                 : {}
             const codigo = toUpperTrim(plan.codigo)
             const nome = String(plan.nome || '').trim()
+            const descricao = String(plan.descricao || '').trim()
+            const beneficios = Array.isArray(plan.beneficios)
+              ? plan.beneficios
+                  .map((item) => {
+                    const beneficio =
+                      item && typeof item === 'object'
+                        ? (item as Record<string, unknown>)
+                        : {}
+                    const texto = String(beneficio.texto || '').trim()
+                    if (!texto) return null
+                    return {
+                      texto,
+                      inclui: beneficio.inclui !== false,
+                    }
+                  })
+                  .filter((item): item is { texto: string; inclui: boolean } => Boolean(item))
+              : []
             const valor = toAmount(plan.valor, 0)
             if (!codigo || !nome || valor <= 0) {
               return null
@@ -189,6 +208,8 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
             return {
               codigo,
               nome,
+              descricao,
+              beneficios,
               valor,
               permiteDependentes,
               minDependentes,
@@ -202,6 +223,8 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
           {
             codigo: 'INDIVIDUAL',
             nome: 'Plano Individual',
+            descricao: 'Cobertura para o titular.',
+            beneficios: [],
             valor: toAmount(
               mensalidadeByPlanTypePayload.INDIVIDUAL ?? payloadObj.mensalidadeValue,
               0
@@ -214,6 +237,8 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
           {
             codigo: 'FAMILIAR',
             nome: 'Plano Familiar',
+            descricao: 'Cobertura para titular e dependentes.',
+            beneficios: [],
             valor: toAmount(
               mensalidadeByPlanTypePayload.FAMILIAR ?? payloadObj.mensalidadeValue,
               0
