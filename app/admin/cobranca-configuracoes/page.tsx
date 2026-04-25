@@ -19,11 +19,6 @@ const BILLING_TYPE_LABEL: Record<BillingType, string> = {
   CREDIT_CARD: 'Cartão de Crédito',
 }
 
-const PLAN_TYPE_LABEL: Record<PlanType, string> = {
-  INDIVIDUAL: 'Individual',
-  FAMILIAR: 'Familiar',
-}
-
 export default function AdminCobrancaConfiguracoesPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
@@ -31,7 +26,6 @@ export default function AdminCobrancaConfiguracoesPage() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [allowedBillingTypes, setAllowedBillingTypes] = useState<BillingType[]>(['PIX', 'BOLETO', 'CREDIT_CARD'])
-  const [allowedPlanTypes, setAllowedPlanTypes] = useState<PlanType[]>(['INDIVIDUAL', 'FAMILIAR'])
   const [mensalidadeIndividualValue, setMensalidadeIndividualValue] = useState('')
   const [mensalidadeFamiliarValue, setMensalidadeFamiliarValue] = useState('')
   const [defaultPlanType, setDefaultPlanType] = useState<PlanType>('INDIVIDUAL')
@@ -65,11 +59,6 @@ export default function AdminCobrancaConfiguracoesPage() {
         Array.isArray(data?.allowedBillingTypes) && data.allowedBillingTypes.length > 0
           ? data.allowedBillingTypes
           : ['PIX', 'BOLETO', 'CREDIT_CARD']
-      )
-      setAllowedPlanTypes(
-        Array.isArray(data?.allowedPlanTypes) && data.allowedPlanTypes.length > 0
-          ? data.allowedPlanTypes
-          : ['INDIVIDUAL', 'FAMILIAR']
       )
       setMensalidadeIndividualValue(
         String(data?.settings?.mensalidadeIndividualValue ?? data?.settings?.mensalidadeValue ?? '')
@@ -207,9 +196,7 @@ export default function AdminCobrancaConfiguracoesPage() {
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
           <div className="min-w-0">
             <h1 className="truncate text-xl font-bold text-gray-900 sm:text-2xl">Configurações de Cobrança</h1>
-            <p className="text-xs text-gray-600 sm:text-sm">
-              Defina os valores por plano (adesão e mensalidade usam o mesmo valor)
-            </p>
+            <p className="text-xs text-gray-600 sm:text-sm">Defina formas e opção padrão de cobrança da mensalidade</p>
           </div>
           <div className="hidden items-center gap-2 lg:flex">
             <Link href="/admin/dashboard">
@@ -263,62 +250,6 @@ export default function AdminCobrancaConfiguracoesPage() {
             <p className="text-sm text-gray-600">Carregando configurações...</p>
           ) : (
             <>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <label className="space-y-1">
-                  <span className="text-sm font-medium text-gray-700">Valor do Plano Individual (R$)</span>
-                  <input
-                    type="number"
-                    min={MIN_CHARGE_VALUE}
-                    step="0.01"
-                    value={mensalidadeIndividualValue}
-                    onChange={(event) => setMensalidadeIndividualValue(event.target.value)}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                    disabled={isSaving}
-                  />
-                  <span className="text-xs text-gray-500">Mínimo: R$ 5,00</span>
-                </label>
-
-                <label className="space-y-1">
-                  <span className="text-sm font-medium text-gray-700">Valor do Plano Familiar (R$)</span>
-                  <input
-                    type="number"
-                    min={MIN_CHARGE_VALUE}
-                    step="0.01"
-                    value={mensalidadeFamiliarValue}
-                    onChange={(event) => setMensalidadeFamiliarValue(event.target.value)}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                    disabled={isSaving}
-                  />
-                  <span className="text-xs text-gray-500">Mínimo: R$ 5,00</span>
-                </label>
-              </div>
-
-              <div className="space-y-3 rounded-lg border border-gray-200 p-4">
-                <p className="text-sm font-medium text-gray-800">Regra aplicada automaticamente</p>
-                <p className="text-xs text-gray-600">
-                  O valor configurado em cada plano será usado tanto na taxa de adesão quanto na assinatura recorrente.
-                </p>
-              </div>
-
-              <div className="space-y-3 rounded-lg border border-gray-200 p-4">
-                <p className="text-sm font-medium text-gray-800">Plano padrão para novos clientes</p>
-                <RadioGroup
-                  value={defaultPlanType}
-                  onValueChange={(value) => setDefaultPlanType(value as PlanType)}
-                  className="space-y-2"
-                >
-                  {allowedPlanTypes.map((planType) => (
-                    <label key={planType} className="flex items-center gap-3">
-                      <RadioGroupItem value={planType} id={`plan-${planType}`} disabled={isSaving} />
-                      <span className="text-sm text-gray-800">{PLAN_TYPE_LABEL[planType]}</span>
-                    </label>
-                  ))}
-                </RadioGroup>
-                <p className="text-xs text-gray-600">
-                  Plano familiar permite até 4 dependentes por titular.
-                </p>
-              </div>
-
               <div className="space-y-3 rounded-lg border border-gray-200 p-4">
                 <p className="text-sm font-medium text-gray-800">Formas de cobrança da mensalidade</p>
                 <p className="text-xs text-gray-600">

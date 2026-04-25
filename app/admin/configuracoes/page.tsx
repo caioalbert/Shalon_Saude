@@ -21,7 +21,7 @@ const SETTINGS_ITEMS = [
   },
   {
     title: 'Configurações de Cobrança',
-    description: 'Defina valores, plano padrão e formas de cobrança da mensalidade.',
+    description: 'Defina formas de cobrança da mensalidade e opção padrão.',
     href: '/admin/cobranca-configuracoes',
     actionLabel: 'Gerenciar Cobrança',
   },
