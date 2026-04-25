@@ -19,6 +19,20 @@ type CadastroVendedor = {
   vendedor_codigo?: string | null
 }
 
+type ComissaoMensal = {
+  mesReferencia: string
+  mesLabel: string
+  quantidadeVendas: number
+  valorTotal: number
+  valorPagoRegistrado: number
+  valorPendente: number
+  pago: boolean
+  pagamentoId: string | null
+  pagoEm: string | null
+  comprovanteUrl: string | null
+  observacao: string | null
+}
+
 type ResumoPayload = {
   vendedor: {
     id: string
@@ -32,7 +46,12 @@ type ResumoPayload = {
     totalPagos: number
     totalPendentes: number
     totalPagoMesAtual: number
+    totalPagoMesAtualBruto: number
+    totalPagoMesAtualPaga: number
+    comissaoTotalPaga: number
+    comissaoTotalDevida: number
   }
+  comissoesMensais: ComissaoMensal[]
   cadastros: CadastroVendedor[]
 }
 
@@ -98,6 +117,7 @@ export default function VendedorDashboardPage() {
   )
 
   const tableRows = useMemo(() => data?.cadastros || [], [data?.cadastros])
+  const comissoesMensais = useMemo(() => data?.comissoesMensais || [], [data?.comissoesMensais])
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
@@ -141,7 +161,7 @@ export default function VendedorDashboardPage() {
         </div>
       </header>
 
-      <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
+      <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-3">
             <p className="text-sm text-red-700">{error}</p>
@@ -160,7 +180,7 @@ export default function VendedorDashboardPage() {
           </div>
         ) : data ? (
           <>
-            <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm space-y-4">
+            <section className="space-y-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-1">
                 <h2 className="text-lg font-semibold text-gray-900">{data.vendedor.nome}</h2>
                 <p className="text-sm text-gray-600">{data.vendedor.email}</p>
@@ -169,39 +189,108 @@ export default function VendedorDashboardPage() {
 
               <div className="space-y-2">
                 <p className="text-sm font-medium text-gray-700">Seu link de venda</p>
-                <div className="rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-xs font-mono text-gray-800 break-all">
+                <div className="break-all rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-xs font-mono text-gray-800">
                   {data.vendedor.linkVenda}
                 </div>
                 <Button onClick={handleCopyLink} variant="outline">Copiar Link de Venda</Button>
               </div>
             </section>
 
-            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
               <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
                 <p className="text-sm text-gray-600">Clientes via seu link</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{data.resumo.totalClientes}</p>
+                <p className="mt-1 text-3xl font-bold text-gray-900">{data.resumo.totalClientes}</p>
               </div>
 
               <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
                 <p className="text-sm text-gray-600">Adesões pagas</p>
-                <p className="text-3xl font-bold text-green-700 mt-1">{data.resumo.totalPagos}</p>
+                <p className="mt-1 text-3xl font-bold text-green-700">{data.resumo.totalPagos}</p>
               </div>
 
               <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
                 <p className="text-sm text-gray-600">Adesões pendentes</p>
-                <p className="text-3xl font-bold text-amber-700 mt-1">{data.resumo.totalPendentes}</p>
+                <p className="mt-1 text-3xl font-bold text-amber-700">{data.resumo.totalPendentes}</p>
               </div>
 
               <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-                <p className="text-sm text-gray-600">Total a receber no mês</p>
-                <p className="text-2xl font-bold text-indigo-700 mt-1">
+                <p className="text-sm text-gray-600">Comissão pendente no mês</p>
+                <p className="mt-1 text-2xl font-bold text-indigo-700">
                   {formatCurrency(data.resumo.totalPagoMesAtual)}
                 </p>
-                <p className="text-xs text-gray-500 mt-1">Somatório das adesões pagas no mês atual</p>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+                <p className="text-sm text-gray-600">Comissão total pendente</p>
+                <p className="mt-1 text-2xl font-bold text-amber-700">
+                  {formatCurrency(data.resumo.comissaoTotalDevida)}
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Total já pago: {formatCurrency(data.resumo.comissaoTotalPaga)}
+                </p>
               </div>
             </section>
 
-            <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm space-y-4">
+            <section className="space-y-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900">Histórico mensal de comissão</h3>
+
+              {comissoesMensais.length === 0 ? (
+                <p className="text-sm text-gray-600">Nenhuma comissão mensal calculada até o momento.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 text-left text-gray-600">
+                        <th className="py-2 pr-4">Mês</th>
+                        <th className="py-2 pr-4">Vendas</th>
+                        <th className="py-2 pr-4">Comissão</th>
+                        <th className="py-2 pr-4">Status</th>
+                        <th className="py-2 pr-4">Pago em</th>
+                        <th className="py-2 pr-4">Comprovante</th>
+                        <th className="py-2">Observação</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {comissoesMensais.map((item) => (
+                        <tr key={item.mesReferencia} className="border-b border-gray-100">
+                          <td className="py-2 pr-4 font-medium text-gray-900">{item.mesLabel}</td>
+                          <td className="py-2 pr-4 text-gray-700">{item.quantidadeVendas}</td>
+                          <td className="py-2 pr-4 text-gray-700">{formatCurrency(item.valorTotal)}</td>
+                          <td className="py-2 pr-4">
+                            <span
+                              className={`rounded px-2 py-1 text-xs font-medium ${
+                                item.pago ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                              }`}
+                            >
+                              {item.pago ? 'Pago' : 'Pendente'}
+                            </span>
+                          </td>
+                          <td className="py-2 pr-4 text-gray-700">
+                            {item.pagoEm ? new Date(item.pagoEm).toLocaleDateString('pt-BR') : '-'}
+                          </td>
+                          <td className="py-2 pr-4 text-gray-700">
+                            {item.comprovanteUrl ? (
+                              <a
+                                href={item.comprovanteUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-blue-700 underline"
+                              >
+                                Ver comprovante
+                              </a>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                          <td className="py-2 text-gray-700">{item.observacao || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            <section className="space-y-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-gray-900">Clientes que utilizaram seu link</h3>
 
               {tableRows.length === 0 ? (

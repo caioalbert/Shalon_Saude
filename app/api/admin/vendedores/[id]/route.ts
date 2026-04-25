@@ -1,16 +1,9 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { buildComissaoResumo } from '@/lib/comissoes'
 import { requireAdminAuth } from '@/lib/supabase/admin-auth'
 import { NextRequest, NextResponse } from 'next/server'
 
 type RouteContext = { params: Promise<{ id: string }> }
-
-function toStartOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), 1)
-}
-
-function toStartOfNextMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 1)
-}
 
 async function getValidatedId(context: RouteContext) {
   const { id } = await context.params
@@ -76,11 +69,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     if (clientesError) {
       const details = `${clientesError.message || ''} ${clientesError.details || ''}`
-      if (
-        /column .*vendedor_id|vendedor_codigo|mensalidade_valor|adesao_pago_em|status|tipo_plano/i.test(
-          details
-        )
-      ) {
+      if (/column .*vendedor_id|vendedor_codigo|mensalidade_valor|adesao_pago_em|status|tipo_plano/i.test(details)) {
         return NextResponse.json(
           {
             error:
@@ -103,33 +92,42 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Erro ao buscar clientes do vendedor.' }, { status: 500 })
     }
 
-    const allClientes = clientes || []
+    const { data: pagamentosComissao, error: pagamentosComissaoError } = await supabase
+      .from('vendedor_comissao_pagamentos')
+      .select(
+        'id, vendedor_id, mes_referencia, valor_total, pago_em, comprovante_path, comprovante_url, observacao, created_at, updated_at'
+      )
+      .eq('vendedor_id', vendedor.id)
+      .order('mes_referencia', { ascending: false })
 
-    const now = new Date()
-    const monthStart = toStartOfMonth(now)
-    const monthEnd = toStartOfNextMonth(now)
-
-    let vendasFechadas = 0
-    let comissaoTotalDevida = 0
-    let comissaoMesAtual = 0
-
-    allClientes.forEach((cliente) => {
-      const isPago = cliente.status === 'ATIVO' && cliente.adesao_pago_em
-      if (!isPago) return
-
-      vendasFechadas += 1
-
-      const valor = Number(cliente.mensalidade_valor)
-      const valorSeguro = Number.isFinite(valor) ? valor : 0
-      comissaoTotalDevida += valorSeguro
-
-      const pagoEm = new Date(String(cliente.adesao_pago_em))
-      if (!Number.isNaN(pagoEm.getTime()) && pagoEm >= monthStart && pagoEm < monthEnd) {
-        comissaoMesAtual += valorSeguro
+    if (pagamentosComissaoError) {
+      const details = `${pagamentosComissaoError.message || ''} ${pagamentosComissaoError.details || ''}`
+      if (/relation .*vendedor_comissao_pagamentos|does not exist|42P01|column .*mes_referencia/i.test(details)) {
+        return NextResponse.json(
+          {
+            error:
+              'Banco desatualizado. Execute scripts/008_add_vendedor_comissao_pagamentos.sql no Supabase SQL Editor.',
+          },
+          { status: 500 }
+        )
       }
-    })
 
-    const totalPendentes = allClientes.length - vendasFechadas
+      if (/fetch failed|enotfound|getaddrinfo|network/i.test(details)) {
+        return NextResponse.json(
+          {
+            error:
+              'Falha ao conectar no Supabase. Verifique NEXT_PUBLIC_SUPABASE_URL e as chaves no arquivo .env/.env.local.',
+          },
+          { status: 503 }
+        )
+      }
+
+      return NextResponse.json({ error: 'Erro ao buscar pagamentos de comissão.' }, { status: 500 })
+    }
+
+    const allClientes = clientes || []
+    const comissaoResumo = buildComissaoResumo(allClientes, pagamentosComissao || [])
+    const totalPendentes = allClientes.length - comissaoResumo.totalVendasPagas
     const appBaseUrl = request.nextUrl.origin.replace(/\/$/, '')
 
     return NextResponse.json({
@@ -144,11 +142,16 @@ export async function GET(request: NextRequest, context: RouteContext) {
       },
       resumo: {
         totalClientes: allClientes.length,
-        vendasFechadas,
+        vendasFechadas: comissaoResumo.totalVendasPagas,
         totalPendentes,
-        comissaoMesAtual: Math.round((comissaoMesAtual + Number.EPSILON) * 100) / 100,
-        comissaoTotalDevida: Math.round((comissaoTotalDevida + Number.EPSILON) * 100) / 100,
+        comissaoMesAtual: comissaoResumo.comissaoMesAtualPendente,
+        comissaoMesAtualBruta: comissaoResumo.comissaoMesAtualBruta,
+        comissaoMesAtualPaga: comissaoResumo.comissaoMesAtualPaga,
+        comissaoTotalBruta: comissaoResumo.comissaoTotalBruta,
+        comissaoTotalPaga: comissaoResumo.comissaoTotalPaga,
+        comissaoTotalDevida: comissaoResumo.comissaoTotalDevida,
       },
+      comissoesMensais: comissaoResumo.comissoesMensais,
       clientes: allClientes,
     })
   } catch (error) {

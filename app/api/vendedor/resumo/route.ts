@@ -1,14 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { buildComissaoResumo } from '@/lib/comissoes'
 import { requireSellerAuth } from '@/lib/supabase/seller-auth'
 import { NextRequest, NextResponse } from 'next/server'
-
-function toStartOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), 1)
-}
-
-function toStartOfNextMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 1)
-}
 
 export async function GET(request: NextRequest) {
   const authResult = await requireSellerAuth(request)
@@ -85,30 +78,42 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao buscar clientes do vendedor.' }, { status: 500 })
     }
 
-    const allCadastros = cadastros || []
+    const { data: pagamentosComissao, error: pagamentosComissaoError } = await supabase
+      .from('vendedor_comissao_pagamentos')
+      .select(
+        'id, vendedor_id, mes_referencia, valor_total, pago_em, comprovante_path, comprovante_url, observacao, created_at, updated_at'
+      )
+      .eq('vendedor_id', vendedor.id)
+      .order('mes_referencia', { ascending: false })
 
-    const now = new Date()
-    const monthStart = toStartOfMonth(now)
-    const monthEnd = toStartOfNextMonth(now)
-
-    let totalPagoMesAtual = 0
-    let totalPagos = 0
-
-    allCadastros.forEach((cadastro) => {
-      const isPago = cadastro.status === 'ATIVO' && cadastro.adesao_pago_em
-      if (!isPago) return
-
-      totalPagos += 1
-      const valor = Number(cadastro.mensalidade_valor)
-      const valorSeguro = Number.isFinite(valor) ? valor : 0
-
-      const pagoEm = new Date(String(cadastro.adesao_pago_em))
-      if (!Number.isNaN(pagoEm.getTime()) && pagoEm >= monthStart && pagoEm < monthEnd) {
-        totalPagoMesAtual += valorSeguro
+    if (pagamentosComissaoError) {
+      const details = `${pagamentosComissaoError.message || ''} ${pagamentosComissaoError.details || ''}`
+      if (/relation .*vendedor_comissao_pagamentos|does not exist|42P01|column .*mes_referencia/i.test(details)) {
+        return NextResponse.json(
+          {
+            error:
+              'Banco desatualizado. Execute scripts/008_add_vendedor_comissao_pagamentos.sql no Supabase SQL Editor.',
+          },
+          { status: 500 }
+        )
       }
-    })
 
-    const totalPendentes = allCadastros.length - totalPagos
+      if (/fetch failed|enotfound|getaddrinfo|network/i.test(details)) {
+        return NextResponse.json(
+          {
+            error:
+              'Falha ao conectar no Supabase. Verifique NEXT_PUBLIC_SUPABASE_URL e as chaves no arquivo .env/.env.local.',
+          },
+          { status: 503 }
+        )
+      }
+
+      return NextResponse.json({ error: 'Erro ao buscar pagamentos de comissão.' }, { status: 500 })
+    }
+
+    const allCadastros = cadastros || []
+    const comissaoResumo = buildComissaoResumo(allCadastros, pagamentosComissao || [])
+    const totalPendentes = allCadastros.length - comissaoResumo.totalVendasPagas
     const appBaseUrl = request.nextUrl.origin.replace(/\/$/, '')
 
     return NextResponse.json({
@@ -122,10 +127,15 @@ export async function GET(request: NextRequest) {
       },
       resumo: {
         totalClientes: allCadastros.length,
-        totalPagos,
+        totalPagos: comissaoResumo.totalVendasPagas,
         totalPendentes,
-        totalPagoMesAtual: Math.round((totalPagoMesAtual + Number.EPSILON) * 100) / 100,
+        totalPagoMesAtual: comissaoResumo.comissaoMesAtualPendente,
+        totalPagoMesAtualBruto: comissaoResumo.comissaoMesAtualBruta,
+        totalPagoMesAtualPaga: comissaoResumo.comissaoMesAtualPaga,
+        comissaoTotalPaga: comissaoResumo.comissaoTotalPaga,
+        comissaoTotalDevida: comissaoResumo.comissaoTotalDevida,
       },
+      comissoesMensais: comissaoResumo.comissoesMensais,
       cadastros: allCadastros,
     })
   } catch (error) {

@@ -127,7 +127,8 @@ Se o banco já existia antes, execute também:
 - remover campos de igreja do cadastro;
 - adicionar `asaas_customer_id` em `cadastros`;
 - adicionar colunas de pagamento/ativação (`status`, `asaas_payment_id`, `asaas_subscription_id`, `adesao_pago_em`);
-- adicionar configurações de cobrança gerenciadas no admin.
+- adicionar configurações de cobrança gerenciadas no admin;
+- adicionar módulo de vendedores e fechamento de comissão mensal.
 
 ```sql
 -- Execute também:
@@ -136,6 +137,8 @@ Se o banco já existia antes, execute também:
 -- scripts/004_add_cadastro_pagamentos.sql
 -- scripts/005_add_billing_settings_admin.sql
 -- scripts/006_add_plan_type_pricing.sql
+-- scripts/007_add_vendedores_module.sql
+-- scripts/008_add_vendedor_comissao_pagamentos.sql
 ```
 
 ### 5. Criar usuário admin (opcional)
