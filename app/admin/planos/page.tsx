@@ -586,8 +586,14 @@ export default function AdminPlanosPage() {
           ) : sortedPlanos.length === 0 ? (
             <p className="mt-4 text-sm text-gray-600">Nenhum plano cadastrado.</p>
           ) : (
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full text-sm">
+            <>
+              <div className="mt-4 rounded-md bg-blue-50 border border-blue-200 p-3">
+                <p className="text-xs text-blue-700">
+                  💡 <strong>Dica:</strong> Role a tabela para a direita para ver as colunas de dependentes (Mínimo, Máximo, Valor Adicional) e o botão Salvar.
+                </p>
+              </div>
+              <div className="mt-4 overflow-x-auto">
+                <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 text-left text-gray-600">
                     <th className="py-2 pr-4">Código</th>
@@ -668,11 +674,17 @@ export default function AdminPlanosPage() {
                             <input
                               type="checkbox"
                               checked={editable.permite_dependentes}
-                              onChange={(event) =>
-                                updateEditablePlan(plano.id, {
-                                  permite_dependentes: event.target.checked,
-                                })
-                              }
+                              onChange={(event) => {
+                                const checked = event.target.checked
+                                const updates: Partial<EditablePlan> = {
+                                  permite_dependentes: checked,
+                                }
+                                // Auto-ajustar mínimo para 1 quando marcar
+                                if (checked && Number(editable.dependentes_minimos) < 1) {
+                                  updates.dependentes_minimos = '1'
+                                }
+                                updateEditablePlan(plano.id, updates)
+                              }}
                               disabled={isSavingThisPlan}
                             />
                             {editable.permite_dependentes ? 'Sim' : 'Não'}
@@ -769,6 +781,7 @@ export default function AdminPlanosPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </section>
       </div>
