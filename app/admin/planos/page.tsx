@@ -50,6 +50,7 @@ export default function AdminPlanosPage() {
   const [isCreating, setIsCreating] = useState(false)
   const [savingPlanId, setSavingPlanId] = useState<string | null>(null)
   const [isSavingDefaultPlan, setIsSavingDefaultPlan] = useState(false)
+  const [isSavingAll, setIsSavingAll] = useState(false)
 
   const [defaultPlanType, setDefaultPlanType] = useState('')
   const [mensalidadeBillingTypes, setMensalidadeBillingTypes] = useState<BillingType[]>(['PIX'])
@@ -385,6 +386,36 @@ export default function AdminPlanosPage() {
     }
   }
 
+  const handleSaveAllPlanos = async () => {
+    try {
+      setIsSavingAll(true)
+      setError(null)
+      setMessage(null)
+
+      let successCount = 0
+      let errorCount = 0
+
+      for (const plano of sortedPlanos) {
+        try {
+          await handleSavePlano(plano.id)
+          successCount++
+        } catch {
+          errorCount++
+        }
+      }
+
+      if (errorCount === 0) {
+        setMessage(`${successCount} plano(s) atualizado(s) com sucesso.`)
+      } else {
+        setError(`${successCount} plano(s) atualizado(s), ${errorCount} erro(s).`)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao salvar planos.')
+    } finally {
+      setIsSavingAll(false)
+    }
+  }
+
   return (
     <main className="min-h-screen bg-gray-50">
       <header className="sticky top-0 z-50 border-b border-gray-200 bg-white">
@@ -528,14 +559,27 @@ export default function AdminPlanosPage() {
         </section>
 
         <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900">Planos existentes</h2>
-          <p className="mt-1 text-xs text-gray-600">
-            O mínimo e máximo de dependentes podem ser configurados em qualquer plano. Use "Sem limite" quando necessário.
-          </p>
-          <p className="mt-1 text-xs text-gray-600">
-            Benefícios: informe um item por linha, começando com <span className="font-mono">+</span> para incluído
-            ou <span className="font-mono">-</span> para não incluído.
-          </p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Planos existentes</h2>
+              <p className="mt-1 text-xs text-gray-600">
+                O mínimo e máximo de dependentes podem ser configurados em qualquer plano. Use "Sem limite" quando necessário.
+              </p>
+              <p className="mt-1 text-xs text-gray-600">
+                Benefícios: informe um item por linha, começando com <span className="font-mono">+</span> para incluído
+                ou <span className="font-mono">-</span> para não incluído.
+              </p>
+            </div>
+            {sortedPlanos.length > 0 && (
+              <Button
+                onClick={handleSaveAllPlanos}
+                disabled={isSavingAll || savingPlanId !== null}
+                className="shrink-0"
+              >
+                {isSavingAll ? 'Salvando...' : 'Salvar Tudo'}
+              </Button>
+            )}
+          </div>
 
           {isLoading ? (
             <p className="mt-4 text-sm text-gray-600">Carregando planos...</p>
@@ -713,9 +757,8 @@ export default function AdminPlanosPage() {
                         <td className="py-2">
                           <Button
                             size="sm"
-                            variant="outline"
                             onClick={() => handleSavePlano(plano.id)}
-                            disabled={isSavingThisPlan}
+                            disabled={isSavingThisPlan || isSavingAll}
                           >
                             {isSavingThisPlan ? 'Salvando...' : 'Salvar'}
                           </Button>
