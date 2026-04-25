@@ -43,7 +43,6 @@ export default function AdminPlanosPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
   const [savingPlanId, setSavingPlanId] = useState<string | null>(null)
-  const [isSavingBaseValues, setIsSavingBaseValues] = useState(false)
   const [isSavingDefaultPlan, setIsSavingDefaultPlan] = useState(false)
 
   const [allowedPlanTypes, setAllowedPlanTypes] = useState<PlanType[]>(['INDIVIDUAL', 'FAMILIAR'])
@@ -268,76 +267,6 @@ export default function AdminPlanosPage() {
     }
   }
 
-  const handleSaveBaseValues = async () => {
-    if (!individualPlan || !familiarPlan) {
-      setError('Planos base INDIVIDUAL e FAMILIAR são obrigatórios para esta configuração.')
-      return
-    }
-
-    const individualEditable = editablePlanos[individualPlan.id]
-    const familiarEditable = editablePlanos[familiarPlan.id]
-
-    if (!individualEditable || !familiarEditable) {
-      setError('Não foi possível carregar os dados dos planos base para salvar.')
-      return
-    }
-
-    try {
-      setIsSavingBaseValues(true)
-      setError(null)
-      setMessage(null)
-
-      const individualValue = Number(individualEditable.valor)
-      const familiarValue = Number(familiarEditable.valor)
-
-      if (!Number.isFinite(individualValue) || individualValue < MIN_CHARGE_VALUE) {
-        throw new Error('Valor do Plano Individual inválido. Mínimo R$ 5,00.')
-      }
-
-      if (!Number.isFinite(familiarValue) || familiarValue < MIN_CHARGE_VALUE) {
-        throw new Error('Valor do Plano Familiar inválido. Mínimo R$ 5,00.')
-      }
-
-      const updatePlan = async (planId: string, payload: EditablePlan) => {
-        const response = await fetch(`/api/admin/planos/${encodeURIComponent(planId)}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            nome: payload.nome.trim(),
-            valor: Number(payload.valor),
-            ativo: payload.ativo,
-          }),
-        })
-
-        const data = await response.json().catch(() => null)
-
-        if (response.status === 401) {
-          router.push('/admin/login')
-          return false
-        }
-
-        if (!response.ok) {
-          throw new Error(data?.error || 'Erro ao atualizar valores dos planos base.')
-        }
-
-        return true
-      }
-
-      const okIndividual = await updatePlan(individualPlan.id, individualEditable)
-      if (!okIndividual) return
-
-      const okFamiliar = await updatePlan(familiarPlan.id, familiarEditable)
-      if (!okFamiliar) return
-
-      setMessage('Valores dos planos base atualizados com sucesso.')
-      await fetchPlanos()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar valores dos planos base.')
-    } finally {
-      setIsSavingBaseValues(false)
-    }
-  }
-
   const handleSaveDefaultPlan = async () => {
     if (!individualPlan || !familiarPlan) {
       setError('Planos base INDIVIDUAL e FAMILIAR são obrigatórios para definir plano padrão.')
@@ -466,61 +395,6 @@ export default function AdminPlanosPage() {
             <p className="text-sm text-green-700">{message}</p>
           </div>
         )}
-
-        <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Valores dos Planos Base</h2>
-
-          {individualPlan && familiarPlan ? (
-            <>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <label className="space-y-1">
-                  <span className="text-sm font-medium text-gray-700">Valor do Plano Individual (R$)</span>
-                  <input
-                    type="number"
-                    min={MIN_CHARGE_VALUE}
-                    step="0.01"
-                    value={editablePlanos[individualPlan.id]?.valor || ''}
-                    onChange={(event) => updateEditablePlan(individualPlan.id, { valor: event.target.value })}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                    disabled={isSavingBaseValues}
-                  />
-                  <span className="text-xs text-gray-500">Mínimo: R$ 5,00</span>
-                </label>
-
-                <label className="space-y-1">
-                  <span className="text-sm font-medium text-gray-700">Valor do Plano Familiar (R$)</span>
-                  <input
-                    type="number"
-                    min={MIN_CHARGE_VALUE}
-                    step="0.01"
-                    value={editablePlanos[familiarPlan.id]?.valor || ''}
-                    onChange={(event) => updateEditablePlan(familiarPlan.id, { valor: event.target.value })}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                    disabled={isSavingBaseValues}
-                  />
-                  <span className="text-xs text-gray-500">Mínimo: R$ 5,00</span>
-                </label>
-              </div>
-
-              <div className="space-y-3 rounded-lg border border-gray-200 p-4">
-                <p className="text-sm font-medium text-gray-800">Regra aplicada automaticamente</p>
-                <p className="text-xs text-gray-600">
-                  O valor configurado em cada plano será usado tanto na taxa de adesão quanto na assinatura recorrente.
-                </p>
-              </div>
-
-              <div className="flex justify-end">
-                <Button onClick={handleSaveBaseValues} disabled={isSavingBaseValues}>
-                  {isSavingBaseValues ? 'Salvando...' : 'Salvar valores dos planos base'}
-                </Button>
-              </div>
-            </>
-          ) : (
-            <p className="text-sm text-amber-700">
-              Não foi possível localizar os planos base INDIVIDUAL/FAMILIAR.
-            </p>
-          )}
-        </section>
 
         <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">Plano padrão para novos clientes</h2>
