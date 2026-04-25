@@ -129,6 +129,7 @@ Se o banco já existia antes, execute também:
 - adicionar colunas de pagamento/ativação (`status`, `asaas_payment_id`, `asaas_subscription_id`, `adesao_pago_em`);
 - adicionar configurações de cobrança gerenciadas no admin;
 - adicionar módulo de vendedores e fechamento de comissão mensal.
+- adicionar módulo de planos customizáveis no painel admin.
 
 ```sql
 -- Execute também:
@@ -139,6 +140,7 @@ Se o banco já existia antes, execute também:
 -- scripts/006_add_plan_type_pricing.sql
 -- scripts/007_add_vendedores_module.sql
 -- scripts/008_add_vendedor_comissao_pagamentos.sql
+-- scripts/009_add_planos_module.sql
 ```
 
 ### 5. Criar usuário admin (opcional)

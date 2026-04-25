@@ -8,6 +8,12 @@ import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger 
 
 const SETTINGS_ITEMS = [
   {
+    title: 'Planos',
+    description: 'Liste os planos existentes, ajuste nome e valor e cadastre novos planos.',
+    href: '/admin/planos',
+    actionLabel: 'Gerenciar Planos',
+  },
+  {
     title: 'Termo de Adesão',
     description: 'Atualize o template usado na geração do PDF enviado aos clientes.',
     href: '/admin/termo-template',

@@ -216,6 +216,81 @@ async function fetchBillingSettingsRow() {
     .maybeSingle()
 }
 
+async function syncPlanCatalogBaseValues(input: {
+  individualValue: number
+  familiarValue: number
+}) {
+  const supabase = createAdminClient()
+
+  const ensurePlan = async (plan: {
+    code: 'INDIVIDUAL' | 'FAMILIAR'
+    defaultName: string
+    value: number
+    order: number
+  }) => {
+    const { data, error } = await supabase
+      .from('planos')
+      .select('id')
+      .eq('codigo', plan.code)
+      .maybeSingle()
+
+    if (error) {
+      throw error
+    }
+
+    if (data?.id) {
+      const { error: updateError } = await supabase
+        .from('planos')
+        .update({
+          valor: plan.value,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', data.id)
+
+      if (updateError) {
+        throw updateError
+      }
+
+      return
+    }
+
+    const { error: insertError } = await supabase
+      .from('planos')
+      .insert({
+        codigo: plan.code,
+        nome: plan.defaultName,
+        valor: plan.value,
+        ativo: true,
+        ordem: plan.order,
+      })
+
+    if (insertError) {
+      throw insertError
+    }
+  }
+
+  try {
+    await ensurePlan({
+      code: 'INDIVIDUAL',
+      defaultName: 'Plano Individual',
+      value: input.individualValue,
+      order: 1,
+    })
+    await ensurePlan({
+      code: 'FAMILIAR',
+      defaultName: 'Plano Familiar',
+      value: input.familiarValue,
+      order: 2,
+    })
+  } catch (error) {
+    const details = error instanceof Error ? error.message : String(error)
+    if (/relation .*planos|does not exist|42P01/i.test(details)) {
+      return
+    }
+    throw error
+  }
+}
+
 export async function getBillingSettings(): Promise<BillingSettings> {
   try {
     const { data, error } = await fetchBillingSettingsRow()
@@ -304,6 +379,11 @@ export async function updateBillingSettings(input: UpdateBillingSettingsInput): 
   if (error) {
     throw error
   }
+
+  await syncPlanCatalogBaseValues({
+    individualValue: mensalidadeIndividualValue,
+    familiarValue: mensalidadeFamiliarValue,
+  })
 
   return normalizeSettingsRow(data as BillingSettingsRow)
 }
