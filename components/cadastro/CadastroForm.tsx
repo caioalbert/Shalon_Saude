@@ -25,6 +25,7 @@ const STEPS = [
 interface CadastroFormProps {
   onSuccess: (data: any) => void
   initialVendedorRef?: string
+  initialPlanoCode?: string
 }
 
 type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD'
@@ -80,7 +81,11 @@ async function readApiErrorMessage(response: Response, fallbackMessage: string) 
   return safeMessage || fallbackMessage
 }
 
-export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFormProps) {
+export function CadastroForm({ 
+  onSuccess, 
+  initialVendedorRef = '',
+  initialPlanoCode = '',
+}: CadastroFormProps) {
   const [step, setStep] = useState(0)
   const [validationStep, setValidationStep] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -93,10 +98,17 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
   const [formData, setFormData] = useState<Partial<CadastroFormData>>({
     dependentes: [],
     tem_dependentes: false,
-    tipo_plano: '',
+    tipo_plano: initialPlanoCode.trim().toUpperCase(),
     mensalidade_billing_type: 'PIX',
   })
   const vendedorRef = initialVendedorRef.trim().toUpperCase()
+
+  // Pular step 0 se plano já foi selecionado
+  useEffect(() => {
+    if (initialPlanoCode.trim()) {
+      setStep(1)
+    }
+  }, [initialPlanoCode])
 
   useEffect(() => {
     let active = true

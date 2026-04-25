@@ -6,9 +6,13 @@ import { CadastroSuccess } from '@/components/cadastro/CadastroSuccess'
 
 type CadastroPageClientProps = {
   initialVendedorRef?: string
+  initialPlanoCode?: string
 }
 
-export default function CadastroPageClient({ initialVendedorRef = '' }: CadastroPageClientProps) {
+export default function CadastroPageClient({ 
+  initialVendedorRef = '',
+  initialPlanoCode = '',
+}: CadastroPageClientProps) {
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [cadastroData, setCadastroData] = useState<{
     nome: string
@@ -121,6 +125,7 @@ export default function CadastroPageClient({ initialVendedorRef = '' }: Cadastro
             <CadastroForm
               onSuccess={handleSuccess}
               initialVendedorRef={vendedorRef}
+              initialPlanoCode={initialPlanoCode}
             />
           </div>
         </div>

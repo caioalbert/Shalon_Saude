@@ -378,7 +378,7 @@ export default function Home() {
                     </div>
                   )}
 
-                  <Link href="/cadastro">
+                  <Link href={`/cadastro?plano=${plano.codigo}`}>
                     <Button className="w-full rounded-full bg-teal-700 py-6 text-base font-bold transition-all hover:bg-teal-800 group-hover:bg-teal-800">
                       Escolher Plano
                     </Button>

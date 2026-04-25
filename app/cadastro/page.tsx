@@ -18,6 +18,7 @@ function toSingleValue(value: SearchParamsValue) {
 export default async function CadastroPage({ searchParams }: CadastroPageProps) {
   const resolvedSearchParams = await Promise.resolve(searchParams || {})
   const vendedorRef = toSingleValue(resolvedSearchParams.ref).trim().toUpperCase()
+  const planoCode = toSingleValue(resolvedSearchParams.plano).trim().toUpperCase()
 
-  return <CadastroPageClient initialVendedorRef={vendedorRef} />
+  return <CadastroPageClient initialVendedorRef={vendedorRef} initialPlanoCode={planoCode} />
 }
