@@ -80,7 +80,7 @@ export function StepConfirmacao({
       : billingConfig?.mensalidadeByPlanType?.[selectedPlanType] ?? 0
 
   const selectedPlanMinDependentes = selectedPlan?.permiteDependentes
-    ? Math.max(1, Number(selectedPlan.minDependentes || 1))
+    ? Math.max(0, Number(selectedPlan.minDependentes || 0))
     : 0
   const selectedPlanValorDependenteAdicional = selectedPlan?.permiteDependentes
     ? Math.max(0, Number(selectedPlan.valorDependenteAdicional || 0))

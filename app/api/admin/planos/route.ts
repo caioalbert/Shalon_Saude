@@ -192,40 +192,38 @@ export async function POST(request: NextRequest) {
     let valorDependenteAdicional = 0
 
     try {
-      if (permiteDependentes) {
-        const minFromBody = body.dependentes_minimos
-        dependentesMinimos =
-          minFromBody === undefined
-            ? 1
-            : parseIntegerField(minFromBody, 'quantidade mínima de dependentes')
+      const minFromBody = body.dependentes_minimos
+      dependentesMinimos =
+        minFromBody === undefined
+          ? 0
+          : parseIntegerField(minFromBody, 'quantidade mínima de dependentes')
 
-        if (dependentesMinimos < 1) {
-          return NextResponse.json(
-            { error: 'Quantidade mínima de dependentes deve ser pelo menos 1.' },
-            { status: 400 }
-          )
-        }
+      maxDependentes = parseOptionalIntegerField(
+        body.max_dependentes,
+        'limite máximo de dependentes'
+      )
 
-        maxDependentes = parseOptionalIntegerField(
-          body.max_dependentes,
-          'limite máximo de dependentes'
+      if (maxDependentes !== null && maxDependentes > 0 && maxDependentes < dependentesMinimos) {
+        return NextResponse.json(
+          {
+            error:
+              'O limite máximo de dependentes deve ser maior ou igual à quantidade mínima.',
+          },
+          { status: 400 }
         )
+      }
 
-        if (maxDependentes !== null && maxDependentes > 0 && maxDependentes < dependentesMinimos) {
-          return NextResponse.json(
-            {
-              error:
-                'O limite máximo de dependentes deve ser maior ou igual à quantidade mínima.',
-            },
-            { status: 400 }
-          )
-        }
+      const extraFromBody = body.valor_dependente_adicional
+      valorDependenteAdicional =
+        extraFromBody === undefined
+          ? 0
+          : parseAmountField(extraFromBody, 'valor adicional por dependente')
 
-        const extraFromBody = body.valor_dependente_adicional
-        valorDependenteAdicional =
-          extraFromBody === undefined
-            ? 0
-            : parseAmountField(extraFromBody, 'valor adicional por dependente')
+      if (permiteDependentes && dependentesMinimos < 1) {
+        return NextResponse.json(
+          { error: 'Quando o plano permite dependentes, o mínimo deve ser pelo menos 1.' },
+          { status: 400 }
+        )
       }
     } catch (parseError) {
       return NextResponse.json(

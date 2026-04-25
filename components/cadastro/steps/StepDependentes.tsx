@@ -61,7 +61,7 @@ function normalizePlanOptions(planOptions?: PlanOption[] | null) {
 
       const permiteDependentes = Boolean(plan.permiteDependentes || codigo === 'FAMILIAR')
       const minDependentes = permiteDependentes
-        ? Math.max(1, Number(plan.minDependentes || (codigo === 'FAMILIAR' ? 1 : 1)) || 1)
+        ? Math.max(0, Number(plan.minDependentes || (codigo === 'FAMILIAR' ? 1 : 0)) || 0)
         : 0
       const maxDependentes = permiteDependentes
         ? (plan.maxDependentes === null || plan.maxDependentes === undefined || String(plan.maxDependentes).trim() === ''
@@ -125,7 +125,7 @@ export function StepDependentes({
   const selectedPlan = availablePlans.find((plan) => plan.codigo === tipo_plano) || availablePlans[0]
   const planPermiteDependentes = Boolean(selectedPlan?.permiteDependentes)
   const dependentesMinimos = selectedPlan?.permiteDependentes
-    ? Math.max(1, Number(selectedPlan.minDependentes || 1))
+    ? Math.max(0, Number(selectedPlan.minDependentes || 0))
     : 0
   const dependentesLimit =
     selectedPlan?.permiteDependentes &&

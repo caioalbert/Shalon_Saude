@@ -115,7 +115,7 @@ async function loadPublicPlanOptions(settings: Awaited<ReturnType<typeof getBill
         const isFamiliar = codigo === 'FAMILIAR'
         const permiteDependentes = Boolean(plan.permite_dependentes ?? isFamiliar)
         const minDependentes = permiteDependentes
-          ? Math.max(1, toNonNegativeInteger(plan.dependentes_minimos, isFamiliar ? 1 : 1))
+          ? Math.max(0, toNonNegativeInteger(plan.dependentes_minimos, isFamiliar ? 1 : 0))
           : 0
         const maxDependentes = permiteDependentes
           ? toOptionalNonNegativeInteger(plan.max_dependentes, isFamiliar ? 4 : null)

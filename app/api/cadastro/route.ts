@@ -147,7 +147,7 @@ async function loadCadastroPlanOptions(settings: Awaited<ReturnType<typeof getBi
         const isFamiliar = codigo === 'FAMILIAR'
         const permiteDependentes = Boolean(plan.permite_dependentes ?? isFamiliar)
         const minDependentes = permiteDependentes
-          ? Math.max(1, toNonNegativeInteger(plan.dependentes_minimos, isFamiliar ? 1 : 1))
+          ? Math.max(0, toNonNegativeInteger(plan.dependentes_minimos, isFamiliar ? 1 : 0))
           : 0
         const maxDependentes = permiteDependentes
           ? toOptionalNonNegativeInteger(plan.max_dependentes, isFamiliar ? 4 : null)
@@ -514,11 +514,12 @@ export async function POST(request: NextRequest) {
       telefone_celular: string
       sexo: string
     }> = []
+    const minDependentesPlano = Math.max(0, selectedPlan.minDependentes)
 
     if (tem_dependentes) {
-      if (dependentesPayload.length === 0) {
+      if (minDependentesPlano > 0 && dependentesPayload.length === 0) {
         return NextResponse.json(
-          { error: 'Informe ao menos um dependente para continuar.' },
+          { error: `O plano selecionado exige pelo menos ${minDependentesPlano} dependentes.` },
           { status: 400 }
         )
       }
@@ -598,9 +599,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (tem_dependentes && dependentes.length < Math.max(1, selectedPlan.minDependentes)) {
+    if (tem_dependentes && dependentes.length < minDependentesPlano) {
       return NextResponse.json(
-        { error: `O plano selecionado exige pelo menos ${Math.max(1, selectedPlan.minDependentes)} dependentes.` },
+        { error: `O plano selecionado exige pelo menos ${minDependentesPlano} dependentes.` },
         { status: 400 }
       )
     }
@@ -633,6 +634,7 @@ export async function POST(request: NextRequest) {
 
       return mensalidadeBillingTypeRequested
     })()
+    const hasDependentes = dependentes.length > 0
     const mensalidadeValor = calculatePlanChargeValue(selectedPlan, dependentes.length)
     const adesaoValue = mensalidadeValor
 
@@ -728,7 +730,7 @@ export async function POST(request: NextRequest) {
           cidade: cidadeValue,
           estado: estadoValue,
           cep: cepValue,
-          tem_dependentes,
+          tem_dependentes: hasDependentes,
           selfie_path,
           status: 'PENDENTE_PAGAMENTO',
           asaas_customer_id: asaasCustomerId,
@@ -797,7 +799,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Inserir dependentes se houver
-    if (tem_dependentes && dependentes.length > 0) {
+    if (hasDependentes) {
       const dependentesComCadastroId = dependentes.map((dep) => ({
         cadastro_id: cadastroData.id,
         nome: dep.nome,

@@ -236,58 +236,52 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     let nextValorDependenteAdicional = Number(currentPlan.valor_dependente_adicional || 0)
 
     try {
-      if (nextPermiteDependentes) {
-        if (hasDependentesMinimosField) {
-          nextDependentesMinimos = parseIntegerField(
-            body.dependentes_minimos,
-            'quantidade mínima de dependentes'
-          )
-        } else if (!Number.isFinite(nextDependentesMinimos) || nextDependentesMinimos < 1) {
-          nextDependentesMinimos = 1
-        }
-
-        if (nextDependentesMinimos < 1) {
-          return NextResponse.json(
-            { error: 'Quantidade mínima de dependentes deve ser pelo menos 1.' },
-            { status: 400 }
-          )
-        }
-
-        if (hasMaxDependentesField) {
-          nextMaxDependentes = parseOptionalIntegerField(
-            body.max_dependentes,
-            'limite máximo de dependentes'
-          )
-        } else if (nextMaxDependentes !== null && (!Number.isFinite(nextMaxDependentes) || nextMaxDependentes < 0)) {
-          nextMaxDependentes = null
-        }
-
-        if (
-          nextMaxDependentes !== null &&
-          nextMaxDependentes > 0 &&
-          nextMaxDependentes < nextDependentesMinimos
-        ) {
-          return NextResponse.json(
-            {
-              error:
-                'O limite máximo de dependentes deve ser maior ou igual à quantidade mínima.',
-            },
-            { status: 400 }
-          )
-        }
-
-        if (hasValorDependenteAdicionalField) {
-          nextValorDependenteAdicional = parseAmountField(
-            body.valor_dependente_adicional,
-            'valor adicional por dependente'
-          )
-        } else if (!Number.isFinite(nextValorDependenteAdicional) || nextValorDependenteAdicional < 0) {
-          nextValorDependenteAdicional = 0
-        }
-      } else {
+      if (hasDependentesMinimosField) {
+        nextDependentesMinimos = parseIntegerField(
+          body.dependentes_minimos,
+          'quantidade mínima de dependentes'
+        )
+      } else if (!Number.isFinite(nextDependentesMinimos) || nextDependentesMinimos < 0) {
         nextDependentesMinimos = 0
+      }
+
+      if (hasMaxDependentesField) {
+        nextMaxDependentes = parseOptionalIntegerField(
+          body.max_dependentes,
+          'limite máximo de dependentes'
+        )
+      } else if (nextMaxDependentes !== null && (!Number.isFinite(nextMaxDependentes) || nextMaxDependentes < 0)) {
         nextMaxDependentes = null
+      }
+
+      if (
+        nextMaxDependentes !== null &&
+        nextMaxDependentes > 0 &&
+        nextMaxDependentes < nextDependentesMinimos
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'O limite máximo de dependentes deve ser maior ou igual à quantidade mínima.',
+          },
+          { status: 400 }
+        )
+      }
+
+      if (hasValorDependenteAdicionalField) {
+        nextValorDependenteAdicional = parseAmountField(
+          body.valor_dependente_adicional,
+          'valor adicional por dependente'
+        )
+      } else if (!Number.isFinite(nextValorDependenteAdicional) || nextValorDependenteAdicional < 0) {
         nextValorDependenteAdicional = 0
+      }
+
+      if (nextPermiteDependentes && nextDependentesMinimos < 1) {
+        return NextResponse.json(
+          { error: 'Quando o plano permite dependentes, o mínimo deve ser pelo menos 1.' },
+          { status: 400 }
+        )
       }
     } catch (parseError) {
       return NextResponse.json(

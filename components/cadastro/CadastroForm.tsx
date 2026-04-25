@@ -177,7 +177,7 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
 
             const permiteDependentes = Boolean(plan.permiteDependentes || codigo === 'FAMILIAR')
             const minDependentes = permiteDependentes
-              ? Math.max(1, toNonNegativeInteger(plan.minDependentes, codigo === 'FAMILIAR' ? 1 : 1))
+              ? Math.max(0, toNonNegativeInteger(plan.minDependentes, codigo === 'FAMILIAR' ? 1 : 0))
               : 0
             const maxDependentes = permiteDependentes
               ? toOptionalNonNegativeInteger(plan.maxDependentes, codigo === 'FAMILIAR' ? 4 : null)
@@ -433,7 +433,7 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
 
     if (currentStep === 2 && selectedPlan?.permiteDependentes) {
       const dependentes = formData.dependentes || []
-      const minDependentes = Math.max(1, Number(selectedPlan.minDependentes || 1))
+      const minDependentes = Math.max(0, Number(selectedPlan.minDependentes || 0))
 
       if (dependentes.length < minDependentes) {
         return `O plano selecionado exige ao menos ${minDependentes} dependentes.`
@@ -566,7 +566,7 @@ export function CadastroForm({ onSuccess, initialVendedorRef = '' }: CadastroFor
       }
 
       const totalDependentes = (formData.dependentes || []).length
-      const minDependentes = Math.max(1, Number(selectedPlan.minDependentes || 1))
+      const minDependentes = Math.max(0, Number(selectedPlan.minDependentes || 0))
       if (selectedPlan.permiteDependentes && totalDependentes < minDependentes) {
         throw new Error(`O plano selecionado exige ao menos ${minDependentes} dependentes`)
       }
