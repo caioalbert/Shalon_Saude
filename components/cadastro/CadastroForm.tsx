@@ -395,7 +395,17 @@ export function CadastroForm({
     }
 
     if (step < STEPS.length - 1) {
-      setStep(step + 1)
+      let nextStep = step + 1
+
+      // Pular step 3 (Dependentes) se o plano não permitir
+      if (nextStep === 3) {
+        const selectedPlan = getPlanByCode(formData.tipo_plano)
+        if (!selectedPlan?.permiteDependentes) {
+          nextStep = 4 // Pula para Selfie
+        }
+      }
+
+      setStep(nextStep)
       setError(null)
       setValidationStep(null)
     }
@@ -403,7 +413,17 @@ export function CadastroForm({
 
   const handlePrev = () => {
     if (step > 0) {
-      setStep(step - 1)
+      let prevStep = step - 1
+
+      // Pular step 3 (Dependentes) ao voltar se o plano não permitir
+      if (prevStep === 3) {
+        const selectedPlan = getPlanByCode(formData.tipo_plano)
+        if (!selectedPlan?.permiteDependentes) {
+          prevStep = 2 // Volta para Endereço
+        }
+      }
+
+      setStep(prevStep)
       setError(null)
       setValidationStep(null)
     }
