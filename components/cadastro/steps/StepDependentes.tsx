@@ -12,7 +12,9 @@ type PlanOption = {
   nome: string
   valor: number
   permiteDependentes: boolean
-  maxDependentes: number
+  minDependentes: number
+  maxDependentes: number | null
+  valorDependenteAdicional: number
 }
 
 interface StepDependentesProps {
@@ -28,14 +30,18 @@ const FALLBACK_PLAN_OPTIONS: PlanOption[] = [
     nome: 'Plano Individual',
     valor: 0,
     permiteDependentes: false,
-    maxDependentes: 0,
+    minDependentes: 0,
+    maxDependentes: null,
+    valorDependenteAdicional: 0,
   },
   {
     codigo: 'FAMILIAR',
     nome: 'Plano Familiar',
     valor: 0,
     permiteDependentes: true,
+    minDependentes: 1,
     maxDependentes: 4,
+    valorDependenteAdicional: 0,
   },
 ]
 
@@ -54,8 +60,16 @@ function normalizePlanOptions(planOptions?: PlanOption[] | null) {
       }
 
       const permiteDependentes = Boolean(plan.permiteDependentes || codigo === 'FAMILIAR')
+      const minDependentes = permiteDependentes
+        ? Math.max(1, Number(plan.minDependentes || (codigo === 'FAMILIAR' ? 1 : 1)) || 1)
+        : 0
       const maxDependentes = permiteDependentes
-        ? Math.max(1, Number(plan.maxDependentes || (codigo === 'FAMILIAR' ? 4 : 0)) || 4)
+        ? (plan.maxDependentes === null || plan.maxDependentes === undefined || String(plan.maxDependentes).trim() === ''
+            ? (codigo === 'FAMILIAR' ? 4 : null)
+            : Math.max(0, Number(plan.maxDependentes) || 0))
+        : null
+      const valorDependenteAdicional = permiteDependentes
+        ? Math.max(0, Number(plan.valorDependenteAdicional || 0))
         : 0
 
       return {
@@ -63,7 +77,9 @@ function normalizePlanOptions(planOptions?: PlanOption[] | null) {
         nome,
         valor,
         permiteDependentes,
+        minDependentes,
         maxDependentes,
+        valorDependenteAdicional,
       } satisfies PlanOption
     })
     .filter((value): value is PlanOption => Boolean(value))
@@ -108,9 +124,15 @@ export function StepDependentes({
 
   const selectedPlan = availablePlans.find((plan) => plan.codigo === tipo_plano) || availablePlans[0]
   const planPermiteDependentes = Boolean(selectedPlan?.permiteDependentes)
-  const dependentesLimit = selectedPlan?.permiteDependentes
-    ? Math.max(1, Number(selectedPlan.maxDependentes || 4))
+  const dependentesMinimos = selectedPlan?.permiteDependentes
+    ? Math.max(1, Number(selectedPlan.minDependentes || 1))
     : 0
+  const dependentesLimit =
+    selectedPlan?.permiteDependentes &&
+    selectedPlan.maxDependentes !== null &&
+    selectedPlan.maxDependentes !== undefined
+      ? Math.max(0, Number(selectedPlan.maxDependentes) || 0)
+      : null
 
   const resetDependenteForm = () => {
     setEditingIndex(null)
@@ -146,7 +168,7 @@ export function StepDependentes({
       return
     }
 
-    if (editingIndex === null && dependentes.length >= dependentesLimit) {
+    if (editingIndex === null && dependentesLimit !== null && dependentesLimit > 0 && dependentes.length >= dependentesLimit) {
       return
     }
 
@@ -298,9 +320,9 @@ export function StepDependentes({
           {availablePlans.map((plan) => {
             const isSelected = selectedPlan?.codigo === plan.codigo
             const dependentesDescription = plan.permiteDependentes
-              ? plan.maxDependentes > 0
-                ? `Permite incluir até ${plan.maxDependentes} dependentes.`
-                : 'Permite incluir dependentes.'
+              ? plan.maxDependentes !== null && plan.maxDependentes > 0
+                ? `Mínimo ${plan.minDependentes} e máximo ${plan.maxDependentes} dependentes.`
+                : `Mínimo ${plan.minDependentes} dependentes (sem limite máximo).`
               : 'Cobertura apenas para o titular.'
 
             return (
@@ -319,6 +341,11 @@ export function StepDependentes({
                 <p className="mt-2 text-xs text-gray-700">
                   Valor do plano: {formatCurrency(plan.valor)}
                 </p>
+                {plan.permiteDependentes && plan.valorDependenteAdicional > 0 ? (
+                  <p className="mt-1 text-xs text-gray-700">
+                    Acréscimo por dependente excedente: {formatCurrency(plan.valorDependenteAdicional)}
+                  </p>
+                ) : null}
               </button>
             )
           })}
@@ -336,7 +363,11 @@ export function StepDependentes({
       {planPermiteDependentes ? (
         <p className="text-xs text-gray-500">
           Cada dependente deve ter email. Se for menor de idade, pode usar o mesmo email do titular.
-          {dependentesLimit > 0 ? ` Máximo de ${dependentesLimit} dependentes.` : ''}
+          {' '}Este plano exige mínimo de {dependentesMinimos} dependentes.
+          {dependentesLimit !== null && dependentesLimit > 0 ? ` Máximo de ${dependentesLimit} dependentes.` : ' Sem limite máximo de dependentes.'}
+          {selectedPlan && selectedPlan.valorDependenteAdicional > 0
+            ? ` Acréscimo de ${formatCurrency(selectedPlan.valorDependenteAdicional)} por dependente acima do mínimo.`
+            : ''}
         </p>
       ) : null}
 
@@ -526,7 +557,7 @@ export function StepDependentes({
                 onClick={handleAddDependente}
                 className="bg-blue-600 hover:bg-blue-700"
                 disabled={
-                  (editingIndex === null && dependentesLimit > 0 && dependentes.length >= dependentesLimit) ||
+                  (editingIndex === null && dependentesLimit !== null && dependentesLimit > 0 && dependentes.length >= dependentesLimit) ||
                   !formData.nome ||
                   !formData.rg ||
                   !formData.relacao ||
@@ -547,7 +578,7 @@ export function StepDependentes({
               )}
             </div>
 
-            {dependentesLimit > 0 && dependentes.length >= dependentesLimit && editingIndex === null && (
+            {dependentesLimit !== null && dependentesLimit > 0 && dependentes.length >= dependentesLimit && editingIndex === null && (
               <p className="text-xs text-amber-700">
                 Limite atingido: este plano permite no máximo {dependentesLimit} dependentes.
               </p>

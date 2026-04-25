@@ -11,7 +11,9 @@ type PlanOption = {
   nome: string
   valor: number
   permiteDependentes: boolean
-  maxDependentes: number
+  minDependentes: number
+  maxDependentes: number | null
+  valorDependenteAdicional: number
 }
 
 type BillingConfig = {
@@ -69,10 +71,26 @@ export function StepConfirmacao({
     billingConfig?.planos?.[0] ||
     null
 
-  const selectedMensalidadeValue =
-    billingConfig?.mensalidadeByPlanType?.[selectedPlanType] ?? 0
-  const selectedAdesaoValue =
-    billingConfig?.adesaoByPlanType?.[selectedPlanType] ?? selectedMensalidadeValue
+  const dependentesCount = Array.isArray(data.dependentes) ? data.dependentes.length : 0
+  const selectedPlanBaseValue =
+    selectedPlan
+      ? Number.isFinite(Number(selectedPlan.valor))
+        ? Number(selectedPlan.valor)
+        : 0
+      : billingConfig?.mensalidadeByPlanType?.[selectedPlanType] ?? 0
+
+  const selectedPlanMinDependentes = selectedPlan?.permiteDependentes
+    ? Math.max(1, Number(selectedPlan.minDependentes || 1))
+    : 0
+  const selectedPlanValorDependenteAdicional = selectedPlan?.permiteDependentes
+    ? Math.max(0, Number(selectedPlan.valorDependenteAdicional || 0))
+    : 0
+  const dependentesExcedentes = selectedPlan?.permiteDependentes
+    ? Math.max(0, dependentesCount - selectedPlanMinDependentes)
+    : 0
+  const adicionalDependentes = dependentesExcedentes * selectedPlanValorDependenteAdicional
+  const selectedMensalidadeValue = Math.round((selectedPlanBaseValue + adicionalDependentes + Number.EPSILON) * 100) / 100
+  const selectedAdesaoValue = selectedMensalidadeValue
 
   return (
     <div className="space-y-6">
@@ -188,9 +206,9 @@ export function StepConfirmacao({
                   {selectedPlan ? (
                     <p className="text-xs text-gray-600">
                       {selectedPlan.permiteDependentes
-                        ? selectedPlan.maxDependentes > 0
-                          ? `Permite até ${selectedPlan.maxDependentes} dependentes`
-                          : 'Permite dependentes'
+                        ? selectedPlan.maxDependentes !== null && selectedPlan.maxDependentes > 0
+                          ? `Mínimo ${selectedPlan.minDependentes} e máximo ${selectedPlan.maxDependentes} dependentes`
+                          : `Mínimo ${selectedPlan.minDependentes} dependentes (sem limite máximo)`
                         : 'Sem dependentes'}
                     </p>
                   ) : null}
@@ -210,6 +228,12 @@ export function StepConfirmacao({
                     <p className="text-base font-semibold text-gray-900">
                       {formatCurrency(selectedMensalidadeValue)}
                     </p>
+                    {selectedPlan?.permiteDependentes && selectedPlanValorDependenteAdicional > 0 ? (
+                      <p className="mt-1 text-xs text-gray-600">
+                        Base: {formatCurrency(selectedPlanBaseValue)}. Excedentes: {dependentesExcedentes} x{' '}
+                        {formatCurrency(selectedPlanValorDependenteAdicional)} = {formatCurrency(adicionalDependentes)}.
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               </div>

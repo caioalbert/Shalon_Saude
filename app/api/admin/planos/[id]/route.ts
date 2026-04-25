@@ -27,6 +27,10 @@ function mapDatabaseErrorMessage(error: unknown) {
     return 'Banco desatualizado. Execute scripts/009_add_planos_module.sql no Supabase SQL Editor.'
   }
 
+  if (/permite_dependentes|dependentes_minimos|max_dependentes|valor_dependente_adicional/i.test(details)) {
+    return 'Banco desatualizado. Execute scripts/010_add_planos_dependentes_rules.sql no Supabase SQL Editor.'
+  }
+
   if (/relation .*cobranca_configuracoes|does not exist|42P01/i.test(details)) {
     return 'Banco desatualizado. Execute scripts/005_add_billing_settings_admin.sql e scripts/006_add_plan_type_pricing.sql no Supabase SQL Editor.'
   }
@@ -41,6 +45,46 @@ function mapDatabaseErrorMessage(error: unknown) {
 async function getValidatedId(context: RouteContext) {
   const { id } = await context.params
   return id?.trim() || null
+}
+
+function parseIntegerField(value: unknown, fieldLabel: string) {
+  const normalized = String(value ?? '').trim()
+  if (!normalized) {
+    throw new Error(`Informe ${fieldLabel}.`)
+  }
+
+  const parsed = Number(normalized)
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`${fieldLabel} inválido(a).`)
+  }
+
+  return parsed
+}
+
+function parseOptionalIntegerField(value: unknown, fieldLabel: string) {
+  const normalized = String(value ?? '').trim()
+  if (!normalized) return null
+
+  const parsed = Number(normalized)
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`${fieldLabel} inválido(a).`)
+  }
+
+  return parsed
+}
+
+function parseAmountField(value: unknown, fieldLabel: string) {
+  const normalized = String(value ?? '').replace(',', '.').trim()
+  if (!normalized) {
+    throw new Error(`Informe ${fieldLabel}.`)
+  }
+
+  const parsed = Number.parseFloat(normalized)
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`${fieldLabel} inválido(a).`)
+  }
+
+  return Math.round((parsed + Number.EPSILON) * 100) / 100
 }
 
 async function syncBasePlanValueToBilling(
@@ -111,6 +155,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           nome?: string
           valor?: number | string
           ativo?: boolean
+          permite_dependentes?: boolean
+          dependentes_minimos?: number | string
+          max_dependentes?: number | string | null
+          valor_dependente_adicional?: number | string
         }
       | null
 
@@ -125,6 +173,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     const hasValorField = body.valor !== undefined
     const valor = hasValorField ? Number(body.valor) : undefined
+    const hasPermiteDependentesField = body.permite_dependentes !== undefined
+    const hasDependentesMinimosField = body.dependentes_minimos !== undefined
+    const hasMaxDependentesField = body.max_dependentes !== undefined
+    const hasValorDependenteAdicionalField = body.valor_dependente_adicional !== undefined
 
     if (nome !== undefined && !nome) {
       return NextResponse.json({ error: 'Nome do plano é obrigatório.' }, { status: 400 })
@@ -141,7 +193,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       }
     }
 
-    if (nome === undefined && !hasValorField && typeof body.ativo !== 'boolean') {
+    if (
+      nome === undefined &&
+      !hasValorField &&
+      typeof body.ativo !== 'boolean' &&
+      !hasPermiteDependentesField &&
+      !hasDependentesMinimosField &&
+      !hasMaxDependentesField &&
+      !hasValorDependenteAdicionalField
+    ) {
       return NextResponse.json({ error: 'Nenhum campo para atualizar.' }, { status: 400 })
     }
 
@@ -149,7 +209,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     const { data: currentPlan, error: currentPlanError } = await supabase
       .from('planos')
-      .select('id, codigo, nome, valor, ativo, ordem, created_at, updated_at')
+      .select(
+        'id, codigo, nome, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, created_at, updated_at'
+      )
       .eq('id', planId)
       .maybeSingle()
 
@@ -161,10 +223,89 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Plano não encontrado.' }, { status: 404 })
     }
 
+    const nextPermiteDependentes =
+      hasPermiteDependentesField
+        ? body.permite_dependentes === true
+        : Boolean(currentPlan.permite_dependentes)
+
+    let nextDependentesMinimos = Number(currentPlan.dependentes_minimos || 0)
+    let nextMaxDependentes =
+      currentPlan.max_dependentes === null || currentPlan.max_dependentes === undefined
+        ? null
+        : Number(currentPlan.max_dependentes)
+    let nextValorDependenteAdicional = Number(currentPlan.valor_dependente_adicional || 0)
+
+    try {
+      if (nextPermiteDependentes) {
+        if (hasDependentesMinimosField) {
+          nextDependentesMinimos = parseIntegerField(
+            body.dependentes_minimos,
+            'quantidade mínima de dependentes'
+          )
+        } else if (!Number.isFinite(nextDependentesMinimos) || nextDependentesMinimos < 1) {
+          nextDependentesMinimos = 1
+        }
+
+        if (nextDependentesMinimos < 1) {
+          return NextResponse.json(
+            { error: 'Quantidade mínima de dependentes deve ser pelo menos 1.' },
+            { status: 400 }
+          )
+        }
+
+        if (hasMaxDependentesField) {
+          nextMaxDependentes = parseOptionalIntegerField(
+            body.max_dependentes,
+            'limite máximo de dependentes'
+          )
+        } else if (nextMaxDependentes !== null && (!Number.isFinite(nextMaxDependentes) || nextMaxDependentes < 0)) {
+          nextMaxDependentes = null
+        }
+
+        if (
+          nextMaxDependentes !== null &&
+          nextMaxDependentes > 0 &&
+          nextMaxDependentes < nextDependentesMinimos
+        ) {
+          return NextResponse.json(
+            {
+              error:
+                'O limite máximo de dependentes deve ser maior ou igual à quantidade mínima.',
+            },
+            { status: 400 }
+          )
+        }
+
+        if (hasValorDependenteAdicionalField) {
+          nextValorDependenteAdicional = parseAmountField(
+            body.valor_dependente_adicional,
+            'valor adicional por dependente'
+          )
+        } else if (!Number.isFinite(nextValorDependenteAdicional) || nextValorDependenteAdicional < 0) {
+          nextValorDependenteAdicional = 0
+        }
+      } else {
+        nextDependentesMinimos = 0
+        nextMaxDependentes = null
+        nextValorDependenteAdicional = 0
+      }
+    } catch (parseError) {
+      return NextResponse.json(
+        {
+          error: parseError instanceof Error ? parseError.message : 'Regras de dependentes inválidas.',
+        },
+        { status: 400 }
+      )
+    }
+
     const payload: {
       nome?: string
       valor?: number
       ativo?: boolean
+      permite_dependentes?: boolean
+      dependentes_minimos?: number
+      max_dependentes?: number | null
+      valor_dependente_adicional?: number
       updated_at: string
     } = {
       updated_at: new Date().toISOString(),
@@ -173,12 +314,25 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (nome !== undefined) payload.nome = nome
     if (hasValorField && valor !== undefined) payload.valor = valor
     if (typeof body.ativo === 'boolean') payload.ativo = body.ativo
+    if (
+      hasPermiteDependentesField ||
+      hasDependentesMinimosField ||
+      hasMaxDependentesField ||
+      hasValorDependenteAdicionalField
+    ) {
+      payload.permite_dependentes = nextPermiteDependentes
+      payload.dependentes_minimos = nextDependentesMinimos
+      payload.max_dependentes = nextMaxDependentes
+      payload.valor_dependente_adicional = nextValorDependenteAdicional
+    }
 
     const { data: updatedPlan, error: updateError } = await supabase
       .from('planos')
       .update(payload)
       .eq('id', planId)
-      .select('id, codigo, nome, valor, ativo, ordem, created_at, updated_at')
+      .select(
+        'id, codigo, nome, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, created_at, updated_at'
+      )
       .single()
 
     if (updateError) {

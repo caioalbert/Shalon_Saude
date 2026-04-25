@@ -14,7 +14,9 @@ type PublicPlanOption = {
   nome: string
   valor: number
   permiteDependentes: boolean
-  maxDependentes: number
+  minDependentes: number
+  maxDependentes: number | null
+  valorDependenteAdicional: number
 }
 
 function normalizePlanCode(value: unknown) {
@@ -30,6 +32,37 @@ function toPositiveNumber(value: unknown, fallback: number) {
   return Math.round((parsed + Number.EPSILON) * 100) / 100
 }
 
+function toNonNegativeInteger(value: unknown, fallback: number) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) {
+    return fallback
+  }
+
+  return parsed
+}
+
+function toOptionalNonNegativeInteger(value: unknown, fallback: number | null = null) {
+  if (value === null || value === undefined || String(value).trim() === '') {
+    return fallback
+  }
+
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) {
+    return fallback
+  }
+
+  return parsed
+}
+
+function toNonNegativeAmount(value: unknown, fallback: number) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback
+  }
+
+  return Math.round((parsed + Number.EPSILON) * 100) / 100
+}
+
 function mapLegacyPlanOptions(settings: Awaited<ReturnType<typeof getBillingSettings>>): PublicPlanOption[] {
   return [
     {
@@ -37,14 +70,18 @@ function mapLegacyPlanOptions(settings: Awaited<ReturnType<typeof getBillingSett
       nome: 'Plano Individual',
       valor: settings.mensalidadeIndividualValue,
       permiteDependentes: false,
-      maxDependentes: 0,
+      minDependentes: 0,
+      maxDependentes: null,
+      valorDependenteAdicional: 0,
     },
     {
       codigo: 'FAMILIAR',
       nome: 'Plano Familiar',
       valor: settings.mensalidadeFamiliarValue,
       permiteDependentes: true,
+      minDependentes: 1,
       maxDependentes: 4,
+      valorDependenteAdicional: 0,
     },
   ]
 }
@@ -54,7 +91,9 @@ async function loadPublicPlanOptions(settings: Awaited<ReturnType<typeof getBill
     const supabase = createAdminClient()
     const { data, error } = await supabase
       .from('planos')
-      .select('codigo, nome, valor, ordem, created_at')
+      .select(
+        'codigo, nome, valor, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, ordem, created_at'
+      )
       .eq('ativo', true)
       .order('ordem', { ascending: true })
       .order('created_at', { ascending: true })
@@ -74,13 +113,25 @@ async function loadPublicPlanOptions(settings: Awaited<ReturnType<typeof getBill
         }
 
         const isFamiliar = codigo === 'FAMILIAR'
+        const permiteDependentes = Boolean(plan.permite_dependentes ?? isFamiliar)
+        const minDependentes = permiteDependentes
+          ? Math.max(1, toNonNegativeInteger(plan.dependentes_minimos, isFamiliar ? 1 : 1))
+          : 0
+        const maxDependentes = permiteDependentes
+          ? toOptionalNonNegativeInteger(plan.max_dependentes, isFamiliar ? 4 : null)
+          : null
+        const valorDependenteAdicional = permiteDependentes
+          ? toNonNegativeAmount(plan.valor_dependente_adicional, 0)
+          : 0
 
         return {
           codigo,
           nome,
           valor,
-          permiteDependentes: isFamiliar,
-          maxDependentes: isFamiliar ? 4 : 0,
+          permiteDependentes,
+          minDependentes,
+          maxDependentes,
+          valorDependenteAdicional,
         } satisfies PublicPlanOption
       })
       .filter((value): value is PublicPlanOption => Boolean(value))
@@ -90,7 +141,11 @@ async function loadPublicPlanOptions(settings: Awaited<ReturnType<typeof getBill
     }
   } catch (error) {
     const details = error instanceof Error ? error.message : String(error)
-    if (!/relation .*planos|does not exist|42P01/i.test(details)) {
+    if (
+      !/relation .*planos|does not exist|42P01|permite_dependentes|dependentes_minimos|max_dependentes|valor_dependente_adicional/i.test(
+        details
+      )
+    ) {
       throw error
     }
   }

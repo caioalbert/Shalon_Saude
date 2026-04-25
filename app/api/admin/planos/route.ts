@@ -34,6 +34,10 @@ function mapDatabaseErrorMessage(error: unknown) {
     return 'Banco desatualizado. Execute scripts/009_add_planos_module.sql no Supabase SQL Editor.'
   }
 
+  if (/permite_dependentes|dependentes_minimos|max_dependentes|valor_dependente_adicional/i.test(details)) {
+    return 'Banco desatualizado. Execute scripts/010_add_planos_dependentes_rules.sql no Supabase SQL Editor.'
+  }
+
   if (/duplicate key|planos_codigo_idx/i.test(details)) {
     return 'Já existe um plano com este código.'
   }
@@ -72,6 +76,46 @@ async function generateUniquePlanCode(
   throw new Error('Não foi possível gerar um código único para o plano.')
 }
 
+function parseIntegerField(value: unknown, fieldLabel: string) {
+  const normalized = String(value ?? '').trim()
+  if (!normalized) {
+    throw new Error(`Informe ${fieldLabel}.`)
+  }
+
+  const parsed = Number(normalized)
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`${fieldLabel} inválido(a).`)
+  }
+
+  return parsed
+}
+
+function parseOptionalIntegerField(value: unknown, fieldLabel: string) {
+  const normalized = String(value ?? '').trim()
+  if (!normalized) return null
+
+  const parsed = Number(normalized)
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`${fieldLabel} inválido(a).`)
+  }
+
+  return parsed
+}
+
+function parseAmountField(value: unknown, fieldLabel: string) {
+  const normalized = String(value ?? '').replace(',', '.').trim()
+  if (!normalized) {
+    throw new Error(`Informe ${fieldLabel}.`)
+  }
+
+  const parsed = Number.parseFloat(normalized)
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`${fieldLabel} inválido(a).`)
+  }
+
+  return Math.round((parsed + Number.EPSILON) * 100) / 100
+}
+
 export async function GET(request: NextRequest) {
   const authResult = await requireAdminAuth(request)
   if (!authResult.ok) {
@@ -82,7 +126,9 @@ export async function GET(request: NextRequest) {
     const supabase = createAdminClient()
     const { data, error } = await supabase
       .from('planos')
-      .select('id, codigo, nome, valor, ativo, ordem, created_at, updated_at')
+      .select(
+        'id, codigo, nome, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, created_at, updated_at'
+      )
       .order('ordem', { ascending: true })
       .order('created_at', { ascending: true })
 
@@ -113,6 +159,10 @@ export async function POST(request: NextRequest) {
       | {
           nome?: string
           valor?: number | string
+          permite_dependentes?: boolean
+          dependentes_minimos?: number | string
+          max_dependentes?: number | string | null
+          valor_dependente_adicional?: number | string
         }
       | null
 
@@ -122,6 +172,7 @@ export async function POST(request: NextRequest) {
 
     const nome = String(body.nome || '').trim()
     const valor = Number(body.valor)
+    const permiteDependentes = body.permite_dependentes === true
 
     if (!nome) {
       return NextResponse.json({ error: 'Nome do plano é obrigatório.' }, { status: 400 })
@@ -131,6 +182,55 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: `Valor inválido. O mínimo permitido pelo Asaas é R$ ${MIN_ASAAS_CHARGE_VALUE.toFixed(2).replace('.', ',')}.`,
+        },
+        { status: 400 }
+      )
+    }
+
+    let dependentesMinimos = 0
+    let maxDependentes: number | null = null
+    let valorDependenteAdicional = 0
+
+    try {
+      if (permiteDependentes) {
+        const minFromBody = body.dependentes_minimos
+        dependentesMinimos =
+          minFromBody === undefined
+            ? 1
+            : parseIntegerField(minFromBody, 'quantidade mínima de dependentes')
+
+        if (dependentesMinimos < 1) {
+          return NextResponse.json(
+            { error: 'Quantidade mínima de dependentes deve ser pelo menos 1.' },
+            { status: 400 }
+          )
+        }
+
+        maxDependentes = parseOptionalIntegerField(
+          body.max_dependentes,
+          'limite máximo de dependentes'
+        )
+
+        if (maxDependentes !== null && maxDependentes > 0 && maxDependentes < dependentesMinimos) {
+          return NextResponse.json(
+            {
+              error:
+                'O limite máximo de dependentes deve ser maior ou igual à quantidade mínima.',
+            },
+            { status: 400 }
+          )
+        }
+
+        const extraFromBody = body.valor_dependente_adicional
+        valorDependenteAdicional =
+          extraFromBody === undefined
+            ? 0
+            : parseAmountField(extraFromBody, 'valor adicional por dependente')
+      }
+    } catch (parseError) {
+      return NextResponse.json(
+        {
+          error: parseError instanceof Error ? parseError.message : 'Regras de dependentes inválidas.',
         },
         { status: 400 }
       )
@@ -157,8 +257,14 @@ export async function POST(request: NextRequest) {
         valor,
         ativo: true,
         ordem: nextOrder,
+        permite_dependentes: permiteDependentes,
+        dependentes_minimos: dependentesMinimos,
+        max_dependentes: maxDependentes,
+        valor_dependente_adicional: valorDependenteAdicional,
       })
-      .select('id, codigo, nome, valor, ativo, ordem, created_at, updated_at')
+      .select(
+        'id, codigo, nome, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, created_at, updated_at'
+      )
       .single()
 
     if (error) {

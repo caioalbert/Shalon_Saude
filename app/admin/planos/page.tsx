@@ -18,6 +18,10 @@ type Plano = {
   valor: number
   ativo: boolean
   ordem: number
+  permite_dependentes: boolean
+  dependentes_minimos: number
+  max_dependentes: number | null
+  valor_dependente_adicional: number
   created_at: string
   updated_at: string
 }
@@ -26,6 +30,10 @@ type EditablePlan = {
   nome: string
   valor: string
   ativo: boolean
+  permite_dependentes: boolean
+  dependentes_minimos: string
+  max_dependentes: string
+  valor_dependente_adicional: string
 }
 
 const MIN_CHARGE_VALUE = 5
@@ -82,6 +90,10 @@ export default function AdminPlanosPage() {
           nome: String(plano.nome || ''),
           valor: String(plano.valor ?? ''),
           ativo: Boolean(plano.ativo),
+          permite_dependentes: Boolean(plano.permite_dependentes),
+          dependentes_minimos: String(plano.dependentes_minimos ?? 0),
+          max_dependentes: plano.max_dependentes === null ? '' : String(plano.max_dependentes),
+          valor_dependente_adicional: String(plano.valor_dependente_adicional ?? 0),
         }
         return acc
       }, {})
@@ -164,7 +176,15 @@ export default function AdminPlanosPage() {
     setEditablePlanos((prev) => ({
       ...prev,
       [planId]: {
-        ...(prev[planId] || { nome: '', valor: '', ativo: true }),
+        ...(prev[planId] || {
+          nome: '',
+          valor: '',
+          ativo: true,
+          permite_dependentes: false,
+          dependentes_minimos: '0',
+          max_dependentes: '',
+          valor_dependente_adicional: '0',
+        }),
         ...next,
       },
     }))
@@ -228,6 +248,7 @@ export default function AdminPlanosPage() {
 
       const nome = plan.nome.trim()
       const valor = Number(plan.valor)
+      const permiteDependentes = Boolean(plan.permite_dependentes)
 
       if (!nome) {
         throw new Error('Nome do plano é obrigatório.')
@@ -237,6 +258,34 @@ export default function AdminPlanosPage() {
         throw new Error('Valor do plano inválido. Mínimo R$ 5,00.')
       }
 
+      let dependentesMinimos = 0
+      let maxDependentes: number | null = null
+      let valorDependenteAdicional = 0
+
+      if (permiteDependentes) {
+        dependentesMinimos = Number(plan.dependentes_minimos)
+        if (!Number.isInteger(dependentesMinimos) || dependentesMinimos < 1) {
+          throw new Error('Quantidade mínima de dependentes inválida. Informe um inteiro maior ou igual a 1.')
+        }
+
+        const maxRaw = String(plan.max_dependentes || '').trim()
+        if (maxRaw) {
+          maxDependentes = Number(maxRaw)
+          if (!Number.isInteger(maxDependentes) || maxDependentes < 0) {
+            throw new Error('Limite máximo de dependentes inválido. Informe inteiro não negativo ou deixe vazio.')
+          }
+
+          if (maxDependentes > 0 && maxDependentes < dependentesMinimos) {
+            throw new Error('Limite máximo de dependentes deve ser maior ou igual ao mínimo.')
+          }
+        }
+
+        valorDependenteAdicional = Number(plan.valor_dependente_adicional)
+        if (!Number.isFinite(valorDependenteAdicional) || valorDependenteAdicional < 0) {
+          throw new Error('Valor adicional por dependente inválido.')
+        }
+      }
+
       const response = await fetch(`/api/admin/planos/${encodeURIComponent(planId)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -244,6 +293,10 @@ export default function AdminPlanosPage() {
           nome,
           valor,
           ativo: plan.ativo,
+          permite_dependentes: permiteDependentes,
+          dependentes_minimos: dependentesMinimos,
+          max_dependentes: maxDependentes,
+          valor_dependente_adicional: valorDependenteAdicional,
         }),
       })
 
@@ -416,7 +469,9 @@ export default function AdminPlanosPage() {
             ))}
           </RadioGroup>
 
-          <p className="text-xs text-gray-600">Plano familiar permite até 4 dependentes por titular.</p>
+          <p className="text-xs text-gray-600">
+            As regras de dependentes são configuradas individualmente em cada plano.
+          </p>
 
           <div className="flex justify-end">
             <Button onClick={handleSaveDefaultPlan} disabled={isSavingDefaultPlan}>
@@ -480,6 +535,10 @@ export default function AdminPlanosPage() {
                     <th className="py-2 pr-4">Código</th>
                     <th className="py-2 pr-4">Nome</th>
                     <th className="py-2 pr-4">Valor (R$)</th>
+                    <th className="py-2 pr-4">Permite Dependentes</th>
+                    <th className="py-2 pr-4">Mínimo</th>
+                    <th className="py-2 pr-4">Máximo</th>
+                    <th className="py-2 pr-4">Adicional por Excedente (R$)</th>
                     <th className="py-2 pr-4">Ativo</th>
                     <th className="py-2">Ações</th>
                   </tr>
@@ -490,6 +549,10 @@ export default function AdminPlanosPage() {
                       nome: plano.nome,
                       valor: String(plano.valor),
                       ativo: plano.ativo,
+                      permite_dependentes: Boolean(plano.permite_dependentes),
+                      dependentes_minimos: String(plano.dependentes_minimos ?? 0),
+                      max_dependentes: plano.max_dependentes === null ? '' : String(plano.max_dependentes),
+                      valor_dependente_adicional: String(plano.valor_dependente_adicional ?? 0),
                     }
 
                     const isSavingThisPlan = savingPlanId === plano.id
@@ -514,6 +577,68 @@ export default function AdminPlanosPage() {
                             onChange={(event) => updateEditablePlan(plano.id, { valor: event.target.value })}
                             className="w-32 rounded-md border border-gray-300 px-2 py-1.5"
                             disabled={isSavingThisPlan}
+                          />
+                        </td>
+                        <td className="py-2 pr-4">
+                          <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={editable.permite_dependentes}
+                              onChange={(event) =>
+                                updateEditablePlan(plano.id, {
+                                  permite_dependentes: event.target.checked,
+                                  dependentes_minimos: event.target.checked
+                                    ? String(Math.max(1, Number(editable.dependentes_minimos || 1) || 1))
+                                    : '0',
+                                  max_dependentes: event.target.checked ? editable.max_dependentes : '',
+                                  valor_dependente_adicional: event.target.checked
+                                    ? editable.valor_dependente_adicional
+                                    : '0',
+                                })
+                              }
+                              disabled={isSavingThisPlan}
+                            />
+                            {editable.permite_dependentes ? 'Sim' : 'Não'}
+                          </label>
+                        </td>
+                        <td className="py-2 pr-4">
+                          <input
+                            type="number"
+                            min={editable.permite_dependentes ? 1 : 0}
+                            step="1"
+                            value={editable.dependentes_minimos}
+                            onChange={(event) =>
+                              updateEditablePlan(plano.id, { dependentes_minimos: event.target.value })
+                            }
+                            className="w-24 rounded-md border border-gray-300 px-2 py-1.5"
+                            disabled={isSavingThisPlan || !editable.permite_dependentes}
+                          />
+                        </td>
+                        <td className="py-2 pr-4">
+                          <input
+                            type="number"
+                            min={0}
+                            step="1"
+                            value={editable.max_dependentes}
+                            onChange={(event) =>
+                              updateEditablePlan(plano.id, { max_dependentes: event.target.value })
+                            }
+                            className="w-24 rounded-md border border-gray-300 px-2 py-1.5"
+                            placeholder="Sem limite"
+                            disabled={isSavingThisPlan || !editable.permite_dependentes}
+                          />
+                        </td>
+                        <td className="py-2 pr-4">
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={editable.valor_dependente_adicional}
+                            onChange={(event) =>
+                              updateEditablePlan(plano.id, { valor_dependente_adicional: event.target.value })
+                            }
+                            className="w-32 rounded-md border border-gray-300 px-2 py-1.5"
+                            disabled={isSavingThisPlan || !editable.permite_dependentes}
                           />
                         </td>
                         <td className="py-2 pr-4">
