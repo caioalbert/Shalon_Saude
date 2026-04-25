@@ -1,10 +1,14 @@
+'use client'
+
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useEffect, useState } from 'react'
 import {
   BadgeCheck,
   Brain,
   Camera,
+  Check,
   Clock3,
   FileCheck2,
   FileText,
@@ -13,7 +17,20 @@ import {
   ShieldCheck,
   Stethoscope,
   Users,
+  X,
 } from 'lucide-react'
+
+type PlanOption = {
+  codigo: string
+  nome: string
+  descricao: string
+  beneficios: Array<{ texto: string; inclui: boolean }>
+  valor: number
+  permiteDependentes: boolean
+  minDependentes: number
+  maxDependentes: number | null
+  valorDependenteAdicional: number
+}
 
 const BENEFITS = [
   {
@@ -75,6 +92,29 @@ const SPECIALTIES = [
 ]
 
 export default function Home() {
+  const [planos, setPlanos] = useState<PlanOption[]>([])
+  const [isLoadingPlanos, setIsLoadingPlanos] = useState(true)
+
+  useEffect(() => {
+    const fetchPlanos = async () => {
+      try {
+        const response = await fetch('/api/cadastro/cobranca-configuracoes', {
+          cache: 'no-store',
+        })
+        const payload = await response.json().catch(() => null)
+        if (response.ok && Array.isArray(payload?.planos)) {
+          setPlanos(payload.planos.filter((p: PlanOption) => p.valor > 0))
+        }
+      } catch (error) {
+        console.error('Erro ao carregar planos:', error)
+      } finally {
+        setIsLoadingPlanos(false)
+      }
+    }
+
+    fetchPlanos()
+  }, [])
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_center,_#ffffff_0%,_#f5fbf9_55%,_#ebf7f2_100%)]">
       <header className="fixed inset-x-0 top-0 z-50 border-b border-emerald-100 bg-white/85 backdrop-blur-md">
@@ -82,6 +122,9 @@ export default function Home() {
           <nav className="hidden items-center gap-7 text-sm font-medium text-gray-500 md:flex">
             <Link href="#inicio" className="transition-colors hover:text-gray-800">
               Home
+            </Link>
+            <Link href="#planos" className="transition-colors hover:text-gray-800">
+              Planos
             </Link>
             <Link href="#servicos" className="transition-colors hover:text-gray-800">
               Serviços
@@ -243,6 +286,117 @@ export default function Home() {
                 </span>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Seção de Planos */}
+      <section id="planos" className="bg-gradient-to-b from-white to-gray-50 py-20">
+        <div className="mx-auto w-full max-w-7xl px-6 sm:px-10 lg:px-16">
+          <div className="mb-12 text-center">
+            <h2 className="mb-4 text-4xl font-bold text-gray-900">Nossos Planos</h2>
+            <p className="text-lg text-gray-600">
+              Escolha o plano ideal para você e sua família
+            </p>
+          </div>
+
+          {isLoadingPlanos ? (
+            <div className="text-center">
+              <p className="text-gray-600">Carregando planos...</p>
+            </div>
+          ) : planos.length === 0 ? (
+            <div className="text-center">
+              <p className="text-gray-600">Nenhum plano disponível no momento.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+              {planos.map((plano) => (
+                <div
+                  key={plano.codigo}
+                  className="group relative rounded-2xl border-2 border-gray-200 bg-white p-8 shadow-lg transition-all hover:-translate-y-2 hover:border-teal-500 hover:shadow-2xl"
+                >
+                  <div className="mb-6">
+                    <h3 className="mb-2 text-2xl font-bold text-gray-900">{plano.nome}</h3>
+                    {plano.descricao && (
+                      <p className="text-sm text-gray-600">{plano.descricao}</p>
+                    )}
+                  </div>
+
+                  <div className="mb-6">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-4xl font-bold text-teal-700">
+                        R$ {plano.valor.toFixed(2)}
+                      </span>
+                      <span className="text-gray-600">/mês</span>
+                    </div>
+                  </div>
+
+                  {plano.beneficios.length > 0 && (
+                    <ul className="mb-8 space-y-3">
+                      {plano.beneficios.map((beneficio, idx) => (
+                        <li key={idx} className="flex items-start gap-3">
+                          {beneficio.inclui ? (
+                            <Check className="h-5 w-5 shrink-0 text-green-600 mt-0.5" />
+                          ) : (
+                            <X className="h-5 w-5 shrink-0 text-gray-400 mt-0.5" />
+                          )}
+                          <span
+                            className={
+                              beneficio.inclui
+                                ? 'text-gray-700'
+                                : 'text-gray-500 line-through'
+                            }
+                          >
+                            {beneficio.texto}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {plano.permiteDependentes && (
+                    <div className="mb-6 rounded-lg bg-blue-50 p-4">
+                      <p className="text-sm font-semibold text-blue-900">
+                        ✓ Permite dependentes
+                      </p>
+                      {plano.minDependentes > 0 && (
+                        <p className="text-xs text-blue-700">
+                          Mínimo: {plano.minDependentes} dependente(s)
+                        </p>
+                      )}
+                      {plano.maxDependentes !== null && (
+                        <p className="text-xs text-blue-700">
+                          Máximo: {plano.maxDependentes} dependente(s)
+                        </p>
+                      )}
+                      {plano.valorDependenteAdicional > 0 && (
+                        <p className="text-xs text-blue-700">
+                          + R$ {plano.valorDependenteAdicional.toFixed(2)} por dependente
+                          adicional
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <Link href="/cadastro">
+                    <Button className="w-full rounded-full bg-teal-700 py-6 text-base font-bold transition-all hover:bg-teal-800 group-hover:bg-teal-800">
+                      Escolher Plano
+                    </Button>
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-12 text-center">
+            <Link href="/cadastro">
+              <Button
+                size="lg"
+                className="rounded-full bg-gradient-to-r from-teal-700 to-emerald-700 px-12 py-6 text-lg font-bold shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl"
+              >
+                Começar Cadastro Agora
+              </Button>
+            </Link>
           </div>
         </div>
       </section>
