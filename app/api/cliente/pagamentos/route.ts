@@ -1,6 +1,6 @@
 import { requireClienteAuth } from '@/lib/supabase/cliente-auth'
 import { createClient } from '@/lib/supabase/server'
-import { listAsaasPayments } from '@/lib/asaas'
+import { listAsaasSubscriptionPayments } from '@/lib/asaas'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
@@ -10,18 +10,25 @@ export async function GET() {
     const supabase = await createClient()
     const { data: cadastro, error } = await supabase
       .from('cadastros')
-      .select('asaas_customer_id, asaas_subscription_id')
+      .select('asaas_customer_id, asaas_subscription_id, asaas_payment_id')
       .eq('id', auth.clienteId)
       .single()
 
-    if (error || !cadastro || !cadastro.asaas_customer_id) {
+    if (error || !cadastro) {
       return NextResponse.json(
         { error: 'Cadastro não encontrado.' },
         { status: 404 }
       )
     }
 
-    const payments = await listAsaasPayments(cadastro.asaas_customer_id)
+    if (!cadastro.asaas_subscription_id) {
+      return NextResponse.json(
+        { error: 'Assinatura não encontrada. Aguarde a confirmação do pagamento de adesão.' },
+        { status: 404 }
+      )
+    }
+
+    const payments = await listAsaasSubscriptionPayments(cadastro.asaas_subscription_id)
 
     return NextResponse.json({ 
       payments,

@@ -460,6 +460,38 @@ export async function listAsaasPayments(customerId: string): Promise<AsaasPaymen
     }))
 }
 
+export async function listAsaasSubscriptionPayments(subscriptionId: string): Promise<AsaasPaymentInfo[]> {
+  const response = await asaasRequest(
+    `subscriptions/${subscriptionId}/payments?limit=100`,
+    { method: 'GET' },
+    'Não foi possível listar os pagamentos da assinatura no Asaas.'
+  )
+
+  const data = await parseAsaasJson<{ data?: AsaasPaymentResponse[] }>(
+    response,
+    'Asaas retornou uma resposta inválida ao listar pagamentos da assinatura.'
+  )
+
+  if (!Array.isArray(data.data)) {
+    return []
+  }
+
+  return data.data
+    .filter((p) => p.id)
+    .map((p) => ({
+      id: p.id!,
+      status: p.status,
+      customer: p.customer,
+      externalReference: p.externalReference,
+      billingType: p.billingType,
+      value: p.value,
+      dueDate: p.dueDate,
+      description: p.description,
+      invoiceUrl: p.invoiceUrl,
+      bankSlipUrl: p.bankSlipUrl,
+    }))
+}
+
 export async function createAsaasSubscription(
   input: CreateAsaasSubscriptionInput
 ): Promise<{ id: string; nextDueDate?: string }> {

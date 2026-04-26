@@ -58,8 +58,8 @@ export default function ClientePagamentos() {
 
   const statusLabels: Record<string, { label: string; color: string }> = {
     PENDING: { label: 'Pendente', color: 'bg-yellow-100 text-yellow-800' },
-    RECEIVED: { label: 'Recebido', color: 'bg-green-100 text-green-800' },
-    CONFIRMED: { label: 'Confirmado', color: 'bg-green-100 text-green-800' },
+    RECEIVED: { label: 'Pago', color: 'bg-green-100 text-green-800' },
+    CONFIRMED: { label: 'Pago', color: 'bg-green-100 text-green-800' },
     OVERDUE: { label: 'Vencido', color: 'bg-red-100 text-red-800' },
     REFUNDED: { label: 'Reembolsado', color: 'bg-gray-100 text-gray-800' },
   }
@@ -69,6 +69,10 @@ export default function ClientePagamentos() {
     BOLETO: 'Boleto',
     CREDIT_CARD: 'Cartão',
   }
+
+  const isPaid = (status?: string) => ['RECEIVED', 'CONFIRMED'].includes(status || '')
+  const paymentsPaid = payments.filter(p => isPaid(p.status))
+  const paymentsPending = payments.filter(p => !isPaid(p.status))
 
   if (isLoading) {
     return (
@@ -107,56 +111,113 @@ export default function ClientePagamentos() {
             <p className="text-gray-600">Nenhum pagamento encontrado.</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {payments.map((payment) => {
-              const statusInfo = statusLabels[payment.status || ''] || {
-                label: payment.status || 'Desconhecido',
-                color: 'bg-gray-100 text-gray-800',
-              }
+          <div className="space-y-6">
+            {/* Pagamentos Pendentes */}
+            {paymentsPending.length > 0 && (
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 mb-3">Pendentes</h2>
+                <div className="space-y-3">
+                  {paymentsPending.map((payment) => {
+                    const statusInfo = statusLabels[payment.status || ''] || {
+                      label: payment.status || 'Desconhecido',
+                      color: 'bg-gray-100 text-gray-800',
+                    }
 
-              return (
-                <div key={payment.id} className="bg-white rounded-2xl shadow-sm p-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <p className="font-semibold text-gray-900">{payment.description || 'Pagamento'}</p>
-                      <p className="text-sm text-gray-500">{formatDate(payment.dueDate)}</p>
-                    </div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
-                      {statusInfo.label}
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-gray-500">Valor</p>
-                      <p className="text-lg font-bold" style={{ color: '#006B54' }}>{formatCurrency(payment.value)}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      {payment.invoiceUrl && (
-                        <a
-                          href={payment.invoiceUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50"
-                        >
-                          Ver Fatura
-                        </a>
-                      )}
-                      {payment.bankSlipUrl && (
-                        <a
-                          href={payment.bankSlipUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50"
-                        >
-                          Ver Boleto
-                        </a>
-                      )}
-                    </div>
-                  </div>
+                    return (
+                      <div key={payment.id} className="bg-white rounded-2xl shadow-sm p-6 border-l-4 border-yellow-400">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <p className="font-semibold text-gray-900">{payment.description || 'Mensalidade'}</p>
+                            <p className="text-sm text-gray-500">Vencimento: {formatDate(payment.dueDate)}</p>
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
+                            {statusInfo.label}
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs text-gray-500">Valor</p>
+                            <p className="text-lg font-bold" style={{ color: '#006B54' }}>{formatCurrency(payment.value)}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            {payment.invoiceUrl && (
+                              <a
+                                href={payment.invoiceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm px-4 py-2 rounded-lg text-white hover:opacity-90"
+                                style={{ backgroundColor: '#006B54' }}
+                              >
+                                Pagar
+                              </a>
+                            )}
+                            {payment.bankSlipUrl && (
+                              <a
+                                href={payment.bankSlipUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50"
+                              >
+                                Ver Boleto
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-              )
-            })}
+              </div>
+            )}
+
+            {/* Pagamentos Pagos */}
+            {paymentsPaid.length > 0 && (
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 mb-3">Pagos</h2>
+                <div className="space-y-3">
+                  {paymentsPaid.map((payment) => {
+                    const statusInfo = statusLabels[payment.status || ''] || {
+                      label: payment.status || 'Desconhecido',
+                      color: 'bg-gray-100 text-gray-800',
+                    }
+
+                    return (
+                      <div key={payment.id} className="bg-white rounded-2xl shadow-sm p-6 border-l-4 border-green-400">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <p className="font-semibold text-gray-900">{payment.description || 'Mensalidade'}</p>
+                            <p className="text-sm text-gray-500">Pago em: {formatDate(payment.dueDate)}</p>
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
+                            ✓ {statusInfo.label}
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs text-gray-500">Valor</p>
+                            <p className="text-lg font-bold text-gray-900">{formatCurrency(payment.value)}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            {payment.invoiceUrl && (
+                              <a
+                                href={payment.invoiceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50"
+                              >
+                                Ver Fatura
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
