@@ -81,111 +81,82 @@ export default function ClientePagamentos() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow">
+      <header className="bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center gap-4">
             <Link href="/cliente/dashboard">
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" className="text-gray-600">
                 ← Voltar
               </Button>
             </Link>
-            <h1 className="text-2xl font-bold text-blue-900">Pagamentos</h1>
+            <h1 className="text-2xl font-bold" style={{ color: '#006B54' }}>Pagamentos</h1>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6">
             {error}
           </div>
         )}
 
         {payments.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
+          <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
             <p className="text-gray-600">Nenhum pagamento encontrado.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Data
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Descrição
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Tipo
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Valor
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Ações
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {payments.map((payment) => {
-                    const statusInfo = statusLabels[payment.status || ''] || {
-                      label: payment.status || 'Desconhecido',
-                      color: 'bg-gray-100 text-gray-800',
-                    }
+          <div className="space-y-3">
+            {payments.map((payment) => {
+              const statusInfo = statusLabels[payment.status || ''] || {
+                label: payment.status || 'Desconhecido',
+                color: 'bg-gray-100 text-gray-800',
+              }
 
-                    return (
-                      <tr key={payment.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatDate(payment.dueDate)}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900">
-                          {payment.description || '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {billingTypeLabels[payment.billingType || ''] || payment.billingType || '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {formatCurrency(payment.value)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${statusInfo.color}`}>
-                            {statusInfo.label}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          {payment.invoiceUrl && (
-                            <a
-                              href={payment.invoiceUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:text-blue-900 mr-3"
-                            >
-                              Ver Fatura
-                            </a>
-                          )}
-                          {payment.bankSlipUrl && (
-                            <a
-                              href={payment.bankSlipUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:text-blue-900"
-                            >
-                              Ver Boleto
-                            </a>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+              return (
+                <div key={payment.id} className="bg-white rounded-2xl shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="font-semibold text-gray-900">{payment.description || 'Pagamento'}</p>
+                      <p className="text-sm text-gray-500">{formatDate(payment.dueDate)}</p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
+                      {statusInfo.label}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-gray-500">Valor</p>
+                      <p className="text-lg font-bold" style={{ color: '#006B54' }}>{formatCurrency(payment.value)}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      {payment.invoiceUrl && (
+                        <a
+                          href={payment.invoiceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50"
+                        >
+                          Ver Fatura
+                        </a>
+                      )}
+                      {payment.bankSlipUrl && (
+                        <a
+                          href={payment.bankSlipUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50"
+                        >
+                          Ver Boleto
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
       </main>
