@@ -19,16 +19,27 @@ export async function POST(request: NextRequest) {
     }
 
     const cpfClean = cpf.replace(/\D/g, '')
+    const cpfFormatted = cpfClean.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
 
     const supabase = await createClient()
     const { data: cadastro, error } = await supabase
       .from('cadastros')
       .select('id, nome, email, cpf, data_nascimento, status')
-      .eq('cpf', cpfClean)
-      .eq('data_nascimento', data_nascimento)
+      .eq('cpf', cpfFormatted)
       .single()
 
     if (error || !cadastro) {
+      return NextResponse.json(
+        { error: 'CPF ou data de nascimento incorretos.' },
+        { status: 401 }
+      )
+    }
+
+    // Comparar apenas a data (YYYY-MM-DD) ignorando timezone
+    const dataNascimentoDb = cadastro.data_nascimento?.split('T')[0] || cadastro.data_nascimento
+    const dataNascimentoInput = data_nascimento.split('T')[0]
+
+    if (dataNascimentoDb !== dataNascimentoInput) {
       return NextResponse.json(
         { error: 'CPF ou data de nascimento incorretos.' },
         { status: 401 }
