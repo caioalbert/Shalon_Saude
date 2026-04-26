@@ -56,6 +56,10 @@ type AsaasPaymentResponse = {
   externalReference?: string
   billingType?: string
   value?: number
+  dueDate?: string
+  description?: string
+  invoiceUrl?: string
+  bankSlipUrl?: string
 }
 
 type AsaasListResponse<T> = {
@@ -111,6 +115,10 @@ export type AsaasPaymentInfo = {
   externalReference?: string
   billingType?: string
   value?: number
+  dueDate?: string
+  description?: string
+  invoiceUrl?: string
+  bankSlipUrl?: string
 }
 
 const PAID_STATUSES = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'])
@@ -418,6 +426,38 @@ export async function getAsaasPayment(paymentId: string): Promise<AsaasPaymentIn
     billingType: data.billingType,
     value: data.value,
   }
+}
+
+export async function listAsaasPayments(customerId: string): Promise<AsaasPaymentInfo[]> {
+  const response = await asaasRequest(
+    `payments?customer=${customerId}&limit=100`,
+    { method: 'GET' },
+    'Não foi possível listar os pagamentos no Asaas.'
+  )
+
+  const data = await parseAsaasJson<{ data?: AsaasPaymentResponse[] }>(
+    response,
+    'Asaas retornou uma resposta inválida ao listar pagamentos.'
+  )
+
+  if (!Array.isArray(data.data)) {
+    return []
+  }
+
+  return data.data
+    .filter((p) => p.id)
+    .map((p) => ({
+      id: p.id!,
+      status: p.status,
+      customer: p.customer,
+      externalReference: p.externalReference,
+      billingType: p.billingType,
+      value: p.value,
+      dueDate: p.dueDate,
+      description: p.description,
+      invoiceUrl: p.invoiceUrl,
+      bankSlipUrl: p.bankSlipUrl,
+    }))
 }
 
 export async function createAsaasSubscription(
