@@ -22,18 +22,29 @@ export async function GET() {
     }
 
     if (!cadastro.asaas_subscription_id) {
-      return NextResponse.json(
-        { error: 'Assinatura não encontrada. Aguarde a confirmação do pagamento de adesão.' },
-        { status: 404 }
-      )
+      return NextResponse.json({ 
+        payments: [],
+        subscriptionId: null,
+        message: 'Nenhuma assinatura encontrada. Aguarde a confirmação do pagamento de adesão.',
+      })
     }
 
-    const payments = await listAsaasSubscriptionPayments(cadastro.asaas_subscription_id)
+    try {
+      const payments = await listAsaasSubscriptionPayments(cadastro.asaas_subscription_id)
 
-    return NextResponse.json({ 
-      payments,
-      subscriptionId: cadastro.asaas_subscription_id,
-    })
+      return NextResponse.json({ 
+        payments,
+        subscriptionId: cadastro.asaas_subscription_id,
+      })
+    } catch (asaasError) {
+      console.error('Erro ao buscar pagamentos no Asaas:', asaasError)
+      
+      return NextResponse.json({ 
+        payments: [],
+        subscriptionId: cadastro.asaas_subscription_id,
+        message: 'Não foi possível buscar os pagamentos no momento. Tente novamente mais tarde.',
+      })
+    }
   } catch (error) {
     if (error instanceof Error && error.message === 'Não autenticado') {
       return NextResponse.json(

@@ -43,6 +43,11 @@ export default function ClientePagamentos() {
       }
 
       setPayments(data.payments || [])
+      
+      // Mostrar mensagem se houver
+      if (data.message && data.payments.length === 0) {
+        setError(data.message)
+      }
     } catch (err) {
       setError('Erro ao conectar com o servidor')
     } finally {
@@ -101,14 +106,26 @@ export default function ClientePagamentos() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6">
-            {error}
+          <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-xl mb-6">
+            <p className="text-sm">{error}</p>
           </div>
         )}
 
-        {payments.length === 0 ? (
+        {payments.length === 0 && !error ? (
           <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
             <p className="text-gray-600">Nenhum pagamento encontrado.</p>
+          </div>
+        ) : payments.length === 0 && error ? (
+          <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
+            <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center bg-blue-50">
+              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Aguardando confirmação</h2>
+            <p className="text-gray-600">
+              Seus pagamentos aparecerão aqui após a confirmação do pagamento de adesão.
+            </p>
           </div>
         ) : (
           <div className="space-y-6">
