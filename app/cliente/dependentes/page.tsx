@@ -32,9 +32,18 @@ type Dependente = {
   sexo?: string
 }
 
+type Plano = {
+  codigo: string
+  nome: string
+  permite_dependentes: boolean
+  min_dependentes: number
+  max_dependentes: number | null
+}
+
 export default function ClienteDependentes() {
   const router = useRouter()
   const [dependentes, setDependentes] = useState<Dependente[]>([])
+  const [plano, setPlano] = useState<Plano | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -53,7 +62,27 @@ export default function ClienteDependentes() {
 
   useEffect(() => {
     fetchDependentes()
+    fetchPlano()
   }, [])
+
+  const fetchPlano = async () => {
+    try {
+      const response = await fetch('/api/cliente/plano')
+      
+      if (response.status === 401) {
+        router.push('/login')
+        return
+      }
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setPlano(data.plano)
+      }
+    } catch (err) {
+      console.error('Erro ao conectar com o servidor:', err)
+    }
+  }
 
   const fetchDependentes = async () => {
     try {
@@ -185,37 +214,114 @@ export default function ClienteDependentes() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow">
+      <header className="bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link href="/cliente/dashboard">
-                <Button variant="ghost" size="sm">
+                <Button variant="ghost" size="sm" className="text-gray-600">
                   ← Voltar
                 </Button>
               </Link>
-              <h1 className="text-2xl font-bold text-blue-900">Dependentes</h1>
+              <h1 className="text-2xl font-bold" style={{ color: '#006B54' }}>Dependentes</h1>
             </div>
-            <Button onClick={handleAdd}>+ Adicionar Dependente</Button>
+            {plano?.permite_dependentes && (
+              <Button 
+                onClick={handleAdd}
+                style={{ backgroundColor: '#006B54' }}
+                className="text-white hover:opacity-90"
+              >
+                + Adicionar Dependente
+              </Button>
+            )}
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6">
             {error}
           </div>
         )}
 
-        {dependentes.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <p className="text-gray-600 mb-4">Nenhum dependente cadastrado.</p>
-            <Button onClick={handleAdd}>Adicionar Primeiro Dependente</Button>
+        {/* Plano não identificado */}
+        {plano === null && (
+          <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
+            <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center bg-gray-100">
+              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Não conseguimos identificar seu plano</h2>
+            <p className="text-gray-600 mb-6">
+              Entre em contato com o suporte ou escolha um novo plano.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <Button 
+                variant="outline"
+                onClick={() => window.open('https://wa.me/5585991452514', '_blank')}
+              >
+                Contatar Suporte
+              </Button>
+              <Button 
+                style={{ backgroundColor: '#006B54' }}
+                className="text-white hover:opacity-90"
+                disabled
+              >
+                Escolher Plano (Em breve)
+              </Button>
+            </div>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        )}
+
+        {/* Plano não permite dependentes */}
+        {plano && !plano.permite_dependentes && (
+          <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
+            <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ backgroundColor: '#FFF4E6' }}>
+              <svg className="w-8 h-8" style={{ color: '#FF9800' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Seu plano não permite dependentes</h2>
+            <p className="text-gray-600 mb-6">
+              Faça upgrade para um plano familiar e adicione seus dependentes.
+            </p>
+            <Button 
+              style={{ backgroundColor: '#006B54' }}
+              className="text-white hover:opacity-90"
+              disabled
+            >
+              Fazer Upgrade (Em breve)
+            </Button>
+          </div>
+        )}
+
+        {/* Plano permite dependentes */}
+        {plano && plano.permite_dependentes && (
+          <>
+            {dependentes.length === 0 ? (
+              <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
+                <p className="text-gray-600 mb-4">Nenhum dependente cadastrado.</p>
+                <Button 
+                  onClick={handleAdd}
+                  style={{ backgroundColor: '#006B54' }}
+                  className="text-white hover:opacity-90"
+                >
+                  Adicionar Primeiro Dependente
+                </Button>
+              </div>
+            ) : (
+              <>
+                {/* Info do plano */}
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+                  <p className="text-sm text-blue-900">
+                    <strong>{plano.nome}</strong> - {dependentes.length} de {plano.max_dependentes || '∞'} dependentes cadastrados
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {dependentes.map((dependente) => (
               <div key={dependente.id} className="bg-white rounded-lg shadow p-6">
                 <div className="mb-4">
@@ -261,6 +367,9 @@ export default function ClienteDependentes() {
               </div>
             ))}
           </div>
+              </>
+            )}
+          </>
         )}
       </main>
 

@@ -55,6 +55,51 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await createClient()
+    
+    // Verificar se o plano permite dependentes
+    const { data: cadastro } = await supabase
+      .from('cadastros')
+      .select('tipo_plano')
+      .eq('id', auth.clienteId)
+      .single()
+
+    if (!cadastro) {
+      return NextResponse.json(
+        { error: 'Cadastro não encontrado.' },
+        { status: 404 }
+      )
+    }
+
+    // Buscar configuração do plano
+    const { data: plano } = await supabase
+      .from('planos')
+      .select('permite_dependentes, max_dependentes')
+      .eq('codigo', cadastro.tipo_plano)
+      .eq('ativo', true)
+      .single()
+
+    if (!plano || !plano.permite_dependentes) {
+      return NextResponse.json(
+        { error: 'Seu plano não permite adicionar dependentes. Faça upgrade para um plano familiar.' },
+        { status: 403 }
+      )
+    }
+
+    // Verificar limite de dependentes
+    if (plano.max_dependentes !== null) {
+      const { count } = await supabase
+        .from('dependentes')
+        .select('*', { count: 'exact', head: true })
+        .eq('cadastro_id', auth.clienteId)
+
+      if (count !== null && count >= plano.max_dependentes) {
+        return NextResponse.json(
+          { error: `Você atingiu o limite de ${plano.max_dependentes} dependentes do seu plano.` },
+          { status: 403 }
+        )
+      }
+    }
+
     const { data: dependente, error } = await supabase
       .from('dependentes')
       .insert([
