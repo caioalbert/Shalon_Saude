@@ -120,7 +120,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_center,_#ffffff_0%,_#f5fbf9_55%,_#ebf7f2_100%)]">
-      <header className="fixed inset-x-0 top-0 z-50 border-b border-emerald-100 bg-white/85 backdrop-blur-md">
+      <header className="fixed inset-x-0 top-0 z-50 hidden border-b border-emerald-100 bg-white/85 backdrop-blur-md md:block">
         <div className="mx-auto flex h-20 w-full max-w-7xl items-center justify-end px-6 sm:px-10 lg:px-16">
           <nav className="hidden items-center gap-7 text-sm font-medium text-gray-500 md:flex">
             <Link href="#inicio" className="transition-colors hover:text-gray-800">
@@ -142,7 +142,7 @@ export default function Home() {
         </div>
       </header>
 
-      <section id="inicio" className="pb-20 pt-32 sm:pt-36 lg:pt-40">
+      <section id="inicio" className="pb-20 pt-24 sm:pt-28 md:pt-32 lg:pt-40">
         <div className="mx-auto w-full max-w-7xl px-6 sm:px-10 lg:px-16">
           <div className="grid grid-cols-1 items-start gap-12 lg:grid-cols-5">
             <div className="space-y-8 lg:col-span-3">

@@ -107,33 +107,31 @@ export default function CadastroPageClient({
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-2xl mx-auto">
-        <div className="bg-white rounded-xl shadow-xl overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-8 sm:px-8">
-            <h1 className="text-3xl font-bold text-white">Cadastro SHALOM Saúde</h1>
-            <p className="text-blue-100 mt-2">Preencha seus dados para adesão ao serviço</p>
-            {vendedorRef && (
-              <div className="mt-4 rounded-lg border border-white/30 bg-white/10 px-3 py-2">
-                <p className="text-sm font-semibold text-white">
-                  Consultor: {isLoadingConsultor ? 'Carregando...' : consultorNome || 'Não identificado'}
-                </p>
-                <p className="text-xs text-blue-100">Código de indicação: {vendedorRef}</p>
-                {!isLoadingConsultor && !consultorNome && consultorStatusMessage && (
-                  <p className="text-xs text-blue-100">{consultorStatusMessage}</p>
-                )}
-              </div>
-            )}
-          </div>
+    <main className="min-h-screen w-full bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 px-5 py-10">
+      <div className="mx-auto w-full">
+        <section className="mb-8 w-full rounded-2xl border border-white/60 bg-white/70 px-6 py-8 shadow-sm backdrop-blur sm:px-8">
+          <h1 className="text-3xl font-bold text-gray-900">Cadastro SHALOM Saúde</h1>
+          <p className="mt-2 text-gray-600">Preencha seus dados para adesão ao serviço</p>
+          {vendedorRef && (
+            <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+              <p className="text-sm font-semibold text-blue-900">
+                Consultor: {isLoadingConsultor ? 'Carregando...' : consultorNome || 'Não identificado'}
+              </p>
+              <p className="text-xs text-blue-700">Código de indicação: {vendedorRef}</p>
+              {!isLoadingConsultor && !consultorNome && consultorStatusMessage && (
+                <p className="text-xs text-blue-700">{consultorStatusMessage}</p>
+              )}
+            </div>
+          )}
+        </section>
 
-          <div className="px-6 py-8 sm:px-8">
-            <CadastroForm
-              onSuccess={handleSuccess}
-              initialVendedorRef={vendedorRef}
-              initialPlanoCode={initialPlanoCode}
-            />
-          </div>
-        </div>
+        <section className="w-full rounded-2xl border border-white/60 bg-white/80 px-6 py-8 shadow-sm backdrop-blur sm:px-8">
+          <CadastroForm
+            onSuccess={handleSuccess}
+            initialVendedorRef={vendedorRef}
+            initialPlanoCode={initialPlanoCode}
+          />
+        </section>
       </div>
     </main>
   )

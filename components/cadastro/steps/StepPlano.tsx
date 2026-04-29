@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { calculatePlanChargeBreakdown } from '@/lib/plan-pricing'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Check, X } from 'lucide-react'
+import { CheckCircle2, XCircle } from 'lucide-react'
 
 type PlanOption = {
   codigo: string
@@ -66,7 +66,7 @@ export function StepPlano({
       </div>
 
       <RadioGroup value={selectedPlanCode} onValueChange={onSelectPlan}>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="flex flex-wrap justify-center gap-5">
           {planos.map((plano) => {
             const isSelected = plano.codigo === selectedPlanCode
             const isPerLifeMode =
@@ -89,69 +89,75 @@ export function StepPlano({
             return (
               <label
                 key={plano.codigo}
-                className={`relative cursor-pointer rounded-lg border-2 p-6 transition-all ${
+                className={`group relative block w-full max-w-[390px] md:w-[360px] md:max-w-none cursor-pointer rounded-2xl border p-6 transition-all duration-300 hover:-translate-y-2 md:p-7 ${
                   isSelected
-                    ? 'border-blue-600 bg-blue-50'
-                    : 'border-gray-200 bg-white hover:border-gray-300'
+                    ? 'border-blue-500 bg-white/95 shadow-xl ring-2 ring-blue-100'
+                    : 'border-slate-200 bg-white/85 shadow-md hover:border-blue-300 hover:shadow-xl'
                 }`}
               >
-                <div className="flex items-start gap-3">
-                  <RadioGroupItem value={plano.codigo} id={plano.codigo} />
-                  <div className="flex-1 space-y-3">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">{plano.nome}</h3>
-                      {plano.descricao && (
-                        <p className="mt-1 text-sm text-gray-600">{plano.descricao}</p>
-                      )}
-                    </div>
+                <RadioGroupItem value={plano.codigo} id={plano.codigo} className="sr-only" />
 
-                    <div className="text-2xl font-bold text-gray-900">
-                      {formatCurrency(displayPlanValue)}
-                      {!isPerLifeMode && (
-                        <span className="text-sm font-normal text-gray-600">/mês</span>
-                      )}
-                    </div>
-                    {isPerLifeMode && (
-                      <p className="text-xs text-gray-600">
-                        Valor por pessoa: {formatCurrency(plano.valor)}
+                <div className="min-w-0 space-y-2">
+                  <h3 className="text-xl font-bold text-gray-900">{plano.nome}</h3>
+                  {plano.descricao && (
+                    <p className="text-sm leading-relaxed text-gray-600 break-words">{plano.descricao}</p>
+                  )}
+                </div>
+
+                <div className="mt-6 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white px-4 py-4">
+                  <p className="text-4xl font-extrabold leading-tight text-slate-800">
+                    {formatCurrency(displayPlanValue)}
+                    {!isPerLifeMode && (
+                      <span className="ml-1 text-sm font-semibold text-slate-600">/mês</span>
+                    )}
+                  </p>
+                  {isPerLifeMode && (
+                    <p className="mt-1 text-sm font-medium text-slate-600">
+                      Valor por pessoa: {formatCurrency(plano.valor)}
+                    </p>
+                  )}
+                </div>
+
+                {plano.beneficios.length > 0 && (
+                  <ul className="mt-6 space-y-3 text-sm">
+                    {plano.beneficios.map((beneficio, idx) => (
+                      <li key={idx} className="flex items-start gap-3">
+                        {beneficio.inclui ? (
+                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                        ) : (
+                          <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                        )}
+                        <span className={beneficio.inclui ? 'text-gray-700' : 'text-gray-500'}>
+                          {beneficio.texto}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {plano.permiteDependentes && (
+                  <div className="mt-5 rounded-xl bg-blue-50 p-4">
+                    <p className="text-sm font-semibold text-blue-900">✓ Permite dependentes</p>
+                    {plano.minDependentes > 0 && (
+                      <p className="text-xs text-blue-700">
+                        Mínimo: {plano.minDependentes + 1} pessoa(s)
                       </p>
                     )}
-
-                    {plano.beneficios.length > 0 && (
-                      <ul className="space-y-2 text-sm">
-                        {plano.beneficios.map((beneficio, idx) => (
-                          <li key={idx} className="flex items-start gap-2">
-                            {beneficio.inclui ? (
-                              <Check className="h-4 w-4 shrink-0 text-green-600 mt-0.5" />
-                            ) : (
-                              <X className="h-4 w-4 shrink-0 text-gray-400 mt-0.5" />
-                            )}
-                            <span className={beneficio.inclui ? 'text-gray-700' : 'text-gray-500'}>
-                              {beneficio.texto}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
+                    {plano.maxDependentes !== null && (
+                      <p className="text-xs text-blue-700">
+                        Máximo: {plano.maxDependentes + 1} pessoa(s)
+                      </p>
                     )}
-
-                    {plano.permiteDependentes && (
-                      <div className="pt-3 border-t border-gray-200">
-                        <p className="text-xs text-gray-600">
-                          ✓ Permite dependentes
-                          {plano.minDependentes > 0 && ` (mín: ${plano.minDependentes + 1} pessoas)`}
-                          {plano.maxDependentes !== null && ` (máx: ${plano.maxDependentes + 1} pessoas)`}
-                        </p>
-                        {plano.valorDependenteAdicional > 0 && (
-                          <p className="text-xs text-gray-600">
-                            {isPerLifeMode
-                              ? `+ R$ ${plano.valorDependenteAdicional.toFixed(2)} por vida adicional`
-                              : `+ R$ ${plano.valorDependenteAdicional.toFixed(2)} por dependente adicional`}
-                          </p>
-                        )}
-                      </div>
+                    {plano.valorDependenteAdicional > 0 && (
+                      <p className="text-xs text-blue-700">
+                        {isPerLifeMode
+                          ? `+ R$ ${plano.valorDependenteAdicional.toFixed(2)} por vida adicional`
+                          : `+ R$ ${plano.valorDependenteAdicional.toFixed(2)} por dependente adicional`}
+                      </p>
                     )}
                   </div>
-                </div>
+                )}
+
               </label>
             )
           })}
