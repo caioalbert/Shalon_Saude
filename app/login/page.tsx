@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -64,13 +65,19 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="bg-white rounded-lg shadow-xl p-8">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-blue-900">SHALOM Saúde</h1>
-            <p className="text-gray-600 mt-2">Área do Cliente</p>
+            <Image
+              src="/logo-horizontal-v2.png"
+              alt="SHALOM Saúde"
+              width={520}
+              height={169}
+              unoptimized
+              className="mx-auto h-14 w-auto sm:h-16"
+            />
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <Label htmlFor="cpf">CPF</Label>
+              <Label htmlFor="cpf" className="mb-2 block">CPF</Label>
               <Input
                 id="cpf"
                 type="text"
@@ -84,7 +91,7 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <Label htmlFor="data_nascimento">Data de Nascimento</Label>
+              <Label htmlFor="data_nascimento" className="mb-2 block">Data de Nascimento</Label>
               <Input
                 id="data_nascimento"
                 type="date"
