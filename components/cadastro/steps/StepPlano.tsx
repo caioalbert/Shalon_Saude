@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button'
+import { calculatePlanChargeBreakdown } from '@/lib/plan-pricing'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Check, X } from 'lucide-react'
 
@@ -30,6 +31,30 @@ export function StepPlano({
   isLoading = false,
 }: StepPlanoProps) {
   const selectedPlan = planos.find((p) => p.codigo === selectedPlanCode)
+  const formatCurrency = (value: number) =>
+    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const selectedPlanPerLifeMode = Boolean(
+    selectedPlan &&
+    selectedPlan.permiteDependentes &&
+    selectedPlan.valorDependenteAdicional > 0 &&
+    Math.abs(selectedPlan.valor - selectedPlan.valorDependenteAdicional) < 0.0001
+  )
+  const selectedPlanBreakdown = selectedPlan
+    ? calculatePlanChargeBreakdown(
+        {
+          valor: selectedPlan.valor,
+          permiteDependentes: selectedPlan.permiteDependentes,
+          minDependentes: selectedPlan.minDependentes,
+          valorDependenteAdicional: selectedPlan.valorDependenteAdicional,
+        },
+        0
+      )
+    : null
+  const selectedPlanDisplayValue = selectedPlan
+    ? selectedPlanPerLifeMode
+      ? selectedPlanBreakdown?.minimumAmount || selectedPlan.valor
+      : selectedPlan.valor
+    : 0
 
   return (
     <div className="space-y-6">
@@ -48,6 +73,18 @@ export function StepPlano({
               plano.permiteDependentes &&
               plano.valorDependenteAdicional > 0 &&
               Math.abs(plano.valor - plano.valorDependenteAdicional) < 0.0001
+            const priceBreakdown = calculatePlanChargeBreakdown(
+              {
+                valor: plano.valor,
+                permiteDependentes: plano.permiteDependentes,
+                minDependentes: plano.minDependentes,
+                valorDependenteAdicional: plano.valorDependenteAdicional,
+              },
+              0
+            )
+            const displayPlanValue = isPerLifeMode
+              ? priceBreakdown.minimumAmount
+              : plano.valor
 
             return (
               <label
@@ -69,11 +106,16 @@ export function StepPlano({
                     </div>
 
                     <div className="text-2xl font-bold text-gray-900">
-                      R$ {plano.valor.toFixed(2)}
-                      <span className="text-sm font-normal text-gray-600">
-                        {isPerLifeMode ? '/vida' : '/mês'}
-                      </span>
+                      {formatCurrency(displayPlanValue)}
+                      {!isPerLifeMode && (
+                        <span className="text-sm font-normal text-gray-600">/mês</span>
+                      )}
                     </div>
+                    {isPerLifeMode && (
+                      <p className="text-xs text-gray-600">
+                        Valor por pessoa: {formatCurrency(plano.valor)}
+                      </p>
+                    )}
 
                     {plano.beneficios.length > 0 && (
                       <ul className="space-y-2 text-sm">
@@ -119,14 +161,15 @@ export function StepPlano({
       {selectedPlan && (
         <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
           <p className="text-sm text-blue-900">
-            <strong>Plano selecionado:</strong> {selectedPlan.nome} - R${' '}
-            {selectedPlan.valor.toFixed(2)}
-            {selectedPlan.permiteDependentes &&
-            selectedPlan.valorDependenteAdicional > 0 &&
-            Math.abs(selectedPlan.valor - selectedPlan.valorDependenteAdicional) < 0.0001
-              ? '/vida'
-              : '/mês'}
+            <strong>Plano selecionado:</strong> {selectedPlan.nome} -{' '}
+            {formatCurrency(selectedPlanDisplayValue)}
+            {!selectedPlanPerLifeMode ? '/mês' : ''}
           </p>
+          {selectedPlanPerLifeMode && (
+            <p className="mt-1 text-xs text-blue-700">
+              Valor por pessoa: {formatCurrency(selectedPlan.valor)}
+            </p>
+          )}
         </div>
       )}
 

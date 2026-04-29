@@ -207,7 +207,7 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
                   {invoiceUrl && (
                     <Button asChild className="w-full bg-indigo-600 hover:bg-indigo-700">
                       <a href={invoiceUrl} target="_blank" rel="noreferrer">
-                        Abrir Fatura
+                        {isCreditCardPayment ? 'Adicionar dados do cartão' : 'Abrir Fatura'}
                       </a>
                     </Button>
                   )}
@@ -286,11 +286,6 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
               )}
 
               <div className="flex flex-col gap-3">
-                <Link href="/login" className="w-full">
-                  <Button className="w-full bg-indigo-600 hover:bg-indigo-700">
-                    Fazer login na minha conta
-                  </Button>
-                </Link>
                 <Link href="/" className="w-full">
                   <Button variant="outline" className="w-full">
                     Voltar para Início
