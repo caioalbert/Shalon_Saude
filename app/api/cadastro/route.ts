@@ -1,14 +1,14 @@
 import {
   AsaasIntegrationError,
+  createAsaasPayment,
   createAsaasCustomer,
-  createAsaasPixPayment,
-  getAsaasPixQrCode,
 } from '@/lib/asaas'
 import {
   getBillingSettings,
   MIN_ASAAS_CHARGE_VALUE,
   type BillingTypeOption,
 } from '@/lib/billing-settings'
+import { calculatePlanChargeBreakdown } from '@/lib/plan-pricing'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getAgeFromIsoDate, isValidCPF, isValidEmail } from '@/lib/utils'
@@ -28,6 +28,30 @@ function onlyDigits(value: string) {
 
 function toIsoDate(date: Date) {
   return date.toISOString().slice(0, 10)
+}
+
+type CadastroBillingType = 'BOLETO' | 'CREDIT_CARD'
+
+function normalizeCadastroBillingType(
+  requestedValue: string | null | undefined,
+  fallbackValue: BillingTypeOption | null | undefined
+): CadastroBillingType {
+  const requested = String(requestedValue || '')
+    .trim()
+    .toUpperCase()
+
+  if (requested === 'CREDIT_CARD') {
+    return 'CREDIT_CARD'
+  }
+
+  if (requested === 'BOLETO' || requested === 'PIX') {
+    return 'BOLETO'
+  }
+
+  const fallback = String(fallbackValue || '')
+    .trim()
+    .toUpperCase()
+  return fallback === 'CREDIT_CARD' ? 'CREDIT_CARD' : 'BOLETO'
 }
 
 type CadastroPlanOption = {
@@ -85,14 +109,15 @@ function toNonNegativeAmount(value: unknown, fallback: number) {
 }
 
 function calculatePlanChargeValue(plan: CadastroPlanOption, dependentesCount: number) {
-  const baseValue = toPositiveNumber(plan.valor, 0)
-  const minDependentes = plan.permiteDependentes ? Math.max(0, plan.minDependentes) : 0
-  const extraDependentes = plan.permiteDependentes
-    ? Math.max(0, dependentesCount - minDependentes)
-    : 0
-  const extraUnitValue = plan.permiteDependentes ? toNonNegativeAmount(plan.valorDependenteAdicional, 0) : 0
-
-  return Math.round((baseValue + extraDependentes * extraUnitValue + Number.EPSILON) * 100) / 100
+  return calculatePlanChargeBreakdown(
+    {
+      valor: plan.valor,
+      permiteDependentes: plan.permiteDependentes,
+      minDependentes: plan.minDependentes,
+      valorDependenteAdicional: plan.valorDependenteAdicional,
+    },
+    dependentesCount
+  ).total
 }
 
 function mapLegacyCadastroPlans(settings: Awaited<ReturnType<typeof getBillingSettings>>): CadastroPlanOption[] {
@@ -518,8 +543,11 @@ export async function POST(request: NextRequest) {
 
     if (tem_dependentes) {
       if (minDependentesPlano > 0 && dependentesPayload.length === 0) {
+        const minPessoasPlano = minDependentesPlano + 1
         return NextResponse.json(
-          { error: `O plano selecionado exige pelo menos ${minDependentesPlano} dependentes.` },
+          {
+            error: `O plano selecionado exige pelo menos ${minPessoasPlano} pessoas (titular + dependentes).`,
+          },
           { status: 400 }
         )
       }
@@ -600,8 +628,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (tem_dependentes && dependentes.length < minDependentesPlano) {
+      const minPessoasPlano = minDependentesPlano + 1
       return NextResponse.json(
-        { error: `O plano selecionado exige pelo menos ${minDependentesPlano} dependentes.` },
+        {
+          error: `O plano selecionado exige pelo menos ${minPessoasPlano} pessoas (titular + dependentes).`,
+        },
         { status: 400 }
       )
     }
@@ -619,21 +650,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const mensalidadeBillingType = (() => {
-      if (!mensalidadeBillingTypeRequested) {
-        return billingSettings.defaultMensalidadeBillingType
-      }
-
-      if (
-        !billingSettings.mensalidadeBillingTypes.includes(
-          mensalidadeBillingTypeRequested as BillingTypeOption
-        )
-      ) {
-        throw new Error('Forma de cobrança mensal inválida para o plano atual.')
-      }
-
-      return mensalidadeBillingTypeRequested
-    })()
+    const mensalidadeBillingType = normalizeCadastroBillingType(
+      mensalidadeBillingTypeRequested,
+      billingSettings.defaultMensalidadeBillingType
+    )
+    const adesaoBillingType = mensalidadeBillingType
     const hasDependentes = dependentes.length > 0
     const mensalidadeValor = calculatePlanChargeValue(selectedPlan, dependentes.length)
     const adesaoValue = mensalidadeValor
@@ -649,8 +670,8 @@ export async function POST(request: NextRequest) {
 
     let asaasCustomerId: string
     let asaasPaymentId: string
-    let pixCopyPaste: string
-    let pixQrCodeImage: string
+    let asaasPaymentInvoiceUrl: string | null = null
+    let asaasPaymentBankSlipUrl: string | null = null
     try {
       const asaasCustomer = await createAsaasCustomer({
         name: nomeValue,
@@ -667,18 +688,17 @@ export async function POST(request: NextRequest) {
       })
       asaasCustomerId = asaasCustomer.id
 
-      const payment = await createAsaasPixPayment({
+      const payment = await createAsaasPayment({
         customer: asaasCustomerId,
         value: adesaoValue,
         dueDate: adesaoDueDate,
+        billingType: adesaoBillingType,
         description: 'Taxa de adesão SHALOM Saúde',
         externalReference: cadastroId,
       })
       asaasPaymentId = payment.id
-
-      const pixQrCode = await getAsaasPixQrCode(asaasPaymentId)
-      pixCopyPaste = pixQrCode.payload
-      pixQrCodeImage = pixQrCode.encodedImage
+      asaasPaymentInvoiceUrl = payment.invoiceUrl || null
+      asaasPaymentBankSlipUrl = payment.bankSlipUrl || null
     } catch (error) {
       if (error instanceof AsaasIntegrationError) {
         return NextResponse.json({ error: error.message }, { status: error.status })
@@ -848,8 +868,9 @@ export async function POST(request: NextRequest) {
         id: asaasPaymentId,
         valor: adesaoValue,
         vencimento: adesaoDueDate,
-        pixCopiaECola: pixCopyPaste,
-        qrCodeBase64: pixQrCodeImage,
+        billingType: adesaoBillingType,
+        invoiceUrl: asaasPaymentInvoiceUrl,
+        bankSlipUrl: asaasPaymentBankSlipUrl,
       },
       tipoPlanoEscolhido: tipoPlano,
       mensalidadeValor,

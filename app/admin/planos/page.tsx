@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 
-type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD'
+type BillingType = 'BOLETO' | 'CREDIT_CARD'
 
 type Plano = {
   id: string
@@ -41,6 +41,29 @@ type EditablePlan = {
 
 const MIN_CHARGE_VALUE = 5
 
+function normalizeBillingType(value: unknown): BillingType | null {
+  const normalized = String(value || '').trim().toUpperCase()
+  if (normalized === 'CREDIT_CARD') {
+    return 'CREDIT_CARD'
+  }
+
+  if (normalized === 'BOLETO' || normalized === 'PIX') {
+    return 'BOLETO'
+  }
+
+  return null
+}
+
+function normalizeBillingTypeList(values: unknown): BillingType[] {
+  if (!Array.isArray(values)) {
+    return []
+  }
+
+  return Array.from(
+    new Set(values.map((value) => normalizeBillingType(value)).filter((value): value is BillingType => Boolean(value)))
+  )
+}
+
 export default function AdminPlanosPage() {
   const router = useRouter()
 
@@ -53,9 +76,9 @@ export default function AdminPlanosPage() {
   const [isSavingAll, setIsSavingAll] = useState(false)
 
   const [defaultPlanType, setDefaultPlanType] = useState('')
-  const [mensalidadeBillingTypes, setMensalidadeBillingTypes] = useState<BillingType[]>(['PIX'])
+  const [mensalidadeBillingTypes, setMensalidadeBillingTypes] = useState<BillingType[]>(['BOLETO', 'CREDIT_CARD'])
   const [defaultMensalidadeBillingType, setDefaultMensalidadeBillingType] =
-    useState<BillingType>('PIX')
+    useState<BillingType>('BOLETO')
 
   const [novoPlanoNome, setNovoPlanoNome] = useState('')
   const [novoPlanoValor, setNovoPlanoValor] = useState('')
@@ -120,9 +143,9 @@ export default function AdminPlanosPage() {
         throw new Error(payload?.error || 'Erro ao carregar configuração de plano padrão.')
       }
 
-      const types = Array.isArray(payload?.settings?.mensalidadeBillingTypes)
-        ? payload.settings.mensalidadeBillingTypes
-        : ['PIX']
+      const types = normalizeBillingTypeList(payload?.settings?.mensalidadeBillingTypes)
+      const effectiveTypes: BillingType[] =
+        types.length > 0 ? types : ['BOLETO', 'CREDIT_CARD']
       const nextDefaultPlanType = String(payload?.settings?.defaultPlanType || '')
         .trim()
         .toUpperCase()
@@ -130,9 +153,12 @@ export default function AdminPlanosPage() {
       if (nextDefaultPlanType) {
         setDefaultPlanType(nextDefaultPlanType)
       }
-      setMensalidadeBillingTypes(types)
+      setMensalidadeBillingTypes(effectiveTypes)
+      const requestedDefault = normalizeBillingType(payload?.settings?.defaultMensalidadeBillingType)
       setDefaultMensalidadeBillingType(
-        (payload?.settings?.defaultMensalidadeBillingType || types[0] || 'PIX') as BillingType
+        requestedDefault && effectiveTypes.includes(requestedDefault)
+          ? requestedDefault
+          : effectiveTypes[0]
       )
     } catch (err) {
       setError(
@@ -563,7 +589,10 @@ export default function AdminPlanosPage() {
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Planos existentes</h2>
               <p className="mt-1 text-xs text-gray-600">
-                O mínimo e máximo de dependentes podem ser configurados em qualquer plano. Use "Sem limite" quando necessário.
+                O mínimo e máximo de dependentes podem ser configurados em qualquer plano. Para visualizar em pessoas, some 1 (titular + dependentes).
+              </p>
+              <p className="mt-1 text-xs text-gray-600">
+                Regra por vida: informe o valor por vida no campo "Valor" e repita o mesmo número em "Adicional por Excedente (R$)".
               </p>
               <p className="mt-1 text-xs text-gray-600">
                 Benefícios: informe um item por linha, começando com <span className="font-mono">+</span> para incluído

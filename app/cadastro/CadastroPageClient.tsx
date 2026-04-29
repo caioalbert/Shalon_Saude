@@ -9,6 +9,17 @@ type CadastroPageClientProps = {
   initialPlanoCode?: string
 }
 
+type CadastroPagamento = {
+  id: string
+  valor: number
+  vencimento: string
+  billingType?: string
+  invoiceUrl?: string | null
+  bankSlipUrl?: string | null
+  pixCopiaECola?: string | null
+  qrCodeBase64?: string | null
+}
+
 export default function CadastroPageClient({ 
   initialVendedorRef = '',
   initialPlanoCode = '',
@@ -19,13 +30,7 @@ export default function CadastroPageClient({
     email: string
     id: string
     status?: string
-    pagamento?: {
-      id: string
-      valor: number
-      vencimento: string
-      pixCopiaECola: string
-      qrCodeBase64: string
-    }
+    pagamento?: CadastroPagamento
   } | null>(null)
   const vendedorRef = initialVendedorRef.trim().toUpperCase()
   const [consultorNome, setConsultorNome] = useState<string | null>(null)

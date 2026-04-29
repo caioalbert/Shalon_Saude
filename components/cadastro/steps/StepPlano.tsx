@@ -44,6 +44,10 @@ export function StepPlano({
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {planos.map((plano) => {
             const isSelected = plano.codigo === selectedPlanCode
+            const isPerLifeMode =
+              plano.permiteDependentes &&
+              plano.valorDependenteAdicional > 0 &&
+              Math.abs(plano.valor - plano.valorDependenteAdicional) < 0.0001
 
             return (
               <label
@@ -66,7 +70,9 @@ export function StepPlano({
 
                     <div className="text-2xl font-bold text-gray-900">
                       R$ {plano.valor.toFixed(2)}
-                      <span className="text-sm font-normal text-gray-600">/mês</span>
+                      <span className="text-sm font-normal text-gray-600">
+                        {isPerLifeMode ? '/vida' : '/mês'}
+                      </span>
                     </div>
 
                     {plano.beneficios.length > 0 && (
@@ -90,12 +96,14 @@ export function StepPlano({
                       <div className="pt-3 border-t border-gray-200">
                         <p className="text-xs text-gray-600">
                           ✓ Permite dependentes
-                          {plano.minDependentes > 0 && ` (mín: ${plano.minDependentes})`}
-                          {plano.maxDependentes !== null && ` (máx: ${plano.maxDependentes})`}
+                          {plano.minDependentes > 0 && ` (mín: ${plano.minDependentes + 1} pessoas)`}
+                          {plano.maxDependentes !== null && ` (máx: ${plano.maxDependentes + 1} pessoas)`}
                         </p>
                         {plano.valorDependenteAdicional > 0 && (
                           <p className="text-xs text-gray-600">
-                            + R$ {plano.valorDependenteAdicional.toFixed(2)} por dependente adicional
+                            {isPerLifeMode
+                              ? `+ R$ ${plano.valorDependenteAdicional.toFixed(2)} por vida adicional`
+                              : `+ R$ ${plano.valorDependenteAdicional.toFixed(2)} por dependente adicional`}
                           </p>
                         )}
                       </div>
@@ -112,7 +120,12 @@ export function StepPlano({
         <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
           <p className="text-sm text-blue-900">
             <strong>Plano selecionado:</strong> {selectedPlan.nome} - R${' '}
-            {selectedPlan.valor.toFixed(2)}/mês
+            {selectedPlan.valor.toFixed(2)}
+            {selectedPlan.permiteDependentes &&
+            selectedPlan.valorDependenteAdicional > 0 &&
+            Math.abs(selectedPlan.valor - selectedPlan.valorDependenteAdicional) < 0.0001
+              ? '/vida'
+              : '/mês'}
           </p>
         </div>
       )}

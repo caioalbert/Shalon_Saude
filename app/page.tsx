@@ -310,11 +310,17 @@ export default function Home() {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-              {planos.map((plano) => (
-                <div
-                  key={plano.codigo}
-                  className="group relative rounded-2xl border-2 border-gray-200 bg-white p-8 shadow-lg transition-all hover:-translate-y-2 hover:border-teal-500 hover:shadow-2xl"
-                >
+              {planos.map((plano) => {
+                const isPerLifeMode =
+                  plano.permiteDependentes &&
+                  plano.valorDependenteAdicional > 0 &&
+                  Math.abs(plano.valor - plano.valorDependenteAdicional) < 0.0001
+
+                return (
+                  <div
+                    key={plano.codigo}
+                    className="group relative rounded-2xl border-2 border-gray-200 bg-white p-8 shadow-lg transition-all hover:-translate-y-2 hover:border-teal-500 hover:shadow-2xl"
+                  >
                   <div className="mb-6">
                     <h3 className="mb-2 text-2xl font-bold text-gray-900">{plano.nome}</h3>
                     {plano.descricao && (
@@ -327,7 +333,7 @@ export default function Home() {
                       <span className="text-4xl font-bold text-teal-700">
                         R$ {plano.valor.toFixed(2)}
                       </span>
-                      <span className="text-gray-600">/mês</span>
+                      <span className="text-gray-600">{isPerLifeMode ? '/vida' : '/mês'}</span>
                     </div>
                   </div>
 
@@ -361,18 +367,19 @@ export default function Home() {
                       </p>
                       {plano.minDependentes > 0 && (
                         <p className="text-xs text-blue-700">
-                          Mínimo: {plano.minDependentes} dependente(s)
+                          Mínimo: {plano.minDependentes + 1} pessoa(s)
                         </p>
                       )}
                       {plano.maxDependentes !== null && (
                         <p className="text-xs text-blue-700">
-                          Máximo: {plano.maxDependentes} dependente(s)
+                          Máximo: {plano.maxDependentes + 1} pessoa(s)
                         </p>
                       )}
                       {plano.valorDependenteAdicional > 0 && (
                         <p className="text-xs text-blue-700">
-                          + R$ {plano.valorDependenteAdicional.toFixed(2)} por dependente
-                          adicional
+                          {isPerLifeMode
+                            ? `+ R$ ${plano.valorDependenteAdicional.toFixed(2)} por vida adicional`
+                            : `+ R$ ${plano.valorDependenteAdicional.toFixed(2)} por dependente adicional`}
                         </p>
                       )}
                     </div>
@@ -383,8 +390,9 @@ export default function Home() {
                       Escolher Plano
                     </Button>
                   </Link>
-                </div>
-              ))}
+                  </div>
+                )
+              })}
             </div>
           )}
 

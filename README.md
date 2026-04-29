@@ -141,6 +141,9 @@ Se o banco já existia antes, execute também:
 -- scripts/007_add_vendedores_module.sql
 -- scripts/008_add_vendedor_comissao_pagamentos.sql
 -- scripts/009_add_planos_module.sql
+-- scripts/010_add_planos_dependentes_rules.sql
+-- scripts/011_add_planos_publico_conteudo.sql
+-- scripts/012_apply_planos_regras_por_vida.sql
 ```
 
 ### 5. Criar usuário admin (opcional)

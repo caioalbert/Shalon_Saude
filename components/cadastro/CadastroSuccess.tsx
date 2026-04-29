@@ -5,19 +5,24 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import Image from 'next/image'
 
+type CadastroPagamento = {
+  id: string
+  valor: number
+  vencimento: string
+  billingType?: string
+  invoiceUrl?: string | null
+  bankSlipUrl?: string | null
+  pixCopiaECola?: string | null
+  qrCodeBase64?: string | null
+}
+
 interface CadastroSuccessProps {
   data: {
     nome: string
     email: string
     id: string
     status?: string
-    pagamento?: {
-      id: string
-      valor: number
-      vencimento: string
-      pixCopiaECola: string
-      qrCodeBase64: string
-    }
+    pagamento?: CadastroPagamento
   }
 }
 
@@ -32,6 +37,13 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
   const mountedRef = useRef(true)
 
   const isPendingPayment = status === 'PENDENTE_PAGAMENTO' && Boolean(data.pagamento)
+  const isCreditCardPayment = data.pagamento?.billingType === 'CREDIT_CARD'
+  const paymentMethodLabel = isCreditCardPayment ? 'Cartão de Crédito' : 'BolePIX'
+  const invoiceUrl = data.pagamento?.invoiceUrl || null
+  const bankSlipUrl = data.pagamento?.bankSlipUrl || null
+  const pixCopiaECola = String(data.pagamento?.pixCopiaECola || '').trim()
+  const qrCodeBase64 = String(data.pagamento?.qrCodeBase64 || '').trim()
+  const hasLegacyPixData = Boolean(pixCopiaECola && qrCodeBase64)
 
   const formatCurrency = (value: number) =>
     value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -43,10 +55,10 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
   }
 
   const handleCopyPixCode = async () => {
-    if (!data.pagamento?.pixCopiaECola) return
+    if (!pixCopiaECola) return
 
     try {
-      await navigator.clipboard.writeText(data.pagamento.pixCopiaECola)
+      await navigator.clipboard.writeText(pixCopiaECola)
       setCopyMessage('Código PIX copiado.')
     } catch {
       setCopyMessage('Não foi possível copiar automaticamente. Copie manualmente o código acima.')
@@ -95,7 +107,7 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
       if (isManual) {
         setStatusMessage('Pagamento ainda não foi confirmado. Seguiremos verificando automaticamente.')
       } else {
-        setStatusMessage('Aguardando confirmação automática do pagamento PIX.')
+        setStatusMessage('Aguardando confirmação automática do pagamento.')
       }
     } catch (error) {
       if (isManual) {
@@ -140,7 +152,7 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
       }, 5000)
     }
 
-    setStatusMessage('Aguardando confirmação automática do pagamento PIX.')
+    setStatusMessage('Aguardando confirmação automática do pagamento.')
     checkStatus({ manual: false }).finally(() => {
       if (mountedRef.current && status === 'PENDENTE_PAGAMENTO') {
         scheduleNext()
@@ -183,33 +195,65 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
               </div>
 
               <div className="rounded-lg border border-gray-200 p-4 space-y-3">
-                <p className="text-sm font-medium text-gray-700">Escaneie o QR Code PIX:</p>
-                <div className="flex justify-center">
-                  <Image
-                    src={`data:image/png;base64,${data.pagamento.qrCodeBase64}`}
-                    alt="QR Code PIX da adesão"
-                    className="h-56 w-56 rounded-lg border border-gray-200"
-                    width={224}
-                    height={224}
-                    unoptimized
-                  />
-                </div>
-              </div>
+                <p className="text-sm font-medium text-gray-700">Forma de pagamento selecionada</p>
+                <p className="text-base font-semibold text-gray-900">{paymentMethodLabel}</p>
+                <p className="text-sm text-gray-700">
+                  {isCreditCardPayment
+                    ? 'Pague a adesão com cartão na fatura. A assinatura mensal seguirá o mesmo método.'
+                    : 'Pague a fatura por boleto ou Pix (BolePIX). A assinatura mensal seguirá o mesmo método.'}
+                </p>
 
-              <div className="rounded-lg border border-gray-200 p-4 space-y-3">
-                <p className="text-sm font-medium text-gray-700">Ou use o PIX copia e cola:</p>
-                <textarea
-                  readOnly
-                  value={data.pagamento.pixCopiaECola}
-                  className="w-full h-24 rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-xs font-mono text-gray-800"
-                />
-                <Button onClick={handleCopyPixCode} variant="outline" className="w-full">
-                  Copiar Código PIX
-                </Button>
-                {copyMessage && (
-                  <p className="text-xs text-gray-600">{copyMessage}</p>
+                <div className="flex flex-col gap-2">
+                  {invoiceUrl && (
+                    <Button asChild className="w-full bg-indigo-600 hover:bg-indigo-700">
+                      <a href={invoiceUrl} target="_blank" rel="noreferrer">
+                        Abrir Fatura
+                      </a>
+                    </Button>
+                  )}
+
+                  {bankSlipUrl && bankSlipUrl !== invoiceUrl && (
+                    <Button asChild variant="outline" className="w-full">
+                      <a href={bankSlipUrl} target="_blank" rel="noreferrer">
+                        Abrir Boleto
+                      </a>
+                    </Button>
+                  )}
+                </div>
+
+                {!invoiceUrl && !bankSlipUrl && (
+                  <p className="text-xs text-amber-700">
+                    A fatura ainda está sendo processada. Clique em verificar para atualizar o status.
+                  </p>
                 )}
               </div>
+
+              {hasLegacyPixData && (
+                <div className="rounded-lg border border-gray-200 p-4 space-y-3">
+                  <p className="text-sm font-medium text-gray-700">Opção PIX (legado)</p>
+                  <div className="flex justify-center">
+                    <Image
+                      src={`data:image/png;base64,${qrCodeBase64}`}
+                      alt="QR Code PIX da adesão"
+                      className="h-56 w-56 rounded-lg border border-gray-200"
+                      width={224}
+                      height={224}
+                      unoptimized
+                    />
+                  </div>
+                  <textarea
+                    readOnly
+                    value={pixCopiaECola}
+                    className="w-full h-24 rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-xs font-mono text-gray-800"
+                  />
+                  <Button onClick={handleCopyPixCode} variant="outline" className="w-full">
+                    Copiar Código PIX
+                  </Button>
+                  {copyMessage && (
+                    <p className="text-xs text-gray-600">{copyMessage}</p>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-3">
                 <Button
@@ -236,7 +280,7 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
               ) : (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <p className="text-sm text-blue-900">
-                    O plano será ativado automaticamente após a confirmação do pagamento no Asaas. Não é necessário ficar clicando.
+                    O plano será ativado automaticamente após a confirmação do pagamento no Asaas.
                   </p>
                 </div>
               )}

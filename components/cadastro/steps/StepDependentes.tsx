@@ -340,10 +340,14 @@ export function StepDependentes({
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {availablePlans.map((plan) => {
             const isSelected = selectedPlan?.codigo === plan.codigo
+            const isPerLifeMode =
+              plan.permiteDependentes &&
+              plan.valorDependenteAdicional > 0 &&
+              Math.abs(plan.valor - plan.valorDependenteAdicional) < 0.0001
             const dependentesDescription = plan.permiteDependentes
               ? plan.maxDependentes !== null && plan.maxDependentes > 0
-                ? `Mínimo ${plan.minDependentes} e máximo ${plan.maxDependentes} dependentes.`
-                : `Mínimo ${plan.minDependentes} dependentes (sem limite máximo).`
+                ? `Mínimo ${plan.minDependentes + 1} e máximo ${plan.maxDependentes + 1} pessoas.`
+                : `Mínimo ${plan.minDependentes + 1} pessoas (sem limite máximo).`
               : 'Cobertura apenas para o titular.'
 
             return (
@@ -365,7 +369,9 @@ export function StepDependentes({
                 <div className="mt-3 rounded-lg bg-gray-100 px-3 py-2">
                   <p className="text-sm font-semibold text-gray-900">
                     {formatCurrency(plan.valor)}
-                    <span className="ml-1 text-xs font-medium text-gray-600">/ mês</span>
+                    <span className="ml-1 text-xs font-medium text-gray-600">
+                      {isPerLifeMode ? '/ vida' : '/ mês'}
+                    </span>
                   </p>
                 </div>
 
@@ -393,7 +399,9 @@ export function StepDependentes({
 
                 {plan.permiteDependentes && plan.valorDependenteAdicional > 0 ? (
                   <p className="mt-3 text-xs text-gray-700">
-                    Acréscimo por dependente excedente: {formatCurrency(plan.valorDependenteAdicional)}
+                    {isPerLifeMode
+                      ? `Regra por vida: mínimo ${plan.minDependentes + 1} pessoas. Cada vida excedente: ${formatCurrency(plan.valorDependenteAdicional)}.`
+                      : `Acréscimo por dependente excedente: ${formatCurrency(plan.valorDependenteAdicional)}.`}
                   </p>
                 ) : null}
               </button>
@@ -413,8 +421,8 @@ export function StepDependentes({
       {planPermiteDependentes ? (
         <p className="text-xs text-gray-500">
           Cada dependente deve ter email. Se for menor de idade, pode usar o mesmo email do titular.
-          {' '}Este plano exige mínimo de {dependentesMinimos} dependentes.
-          {dependentesLimit !== null && dependentesLimit > 0 ? ` Máximo de ${dependentesLimit} dependentes.` : ' Sem limite máximo de dependentes.'}
+          {' '}Este plano exige mínimo de {dependentesMinimos + 1} pessoas (titular + dependentes).
+          {dependentesLimit !== null && dependentesLimit > 0 ? ` Máximo de ${dependentesLimit + 1} pessoas.` : ' Sem limite máximo de pessoas.'}
           {selectedPlan && selectedPlan.valorDependenteAdicional > 0
             ? ` Acréscimo de ${formatCurrency(selectedPlan.valorDependenteAdicional)} por dependente acima do mínimo.`
             : ''}

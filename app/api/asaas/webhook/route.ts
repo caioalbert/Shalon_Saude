@@ -221,11 +221,7 @@ export async function POST(request: NextRequest) {
       const billingTypeRequested = String(cadastro.mensalidade_billing_type || '')
         .trim()
         .toUpperCase()
-      const billingType = billingSettings.mensalidadeBillingTypes.includes(
-        billingTypeRequested as 'PIX' | 'BOLETO' | 'CREDIT_CARD'
-      )
-        ? (billingTypeRequested as 'PIX' | 'BOLETO' | 'CREDIT_CARD')
-        : billingSettings.defaultMensalidadeBillingType
+      const billingType = billingTypeRequested === 'CREDIT_CARD' ? 'CREDIT_CARD' : 'BOLETO'
       const storedMensalidadeValue = Number(cadastro.mensalidade_valor)
       const mensalidadeValue =
         Number.isFinite(storedMensalidadeValue) && storedMensalidadeValue > 0

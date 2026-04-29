@@ -71,7 +71,7 @@ export default function ClienteDashboard() {
 
   const billingTypeLabels: Record<string, string> = {
     PIX: 'PIX',
-    BOLETO: 'Boleto',
+    BOLETO: 'BolePIX',
     CREDIT_CARD: 'Cartão de Crédito',
   }
 

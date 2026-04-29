@@ -94,7 +94,7 @@ export interface CadastroFormData {
   vendedor_ref?: string
 
   // Cobrança recorrente (mensalidade)
-  mensalidade_billing_type: 'PIX' | 'BOLETO' | 'CREDIT_CARD'
+  mensalidade_billing_type: 'BOLETO' | 'CREDIT_CARD'
 }
 
 export interface Vendedor {

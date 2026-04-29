@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 
-export const BILLING_TYPE_OPTIONS = ['PIX', 'BOLETO', 'CREDIT_CARD'] as const
+export const BILLING_TYPE_OPTIONS = ['BOLETO', 'CREDIT_CARD'] as const
 export type BillingTypeOption = (typeof BILLING_TYPE_OPTIONS)[number]
 
 export const PLAN_TYPE_OPTIONS = ['INDIVIDUAL', 'FAMILIAR'] as const
@@ -54,6 +54,15 @@ function isBillingTypeOption(value: string): value is BillingTypeOption {
   return BILLING_TYPE_OPTIONS.includes(value as BillingTypeOption)
 }
 
+function normalizeBillingTypeValue(value: string | null | undefined): BillingTypeOption | null {
+  const normalized = toUpperTrim(value)
+  if (normalized === 'PIX') {
+    return 'BOLETO'
+  }
+
+  return isBillingTypeOption(normalized) ? normalized : null
+}
+
 function normalizePlanType(value: string | null | undefined, fallback = 'INDIVIDUAL') {
   const normalized = toUpperTrim(value)
   if (normalized) return normalized
@@ -63,11 +72,11 @@ function normalizePlanType(value: string | null | undefined, fallback = 'INDIVID
 }
 
 function normalizeBillingTypeList(values: string[]) {
-  const unique = Array.from(new Set(values.map((value) => toUpperTrim(value)).filter(Boolean)))
-  const allowed = unique.filter(isBillingTypeOption)
+  const unique = Array.from(new Set(values.map((value) => normalizeBillingTypeValue(value)).filter(Boolean)))
+  const allowed = unique.filter((value): value is BillingTypeOption => Boolean(value))
 
   if (allowed.length === 0) {
-    return ['PIX'] as BillingTypeOption[]
+    return ['BOLETO'] as BillingTypeOption[]
   }
 
   return allowed
@@ -163,16 +172,14 @@ function readEnvFallbackSettings(): BillingSettings {
   const rawTypes =
     getEnvValue('ASAAS_MENSALIDADE_BILLING_TYPES') ||
     getEnvValue('ASAAS_MENSALIDADE_BILLING_TYPE') ||
-    'PIX'
+    'BOLETO'
   const mensalidadeBillingTypes = normalizeBillingTypeList(rawTypes.split(','))
 
-  const requestedDefault = toUpperTrim(
+  const requestedDefault = normalizeBillingTypeValue(
     getEnvValue('ASAAS_MENSALIDADE_BILLING_TYPE') || mensalidadeBillingTypes[0]
   )
-  const defaultMensalidadeBillingType = mensalidadeBillingTypes.includes(
-    requestedDefault as BillingTypeOption
-  )
-    ? (requestedDefault as BillingTypeOption)
+  const defaultMensalidadeBillingType = requestedDefault && mensalidadeBillingTypes.includes(requestedDefault)
+    ? requestedDefault
     : mensalidadeBillingTypes[0]
 
   const defaultPlanType = normalizePlanType(getEnvValue('ASAAS_DEFAULT_PLAN_TYPE'), 'INDIVIDUAL')
@@ -200,12 +207,10 @@ function normalizeSettingsRow(row: BillingSettingsRow): BillingSettings {
   )
 
   const mensalidadeBillingTypes = normalizeBillingTypeList(row.mensalidade_billing_types || [])
-  const requestedDefault = toUpperTrim(row.default_mensalidade_billing_type)
+  const requestedDefault = normalizeBillingTypeValue(row.default_mensalidade_billing_type)
 
-  const defaultMensalidadeBillingType = mensalidadeBillingTypes.includes(
-    requestedDefault as BillingTypeOption
-  )
-    ? (requestedDefault as BillingTypeOption)
+  const defaultMensalidadeBillingType = requestedDefault && mensalidadeBillingTypes.includes(requestedDefault)
+    ? requestedDefault
     : mensalidadeBillingTypes[0]
   const normalizedDefaultPlanType = normalizePlanType(row.default_plan_type, 'INDIVIDUAL')
   const defaultPlanValue = parsePositiveAmount(
@@ -403,11 +408,10 @@ export async function updateBillingSettings(input: UpdateBillingSettingsInput): 
 
   const mensalidadeBillingTypes = normalizeBillingTypeList(input.mensalidadeBillingTypes)
 
-  const defaultBillingTypeRaw = toUpperTrim(input.defaultMensalidadeBillingType)
-  const defaultMensalidadeBillingType = mensalidadeBillingTypes.includes(
-    defaultBillingTypeRaw as BillingTypeOption
-  )
-    ? (defaultBillingTypeRaw as BillingTypeOption)
+  const defaultBillingTypeRaw = normalizeBillingTypeValue(input.defaultMensalidadeBillingType)
+  const defaultMensalidadeBillingType =
+    defaultBillingTypeRaw && mensalidadeBillingTypes.includes(defaultBillingTypeRaw)
+    ? defaultBillingTypeRaw
     : mensalidadeBillingTypes[0]
 
   const defaultPlanType = normalizePlanType(input.defaultPlanType, 'INDIVIDUAL')

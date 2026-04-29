@@ -1,10 +1,11 @@
 'use client'
 
 import { CadastroFormData } from '@/lib/types'
+import { calculatePlanChargeBreakdown } from '@/lib/plan-pricing'
 import { Checkbox } from '@/components/ui/checkbox'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 
-type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD'
+type BillingType = 'BOLETO' | 'CREDIT_CARD'
 
 type PlanOption = {
   codigo: string
@@ -21,8 +22,8 @@ type BillingConfig = {
   mensalidadeByPlanType: Record<string, number>
   defaultPlanType: string
   planos: PlanOption[]
-  mensalidadeBillingTypes: BillingType[]
-  defaultMensalidadeBillingType: BillingType
+  mensalidadeBillingTypes: string[]
+  defaultMensalidadeBillingType: string
 } | null
 
 interface StepConfirmacaoProps {
@@ -48,18 +49,34 @@ export function StepConfirmacao({
   onMensalidadeBillingTypeChange,
 }: StepConfirmacaoProps) {
   const billingTypeLabels: Record<BillingType, string> = {
-    PIX: 'PIX',
-    BOLETO: 'Boleto',
+    BOLETO: 'BolePIX',
     CREDIT_CARD: 'Cartão de Crédito',
   }
 
   const formatCurrency = (value: number) =>
     value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
-  const selectedBillingType =
+  const availableBillingTypes = Array.from(
+    new Set(
+      (billingConfig?.mensalidadeBillingTypes || [])
+        .map((type) => (type === 'PIX' ? 'BOLETO' : type))
+        .filter((type): type is BillingType => type === 'BOLETO' || type === 'CREDIT_CARD')
+    )
+  )
+
+  if (availableBillingTypes.length === 0) {
+    availableBillingTypes.push('BOLETO', 'CREDIT_CARD')
+  }
+
+  const normalizeBillingType = (value: string | undefined): BillingType =>
+    value === 'CREDIT_CARD' ? 'CREDIT_CARD' : 'BOLETO'
+
+  const rawSelectedBillingType = (
     (data.mensalidade_billing_type as BillingType | undefined) ||
     billingConfig?.defaultMensalidadeBillingType ||
-    'PIX'
+    availableBillingTypes[0]
+  )
+  const selectedBillingType = normalizeBillingType(rawSelectedBillingType)
 
   const selectedPlanType =
     (data.tipo_plano as string | undefined) ||
@@ -72,24 +89,16 @@ export function StepConfirmacao({
     null
 
   const dependentesCount = Array.isArray(data.dependentes) ? data.dependentes.length : 0
-  const selectedPlanBaseValue =
-    selectedPlan
-      ? Number.isFinite(Number(selectedPlan.valor))
-        ? Number(selectedPlan.valor)
-        : 0
-      : billingConfig?.mensalidadeByPlanType?.[selectedPlanType] ?? 0
-
-  const selectedPlanMinDependentes = selectedPlan?.permiteDependentes
-    ? Math.max(0, Number(selectedPlan.minDependentes || 0))
-    : 0
-  const selectedPlanValorDependenteAdicional = selectedPlan?.permiteDependentes
-    ? Math.max(0, Number(selectedPlan.valorDependenteAdicional || 0))
-    : 0
-  const dependentesExcedentes = selectedPlan?.permiteDependentes
-    ? Math.max(0, dependentesCount - selectedPlanMinDependentes)
-    : 0
-  const adicionalDependentes = dependentesExcedentes * selectedPlanValorDependenteAdicional
-  const selectedMensalidadeValue = Math.round((selectedPlanBaseValue + adicionalDependentes + Number.EPSILON) * 100) / 100
+  const priceBreakdown = calculatePlanChargeBreakdown(
+    {
+      valor: selectedPlan?.valor || billingConfig?.mensalidadeByPlanType?.[selectedPlanType] || 0,
+      permiteDependentes: Boolean(selectedPlan?.permiteDependentes),
+      minDependentes: Number(selectedPlan?.minDependentes || 0),
+      valorDependenteAdicional: Number(selectedPlan?.valorDependenteAdicional || 0),
+    },
+    dependentesCount
+  )
+  const selectedMensalidadeValue = priceBreakdown.total
   const selectedAdesaoValue = selectedMensalidadeValue
 
   return (
@@ -207,8 +216,8 @@ export function StepConfirmacao({
                     <p className="text-xs text-gray-600">
                       {selectedPlan.permiteDependentes
                         ? selectedPlan.maxDependentes !== null && selectedPlan.maxDependentes > 0
-                          ? `Mínimo ${selectedPlan.minDependentes} e máximo ${selectedPlan.maxDependentes} dependentes`
-                          : `Mínimo ${selectedPlan.minDependentes} dependentes (sem limite máximo)`
+                          ? `Mínimo ${selectedPlan.minDependentes + 1} e máximo ${selectedPlan.maxDependentes + 1} pessoas`
+                          : `Mínimo ${selectedPlan.minDependentes + 1} pessoas (sem limite máximo)`
                         : 'Sem dependentes'}
                     </p>
                   ) : null}
@@ -228,10 +237,11 @@ export function StepConfirmacao({
                     <p className="text-base font-semibold text-gray-900">
                       {formatCurrency(selectedMensalidadeValue)}
                     </p>
-                    {selectedPlan?.permiteDependentes && selectedPlanValorDependenteAdicional > 0 ? (
+                    {selectedPlan?.permiteDependentes && priceBreakdown.extraUnitValue > 0 ? (
                       <p className="mt-1 text-xs text-gray-600">
-                        Base: {formatCurrency(selectedPlanBaseValue)}. Excedentes: {dependentesExcedentes} x{' '}
-                        {formatCurrency(selectedPlanValorDependenteAdicional)} = {formatCurrency(adicionalDependentes)}.
+                        {priceBreakdown.perLifeMode
+                          ? `Regra por vida: mínimo ${priceBreakdown.minimumLives} vidas = ${formatCurrency(priceBreakdown.minimumAmount)}. Excedentes: ${priceBreakdown.extraLives} x ${formatCurrency(priceBreakdown.extraUnitValue)} = ${formatCurrency(priceBreakdown.extrasAmount)}.`
+                          : `Base: ${formatCurrency(priceBreakdown.baseValue)}. Excedentes: ${priceBreakdown.extraLives} x ${formatCurrency(priceBreakdown.extraUnitValue)} = ${formatCurrency(priceBreakdown.extrasAmount)}.`}
                       </p>
                     ) : null}
                   </div>
@@ -240,13 +250,15 @@ export function StepConfirmacao({
             )}
 
             <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-800">Forma de cobrança da mensalidade *</p>
+              <p className="text-sm font-medium text-gray-800">
+                Forma de pagamento da adesão e mensalidade *
+              </p>
               <RadioGroup
                 value={selectedBillingType}
                 onValueChange={(value) => onMensalidadeBillingTypeChange(value as BillingType)}
                 className="space-y-2"
               >
-                {(billingConfig?.mensalidadeBillingTypes || ['PIX']).map((billingType) => (
+                {availableBillingTypes.map((billingType) => (
                   <label key={billingType} className="flex items-center gap-3 rounded-md border border-gray-200 p-2">
                     <RadioGroupItem value={billingType} id={`billing-${billingType}`} />
                     <span className="text-sm text-gray-800">{billingTypeLabels[billingType as BillingType]}</span>
@@ -292,7 +304,9 @@ export function StepConfirmacao({
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
         <p className="text-sm font-medium text-amber-900">📌 Informações Importantes</p>
         <ul className="text-xs text-amber-800 space-y-1 list-disc list-inside">
-          <li>Após o cadastro você verá o QR Code PIX para pagar a adesão</li>
+          <li>Após o cadastro você será redirecionado para a fatura da adesão</li>
+          <li>Se escolher BolePIX, o pagamento pode ser por boleto ou Pix na fatura</li>
+          <li>Se escolher Cartão de Crédito, essa forma será usada também na assinatura mensal</li>
           <li>O termo será enviado para {data.email} após confirmação do pagamento</li>
           <li>Seu cadastro será armazenado com segurança em nossos servidores</li>
           <li>Sua selfie será utilizada apenas para verificação de identidade</li>

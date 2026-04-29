@@ -9,14 +9,36 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 
-type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD'
+type BillingType = 'BOLETO' | 'CREDIT_CARD'
 type PlanType = 'INDIVIDUAL' | 'FAMILIAR'
 const MIN_CHARGE_VALUE = 5
 
 const BILLING_TYPE_LABEL: Record<BillingType, string> = {
-  PIX: 'PIX',
-  BOLETO: 'Boleto',
+  BOLETO: 'BolePIX',
   CREDIT_CARD: 'Cartão de Crédito',
+}
+
+function normalizeBillingType(value: unknown): BillingType | null {
+  const normalized = String(value || '').trim().toUpperCase()
+  if (normalized === 'CREDIT_CARD') {
+    return 'CREDIT_CARD'
+  }
+
+  if (normalized === 'BOLETO' || normalized === 'PIX') {
+    return 'BOLETO'
+  }
+
+  return null
+}
+
+function normalizeBillingTypeList(values: unknown): BillingType[] {
+  if (!Array.isArray(values)) {
+    return []
+  }
+
+  return Array.from(
+    new Set(values.map((value) => normalizeBillingType(value)).filter((value): value is BillingType => Boolean(value)))
+  )
 }
 
 export default function AdminCobrancaConfiguracoesPage() {
@@ -25,12 +47,12 @@ export default function AdminCobrancaConfiguracoesPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [allowedBillingTypes, setAllowedBillingTypes] = useState<BillingType[]>(['PIX', 'BOLETO', 'CREDIT_CARD'])
+  const [allowedBillingTypes, setAllowedBillingTypes] = useState<BillingType[]>(['BOLETO', 'CREDIT_CARD'])
   const [mensalidadeIndividualValue, setMensalidadeIndividualValue] = useState('')
   const [mensalidadeFamiliarValue, setMensalidadeFamiliarValue] = useState('')
   const [defaultPlanType, setDefaultPlanType] = useState<PlanType>('INDIVIDUAL')
-  const [mensalidadeBillingTypes, setMensalidadeBillingTypes] = useState<BillingType[]>(['PIX'])
-  const [defaultMensalidadeBillingType, setDefaultMensalidadeBillingType] = useState<BillingType>('PIX')
+  const [mensalidadeBillingTypes, setMensalidadeBillingTypes] = useState<BillingType[]>(['BOLETO', 'CREDIT_CARD'])
+  const [defaultMensalidadeBillingType, setDefaultMensalidadeBillingType] = useState<BillingType>('BOLETO')
   const [source, setSource] = useState<string | null>(null)
 
   const fetchSettings = useCallback(async () => {
@@ -51,15 +73,13 @@ export default function AdminCobrancaConfiguracoesPage() {
         throw new Error(data?.error || 'Erro ao carregar configurações de cobrança.')
       }
 
-      const types = Array.isArray(data?.settings?.mensalidadeBillingTypes)
-        ? data.settings.mensalidadeBillingTypes
-        : ['PIX']
-
-      setAllowedBillingTypes(
-        Array.isArray(data?.allowedBillingTypes) && data.allowedBillingTypes.length > 0
-          ? data.allowedBillingTypes
-          : ['PIX', 'BOLETO', 'CREDIT_CARD']
-      )
+      const types = normalizeBillingTypeList(data?.settings?.mensalidadeBillingTypes)
+      const effectiveTypes: BillingType[] =
+        types.length > 0 ? types : ['BOLETO', 'CREDIT_CARD']
+      const allowedTypes = normalizeBillingTypeList(data?.allowedBillingTypes)
+      const effectiveAllowedTypes: BillingType[] =
+        allowedTypes.length > 0 ? allowedTypes : ['BOLETO', 'CREDIT_CARD']
+      setAllowedBillingTypes(effectiveAllowedTypes)
       setMensalidadeIndividualValue(
         String(data?.settings?.mensalidadeIndividualValue ?? data?.settings?.mensalidadeValue ?? '')
       )
@@ -67,8 +87,13 @@ export default function AdminCobrancaConfiguracoesPage() {
         String(data?.settings?.mensalidadeFamiliarValue ?? data?.settings?.mensalidadeValue ?? '')
       )
       setDefaultPlanType(data?.settings?.defaultPlanType || 'INDIVIDUAL')
-      setMensalidadeBillingTypes(types)
-      setDefaultMensalidadeBillingType(data?.settings?.defaultMensalidadeBillingType || types[0] || 'PIX')
+      setMensalidadeBillingTypes(effectiveTypes)
+      const requestedDefault = normalizeBillingType(data?.settings?.defaultMensalidadeBillingType)
+      setDefaultMensalidadeBillingType(
+        requestedDefault && effectiveTypes.includes(requestedDefault)
+          ? requestedDefault
+          : effectiveTypes[0]
+      )
       setSource(data?.settings?.source || null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar configurações de cobrança.')
@@ -170,9 +195,14 @@ export default function AdminCobrancaConfiguracoesPage() {
         String(data?.settings?.mensalidadeFamiliarValue ?? mensalidadeFamiliarValue)
       )
       setDefaultPlanType(data?.settings?.defaultPlanType || defaultPlanType)
-      setMensalidadeBillingTypes(data?.settings?.mensalidadeBillingTypes || mensalidadeBillingTypes)
+      const nextTypes = normalizeBillingTypeList(data?.settings?.mensalidadeBillingTypes)
+      const effectiveTypes: BillingType[] = nextTypes.length > 0 ? nextTypes : mensalidadeBillingTypes
+      const requestedDefault = normalizeBillingType(data?.settings?.defaultMensalidadeBillingType)
+      setMensalidadeBillingTypes(effectiveTypes)
       setDefaultMensalidadeBillingType(
-        data?.settings?.defaultMensalidadeBillingType || defaultMensalidadeBillingType
+        requestedDefault && effectiveTypes.includes(requestedDefault)
+          ? requestedDefault
+          : effectiveTypes[0]
       )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao salvar configurações de cobrança.')

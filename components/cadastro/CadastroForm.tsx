@@ -28,7 +28,7 @@ interface CadastroFormProps {
   initialPlanoCode?: string
 }
 
-type BillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD'
+type BillingType = 'BOLETO' | 'CREDIT_CARD'
 type PlanOption = {
   codigo: string
   nome: string
@@ -99,7 +99,7 @@ export function CadastroForm({
     dependentes: [],
     tem_dependentes: false,
     tipo_plano: initialPlanoCode.trim().toUpperCase(),
-    mensalidade_billing_type: 'PIX',
+    mensalidade_billing_type: 'BOLETO',
   })
   const vendedorRef = initialVendedorRef.trim().toUpperCase()
 
@@ -163,7 +163,7 @@ export function CadastroForm({
           return parsed
         }
         const isBillingType = (value: string): value is BillingType =>
-          value === 'PIX' || value === 'BOLETO' || value === 'CREDIT_CARD'
+          value === 'BOLETO' || value === 'CREDIT_CARD'
 
         const payloadObj =
           payload && typeof payload === 'object'
@@ -296,24 +296,28 @@ export function CadastroForm({
         const mensalidadeBillingTypes: BillingType[] = Array.isArray(payloadObj.mensalidadeBillingTypes)
           ? payloadObj.mensalidadeBillingTypes
               .map((item: unknown) => toUpperTrim(item))
+              .map((item: string) => (item === 'PIX' ? 'BOLETO' : item))
               .filter((item: string): item is BillingType => isBillingType(item))
-          : ['PIX']
-
-        const normalizedBillingTypes: BillingType[] =
-          mensalidadeBillingTypes.length > 0 ? mensalidadeBillingTypes : ['PIX']
-        const requestedDefaultBillingType = toUpperTrim(payloadObj.defaultMensalidadeBillingType)
-        const defaultMensalidadeBillingType = normalizedBillingTypes.includes(
-          requestedDefaultBillingType as BillingType
+          : ['BOLETO', 'CREDIT_CARD']
+        const effectiveBillingTypes: BillingType[] =
+          mensalidadeBillingTypes.length > 0
+            ? Array.from(new Set(mensalidadeBillingTypes))
+            : ['BOLETO', 'CREDIT_CARD']
+        const requestedDefaultBillingTypeRaw = toUpperTrim(payloadObj.defaultMensalidadeBillingType)
+        const requestedDefaultBillingType: BillingType =
+          requestedDefaultBillingTypeRaw === 'CREDIT_CARD' ? 'CREDIT_CARD' : 'BOLETO'
+        const defaultMensalidadeBillingType = effectiveBillingTypes.includes(
+          requestedDefaultBillingType
         )
-          ? (requestedDefaultBillingType as BillingType)
-          : normalizedBillingTypes[0]
+          ? requestedDefaultBillingType
+          : effectiveBillingTypes[0]
 
         const config: PublicBillingConfig = {
           adesaoByPlanType,
           mensalidadeByPlanType,
           defaultPlanType,
           planos,
-          mensalidadeBillingTypes: normalizedBillingTypes,
+          mensalidadeBillingTypes: effectiveBillingTypes,
           defaultMensalidadeBillingType,
         }
 
@@ -326,9 +330,9 @@ export function CadastroForm({
               ? prev.tipo_plano
               : config.defaultPlanType,
           mensalidade_billing_type:
-            prev.mensalidade_billing_type && config.mensalidadeBillingTypes.includes(prev.mensalidade_billing_type)
-              ? prev.mensalidade_billing_type
-              : config.defaultMensalidadeBillingType,
+            prev.mensalidade_billing_type === 'CREDIT_CARD'
+              ? 'CREDIT_CARD'
+              : 'BOLETO',
         }))
       } catch (error) {
         if (!active) return
@@ -501,7 +505,7 @@ export function CadastroForm({
       const minDependentes = Math.max(0, Number(selectedPlan.minDependentes || 0))
 
       if (dependentes.length < minDependentes) {
-        return `O plano selecionado exige ao menos ${minDependentes} dependentes.`
+        return `O plano selecionado exige ao menos ${minDependentes + 1} pessoas (titular + dependentes).`
       }
 
       if (selectedPlan.maxDependentes !== null && selectedPlan.maxDependentes > 0) {
@@ -633,7 +637,9 @@ export function CadastroForm({
       const totalDependentes = (formData.dependentes || []).length
       const minDependentes = Math.max(0, Number(selectedPlan.minDependentes || 0))
       if (selectedPlan.permiteDependentes && totalDependentes < minDependentes) {
-        throw new Error(`O plano selecionado exige ao menos ${minDependentes} dependentes`)
+        throw new Error(
+          `O plano selecionado exige ao menos ${minDependentes + 1} pessoas (titular + dependentes)`
+        )
       }
 
       if (

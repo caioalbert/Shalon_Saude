@@ -33,6 +33,9 @@ type AsaasCreatePaymentResponse = {
   dueDate?: string
   billingType?: string
   status?: string
+  invoiceUrl?: string
+  bankSlipUrl?: string
+  creditCardToken?: string
 }
 
 type AsaasPixQrCodeResponse = {
@@ -60,6 +63,7 @@ type AsaasPaymentResponse = {
   description?: string
   invoiceUrl?: string
   bankSlipUrl?: string
+  creditCardToken?: string
 }
 
 type AsaasListResponse<T> = {
@@ -92,6 +96,15 @@ export type CreateAsaasPixPaymentInput = {
   externalReference?: string
 }
 
+export type CreateAsaasPaymentInput = {
+  customer: string
+  value: number
+  dueDate: string
+  billingType: AsaasBillingType
+  description?: string
+  externalReference?: string
+}
+
 export type CreateAsaasSubscriptionInput = {
   customer: string
   billingType: AsaasBillingType
@@ -119,6 +132,7 @@ export type AsaasPaymentInfo = {
   description?: string
   invoiceUrl?: string
   bankSlipUrl?: string
+  creditCardToken?: string
 }
 
 const PAID_STATUSES = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'])
@@ -329,12 +343,41 @@ export async function createAsaasCustomer(
 export async function createAsaasPixPayment(
   input: CreateAsaasPixPaymentInput
 ): Promise<{ id: string; value?: number; dueDate?: string; status?: string }> {
+  const result = await createAsaasPayment({
+    customer: input.customer,
+    value: input.value,
+    dueDate: input.dueDate,
+    billingType: 'PIX',
+    description: input.description,
+    externalReference: input.externalReference,
+  })
+
+  return {
+    id: result.id,
+    value: result.value,
+    dueDate: result.dueDate,
+    status: result.status,
+  }
+}
+
+export async function createAsaasPayment(
+  input: CreateAsaasPaymentInput
+): Promise<{
+  id: string
+  value?: number
+  dueDate?: string
+  status?: string
+  billingType?: string
+  invoiceUrl?: string
+  bankSlipUrl?: string
+  creditCardToken?: string
+}> {
   assertAsaasDate(input.dueDate, 'dueDate')
   const value = normalizeAsaasAmount(input.value, 'ASAAS_ADESAO_VALUE')
 
   const payload = compactPayload({
     customer: input.customer.trim(),
-    billingType: 'PIX',
+    billingType: input.billingType,
     value,
     dueDate: input.dueDate,
     description: input.description?.trim(),
@@ -368,6 +411,10 @@ export async function createAsaasPixPayment(
     value: data.value,
     dueDate: data.dueDate,
     status: data.status,
+    billingType: data.billingType,
+    invoiceUrl: data.invoiceUrl,
+    bankSlipUrl: data.bankSlipUrl,
+    creditCardToken: data.creditCardToken,
   }
 }
 
@@ -425,6 +472,9 @@ export async function getAsaasPayment(paymentId: string): Promise<AsaasPaymentIn
     externalReference: data.externalReference,
     billingType: data.billingType,
     value: data.value,
+    invoiceUrl: data.invoiceUrl,
+    bankSlipUrl: data.bankSlipUrl,
+    creditCardToken: data.creditCardToken,
   }
 }
 
@@ -457,6 +507,7 @@ export async function listAsaasPayments(customerId: string): Promise<AsaasPaymen
       description: p.description,
       invoiceUrl: p.invoiceUrl,
       bankSlipUrl: p.bankSlipUrl,
+      creditCardToken: p.creditCardToken,
     }))
 }
 
@@ -489,6 +540,7 @@ export async function listAsaasSubscriptionPayments(subscriptionId: string): Pro
       description: p.description,
       invoiceUrl: p.invoiceUrl,
       bankSlipUrl: p.bankSlipUrl,
+      creditCardToken: p.creditCardToken,
     }))
 }
 
