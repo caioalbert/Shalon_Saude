@@ -23,8 +23,19 @@ type AsaasApiErrorResponse = {
   message?: string
 }
 
-type AsaasCreateCustomerResponse = {
+type AsaasCustomerResponse = {
   id?: string
+  name?: string
+  cpfCnpj?: string
+  email?: string
+  phone?: string
+  mobilePhone?: string
+  address?: string
+  addressNumber?: string
+  complement?: string
+  province?: string
+  postalCode?: string
+  externalReference?: string
 }
 
 type AsaasCreatePaymentResponse = {
@@ -52,6 +63,17 @@ type AsaasCreateSubscriptionResponse = {
   nextDueDate?: string
 }
 
+type AsaasSubscriptionResponse = {
+  id?: string
+  customer?: string
+  status?: string
+  billingType?: string
+  value?: number
+  nextDueDate?: string
+  description?: string
+  externalReference?: string
+}
+
 type AsaasPaymentResponse = {
   id?: string
   status?: string
@@ -67,6 +89,9 @@ type AsaasPaymentResponse = {
 }
 
 type AsaasListResponse<T> = {
+  hasMore?: boolean
+  limit?: number
+  offset?: number
   data?: T[]
 }
 
@@ -77,6 +102,21 @@ type AsaasSubscriptionPaymentListItem = {
 export type CreateAsaasCustomerInput = {
   name: string
   cpfCnpj: string
+  email?: string
+  phone?: string
+  mobilePhone?: string
+  address?: string
+  addressNumber?: string
+  complement?: string
+  province?: string
+  postalCode?: string
+  externalReference?: string
+}
+
+export type UpdateAsaasCustomerInput = {
+  id: string
+  name?: string
+  cpfCnpj?: string
   email?: string
   phone?: string
   mobilePhone?: string
@@ -111,6 +151,7 @@ export type CreateAsaasSubscriptionInput = {
   value: number
   nextDueDate: string
   cycle: AsaasCycle
+  maxPayments?: number
   description?: string
   externalReference?: string
 }
@@ -133,6 +174,32 @@ export type AsaasPaymentInfo = {
   invoiceUrl?: string
   bankSlipUrl?: string
   creditCardToken?: string
+}
+
+export type AsaasSubscriptionInfo = {
+  id: string
+  customer?: string
+  status?: string
+  billingType?: string
+  value?: number
+  nextDueDate?: string
+  description?: string
+  externalReference?: string
+}
+
+export type AsaasCustomerInfo = {
+  id: string
+  name?: string
+  cpfCnpj?: string
+  email?: string
+  phone?: string
+  mobilePhone?: string
+  address?: string
+  addressNumber?: string
+  complement?: string
+  province?: string
+  postalCode?: string
+  externalReference?: string
 }
 
 const PAID_STATUSES = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'])
@@ -207,6 +274,21 @@ function normalizeAsaasAmount(value: number, envName: string) {
   }
 
   return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
+function normalizeAsaasMaxPayments(value?: number) {
+  if (value === undefined) return undefined
+
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
+    throw new AsaasIntegrationError(
+      'Quantidade máxima de cobranças inválida para a assinatura.',
+      'configuration',
+      500
+    )
+  }
+
+  return parsed
 }
 
 function assertAsaasDate(value: string, fieldName: string) {
@@ -293,6 +375,30 @@ async function asaasRequest(path: string, init: RequestInit, fallbackErrorMessag
   }
 }
 
+function mapAsaasCustomer(
+  customer: AsaasCustomerResponse,
+  invalidMessage: string
+): AsaasCustomerInfo {
+  if (!customer.id) {
+    throw new AsaasIntegrationError(invalidMessage, 'invalid_response', 502)
+  }
+
+  return {
+    id: customer.id,
+    name: customer.name,
+    cpfCnpj: customer.cpfCnpj,
+    email: customer.email,
+    phone: customer.phone,
+    mobilePhone: customer.mobilePhone,
+    address: customer.address,
+    addressNumber: customer.addressNumber,
+    complement: customer.complement,
+    province: customer.province,
+    postalCode: customer.postalCode,
+    externalReference: customer.externalReference,
+  }
+}
+
 export function isAsaasPaidStatus(status?: string | null) {
   if (!status) return false
   return PAID_STATUSES.has(status.toUpperCase())
@@ -324,20 +430,142 @@ export async function createAsaasCustomer(
     'Não foi possível criar o cliente no Asaas.'
   )
 
-  const data = await parseAsaasJson<AsaasCreateCustomerResponse>(
+  const data = await parseAsaasJson<AsaasCustomerResponse>(
     response,
     'Asaas retornou uma resposta inválida ao criar o cliente.'
   )
 
-  if (!data.id) {
+  const customer = mapAsaasCustomer(data, 'Asaas retornou uma resposta inválida ao criar o cliente.')
+
+  return { id: customer.id }
+}
+
+export async function updateAsaasCustomer(input: UpdateAsaasCustomerInput): Promise<AsaasCustomerInfo> {
+  const customerId = String(input.id || '').trim()
+  if (!customerId) {
     throw new AsaasIntegrationError(
-      'Asaas retornou uma resposta inválida ao criar o cliente.',
-      'invalid_response',
-      502
+      'Identificador do cliente no Asaas é obrigatório.',
+      'configuration',
+      500
     )
   }
 
-  return { id: data.id }
+  const payload = compactPayload({
+    name: input.name?.trim(),
+    cpfCnpj: sanitizeDigits(input.cpfCnpj),
+    email: input.email?.trim(),
+    phone: sanitizeDigits(input.phone),
+    mobilePhone: sanitizeDigits(input.mobilePhone),
+    address: input.address?.trim(),
+    addressNumber: input.addressNumber?.trim(),
+    complement: input.complement?.trim(),
+    province: input.province?.trim(),
+    postalCode: sanitizeDigits(input.postalCode),
+    externalReference: input.externalReference?.trim(),
+  })
+
+  const response = await asaasRequest(
+    `customers/${encodeURIComponent(customerId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+    'Não foi possível atualizar o cliente no Asaas.'
+  )
+
+  const data = await parseAsaasJson<AsaasCustomerResponse>(
+    response,
+    'Asaas retornou uma resposta inválida ao atualizar o cliente.'
+  )
+
+  return mapAsaasCustomer(data, 'Asaas retornou uma resposta inválida ao atualizar o cliente.')
+}
+
+type ListAsaasCustomersInput = {
+  offset?: number
+  limit?: number
+  email?: string
+  cpfCnpj?: string
+  externalReference?: string
+}
+
+export async function listAsaasCustomers(input: ListAsaasCustomersInput = {}): Promise<{
+  customers: AsaasCustomerInfo[]
+  hasMore: boolean
+  nextOffset: number
+}> {
+  const offset =
+    typeof input.offset === 'number' && Number.isFinite(input.offset)
+      ? Math.max(0, Math.trunc(input.offset))
+      : 0
+  const limitInput =
+    typeof input.limit === 'number' && Number.isFinite(input.limit)
+      ? Math.trunc(input.limit)
+      : 100
+  const limit = Math.min(100, Math.max(1, limitInput))
+
+  const params = new URLSearchParams()
+  params.set('offset', String(offset))
+  params.set('limit', String(limit))
+
+  if (input.email?.trim()) {
+    params.set('email', input.email.trim())
+  }
+
+  if (input.cpfCnpj?.trim()) {
+    params.set('cpfCnpj', sanitizeDigits(input.cpfCnpj) || input.cpfCnpj.trim())
+  }
+
+  if (input.externalReference?.trim()) {
+    params.set('externalReference', input.externalReference.trim())
+  }
+
+  const response = await asaasRequest(
+    `customers?${params.toString()}`,
+    { method: 'GET' },
+    'Não foi possível listar os clientes no Asaas.'
+  )
+
+  const data = await parseAsaasJson<AsaasListResponse<AsaasCustomerResponse>>(
+    response,
+    'Asaas retornou uma resposta inválida ao listar clientes.'
+  )
+
+  const customers = Array.isArray(data.data)
+    ? data.data
+        .filter((customer) => customer.id)
+        .map((customer) =>
+          mapAsaasCustomer(customer, 'Asaas retornou um cliente inválido na listagem.')
+        )
+    : []
+
+  const hasMore = Boolean(data.hasMore)
+  const nextOffset = offset + customers.length
+
+  return {
+    customers,
+    hasMore,
+    nextOffset,
+  }
+}
+
+export async function listAllAsaasCustomers(): Promise<AsaasCustomerInfo[]> {
+  const allCustomers: AsaasCustomerInfo[] = []
+  let offset = 0
+  const limit = 100
+
+  while (true) {
+    const page = await listAsaasCustomers({ offset, limit })
+    allCustomers.push(...page.customers)
+
+    if (!page.hasMore || page.customers.length === 0) {
+      break
+    }
+
+    offset = page.nextOffset
+  }
+
+  return allCustomers
 }
 
 export async function createAsaasPixPayment(
@@ -416,6 +644,23 @@ export async function createAsaasPayment(
     bankSlipUrl: data.bankSlipUrl,
     creditCardToken: data.creditCardToken,
   }
+}
+
+export async function cancelAsaasPayment(paymentId: string): Promise<void> {
+  const normalizedPaymentId = String(paymentId || '').trim()
+  if (!normalizedPaymentId) {
+    throw new AsaasIntegrationError(
+      'Identificador da cobrança no Asaas é obrigatório.',
+      'configuration',
+      500
+    )
+  }
+
+  await asaasRequest(
+    `payments/${encodeURIComponent(normalizedPaymentId)}`,
+    { method: 'DELETE' },
+    'Não foi possível cancelar a cobrança no Asaas.'
+  )
 }
 
 export async function getAsaasPixQrCode(paymentId: string): Promise<AsaasPixQrCode> {
@@ -544,11 +789,70 @@ export async function listAsaasSubscriptionPayments(subscriptionId: string): Pro
     }))
 }
 
+type ListAsaasSubscriptionsInput = {
+  customer?: string
+  externalReference?: string
+  status?: 'ACTIVE' | 'INACTIVE' | 'EXPIRED'
+  limit?: number
+}
+
+export async function listAsaasSubscriptions(
+  input: ListAsaasSubscriptionsInput = {}
+): Promise<AsaasSubscriptionInfo[]> {
+  const params = new URLSearchParams()
+  const limitInput =
+    typeof input.limit === 'number' && Number.isFinite(input.limit)
+      ? Math.trunc(input.limit)
+      : 100
+  params.set('limit', String(Math.min(100, Math.max(1, limitInput))))
+
+  if (input.customer?.trim()) {
+    params.set('customer', input.customer.trim())
+  }
+
+  if (input.externalReference?.trim()) {
+    params.set('externalReference', input.externalReference.trim())
+  }
+
+  if (input.status) {
+    params.set('status', input.status)
+  }
+
+  const response = await asaasRequest(
+    `subscriptions?${params.toString()}`,
+    { method: 'GET' },
+    'Não foi possível listar as assinaturas no Asaas.'
+  )
+
+  const data = await parseAsaasJson<AsaasListResponse<AsaasSubscriptionResponse>>(
+    response,
+    'Asaas retornou uma resposta inválida ao listar assinaturas.'
+  )
+
+  if (!Array.isArray(data.data)) {
+    return []
+  }
+
+  return data.data
+    .filter((subscription) => subscription.id)
+    .map((subscription) => ({
+      id: subscription.id!,
+      customer: subscription.customer,
+      status: subscription.status,
+      billingType: subscription.billingType,
+      value: subscription.value,
+      nextDueDate: subscription.nextDueDate,
+      description: subscription.description,
+      externalReference: subscription.externalReference,
+    }))
+}
+
 export async function createAsaasSubscription(
   input: CreateAsaasSubscriptionInput
 ): Promise<{ id: string; nextDueDate?: string }> {
   assertAsaasDate(input.nextDueDate, 'nextDueDate')
   const value = normalizeAsaasAmount(input.value, 'ASAAS_MENSALIDADE_VALUE')
+  const maxPayments = normalizeAsaasMaxPayments(input.maxPayments)
 
   const payload = compactPayload({
     customer: input.customer.trim(),
@@ -556,6 +860,7 @@ export async function createAsaasSubscription(
     value,
     nextDueDate: input.nextDueDate,
     cycle: input.cycle,
+    maxPayments,
     description: input.description?.trim(),
     externalReference: input.externalReference?.trim(),
   })
@@ -586,6 +891,40 @@ export async function createAsaasSubscription(
     id: data.id,
     nextDueDate: data.nextDueDate,
   }
+}
+
+export async function cancelAsaasSubscription(subscriptionId: string): Promise<void> {
+  const normalizedSubscriptionId = String(subscriptionId || '').trim()
+  if (!normalizedSubscriptionId) {
+    throw new AsaasIntegrationError(
+      'Identificador da assinatura no Asaas é obrigatório.',
+      'configuration',
+      500
+    )
+  }
+
+  await asaasRequest(
+    `subscriptions/${encodeURIComponent(normalizedSubscriptionId)}`,
+    { method: 'DELETE' },
+    'Não foi possível cancelar a assinatura no Asaas.'
+  )
+}
+
+export async function deleteAsaasCustomer(customerId: string): Promise<void> {
+  const normalizedCustomerId = String(customerId || '').trim()
+  if (!normalizedCustomerId) {
+    throw new AsaasIntegrationError(
+      'Identificador do cliente no Asaas é obrigatório.',
+      'configuration',
+      500
+    )
+  }
+
+  await asaasRequest(
+    `customers/${encodeURIComponent(normalizedCustomerId)}`,
+    { method: 'DELETE' },
+    'Não foi possível remover o cliente no Asaas.'
+  )
 }
 
 export async function hasAsaasOverdueSubscriptionPayment(subscriptionId: string): Promise<boolean> {

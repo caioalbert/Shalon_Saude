@@ -1,7 +1,9 @@
 import {
   AsaasIntegrationError,
+  cancelAsaasPayment,
   createAsaasPayment,
   createAsaasCustomer,
+  deleteAsaasCustomer,
 } from '@/lib/asaas'
 import {
   getBillingSettings,
@@ -232,6 +234,51 @@ async function cleanupFailedCadastro(cadastroId: string, selfiePath: string | nu
   }
 
   await cleanupSelfieBlob(selfiePath)
+}
+
+function isAsaasMissingResourceError(error: unknown) {
+  const details = error instanceof Error ? error.message : String(error)
+  return /not found|não encontrado|inexistente|does not exist/i.test(details)
+}
+
+async function cleanupFailedAsaasRegistration(params: {
+  asaasCustomerId?: string | null
+  asaasPaymentId?: string | null
+}) {
+  const asaasPaymentId = String(params.asaasPaymentId || '').trim()
+  const asaasCustomerId = String(params.asaasCustomerId || '').trim()
+
+  if (asaasPaymentId) {
+    try {
+      await cancelAsaasPayment(asaasPaymentId)
+    } catch (error) {
+      if (!isAsaasMissingResourceError(error)) {
+        console.warn('Could not rollback Asaas payment:', { asaasPaymentId, error })
+      }
+    }
+  }
+
+  if (asaasCustomerId) {
+    try {
+      await deleteAsaasCustomer(asaasCustomerId)
+    } catch (error) {
+      if (!isAsaasMissingResourceError(error)) {
+        console.warn('Could not rollback Asaas customer:', { asaasCustomerId, error })
+      }
+    }
+  }
+}
+
+async function cleanupFailedCadastroWithAsaas(
+  cadastroId: string,
+  selfiePath: string | null,
+  params: {
+    asaasCustomerId?: string | null
+    asaasPaymentId?: string | null
+  }
+) {
+  await cleanupFailedCadastro(cadastroId, selfiePath)
+  await cleanupFailedAsaasRegistration(params)
 }
 
 export async function POST(request: NextRequest) {
@@ -668,8 +715,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    let asaasCustomerId: string
-    let asaasPaymentId: string
+    let asaasCustomerId: string | null = null
+    let asaasPaymentId: string | null = null
     let asaasPaymentInvoiceUrl: string | null = null
     let asaasPaymentBankSlipUrl: string | null = null
     try {
@@ -700,6 +747,8 @@ export async function POST(request: NextRequest) {
       asaasPaymentInvoiceUrl = payment.invoiceUrl || null
       asaasPaymentBankSlipUrl = payment.bankSlipUrl || null
     } catch (error) {
+      await cleanupFailedAsaasRegistration({ asaasCustomerId, asaasPaymentId })
+
       if (error instanceof AsaasIntegrationError) {
         return NextResponse.json({ error: error.message }, { status: error.status })
       }
@@ -767,9 +816,10 @@ export async function POST(request: NextRequest) {
 
     if (cadastroError) {
       const details = `${cadastroError.message || ''} ${cadastroError.details || ''}`
+      await cleanupSelfieBlob(selfie_path)
+      await cleanupFailedAsaasRegistration({ asaasCustomerId, asaasPaymentId })
 
       if (/duplicate key|cadastros_cpf|cadastros_cpf_idx/i.test(details)) {
-        await cleanupSelfieBlob(selfie_path)
         return NextResponse.json(
           { error: 'CPF já identificado na nossa base de cadastrados.' },
           { status: 409 }
@@ -777,7 +827,6 @@ export async function POST(request: NextRequest) {
       }
 
       if (/duplicate key|cadastros_email|cadastros_email_idx/i.test(details)) {
-        await cleanupSelfieBlob(selfie_path)
         return NextResponse.json(
           { error: 'Email já identificado na nossa base de cadastrados.' },
           { status: 409 }
@@ -789,7 +838,6 @@ export async function POST(request: NextRequest) {
           details
         )
       ) {
-        await cleanupSelfieBlob(selfie_path)
         return NextResponse.json(
           {
             error:
@@ -800,7 +848,6 @@ export async function POST(request: NextRequest) {
       }
 
       if (isConnectivityIssue(details)) {
-        await cleanupSelfieBlob(selfie_path)
         return NextResponse.json(
           {
             error:
@@ -811,7 +858,6 @@ export async function POST(request: NextRequest) {
       }
 
       console.error('Database error:', cadastroError)
-      await cleanupSelfieBlob(selfie_path)
       return NextResponse.json(
         { error: cadastroError.message || 'Erro ao salvar cadastro' },
         { status: 500 }
@@ -839,7 +885,10 @@ export async function POST(request: NextRequest) {
       if (dependentesError) {
         const details = `${dependentesError.message || ''} ${dependentesError.details || ''}`
         if (/column .*email|email .*column/i.test(details)) {
-          await cleanupFailedCadastro(cadastroData.id, selfie_path)
+          await cleanupFailedCadastroWithAsaas(cadastroData.id, selfie_path, {
+            asaasCustomerId,
+            asaasPaymentId,
+          })
           return NextResponse.json(
             {
               error:
@@ -850,7 +899,10 @@ export async function POST(request: NextRequest) {
         }
 
         console.error('Dependentes error:', dependentesError)
-        await cleanupFailedCadastro(cadastroData.id, selfie_path)
+        await cleanupFailedCadastroWithAsaas(cadastroData.id, selfie_path, {
+          asaasCustomerId,
+          asaasPaymentId,
+        })
         return NextResponse.json(
           { error: 'Erro ao salvar dependentes' },
           { status: 500 }
@@ -865,7 +917,7 @@ export async function POST(request: NextRequest) {
       email: cadastroData.email,
       status: cadastroData.status || 'PENDENTE_PAGAMENTO',
       pagamento: {
-        id: asaasPaymentId,
+        id: asaasPaymentId!,
         valor: adesaoValue,
         vencimento: adesaoDueDate,
         billingType: adesaoBillingType,

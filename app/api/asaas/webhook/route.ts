@@ -1,8 +1,10 @@
 import {
   AsaasIntegrationError,
+  cancelAsaasSubscription,
   createAsaasSubscription,
   getAsaasPayment,
   isAsaasPaidStatus,
+  listAsaasSubscriptions,
 } from '@/lib/asaas'
 import {
   MIN_ASAAS_CHARGE_VALUE,
@@ -13,6 +15,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 
 const HANDLED_EVENTS = new Set(['PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED'])
+const SUBSCRIPTION_LOCK_PREFIX = 'LOCK:'
+const SUBSCRIPTION_LOCK_TTL_MS = 10 * 60 * 1000
+const FIDELIDADE_MAX_PAYMENTS = 12
+
+const CADASTRO_SELECT_FIELDS =
+  'id, status, asaas_customer_id, asaas_payment_id, asaas_subscription_id, tipo_plano, mensalidade_valor, mensalidade_billing_type, updated_at'
 
 type AsaasWebhookPayment = {
   id?: string
@@ -24,6 +32,18 @@ type AsaasWebhookPayment = {
 type AsaasWebhookPayload = {
   event?: string
   payment?: AsaasWebhookPayment
+}
+
+type CadastroWebhookRecord = {
+  id: string
+  status: string | null
+  asaas_customer_id: string | null
+  asaas_payment_id: string | null
+  asaas_subscription_id: string | null
+  tipo_plano: string | null
+  mensalidade_valor: number | null
+  mensalidade_billing_type: string | null
+  updated_at: string | null
 }
 
 function toIsoDate(date: Date) {
@@ -72,6 +92,110 @@ function getNextMonthlyDueDate(baseDate: Date = new Date()) {
 
 function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function isSchemaIssue(details: string) {
+  return /asaas_payment_id|asaas_subscription_id|status|adesao_pago_em|mensalidade_billing_type|tipo_plano|mensalidade_valor|updated_at/i.test(
+    details
+  )
+}
+
+function isSubscriptionLockToken(subscriptionId: string | null | undefined) {
+  return String(subscriptionId || '').trim().startsWith(SUBSCRIPTION_LOCK_PREFIX)
+}
+
+function createSubscriptionLockToken(paymentId: string) {
+  return `${SUBSCRIPTION_LOCK_PREFIX}${Date.now()}:${paymentId}:${crypto.randomUUID()}`
+}
+
+function getSubscriptionLockTimestamp(lockToken: string) {
+  if (!isSubscriptionLockToken(lockToken)) return null
+
+  const [, timestampPart] = lockToken.split(':')
+  const timestamp = Number(timestampPart)
+  if (!Number.isFinite(timestamp)) return null
+
+  return timestamp
+}
+
+function isSubscriptionLockStale(lockToken: string, now = Date.now()) {
+  const lockTimestamp = getSubscriptionLockTimestamp(lockToken)
+  if (lockTimestamp === null) return true
+  return now - lockTimestamp > SUBSCRIPTION_LOCK_TTL_MS
+}
+
+function normalizeSubscriptionId(value: string | null | undefined) {
+  return String(value || '').trim()
+}
+
+async function fetchCadastroByPaymentReference(
+  supabase: ReturnType<typeof createAdminClient>,
+  paymentId: string,
+  externalReference?: string
+) {
+  const initialResult = await supabase
+    .from('cadastros')
+    .select(CADASTRO_SELECT_FIELDS)
+    .eq('asaas_payment_id', paymentId)
+    .maybeSingle<CadastroWebhookRecord>()
+
+  if (initialResult.data || !externalReference) {
+    return initialResult
+  }
+
+  return supabase
+    .from('cadastros')
+    .select(CADASTRO_SELECT_FIELDS)
+    .eq('id', externalReference)
+    .maybeSingle<CadastroWebhookRecord>()
+}
+
+async function fetchCadastroById(supabase: ReturnType<typeof createAdminClient>, cadastroId: string) {
+  return supabase
+    .from('cadastros')
+    .select(CADASTRO_SELECT_FIELDS)
+    .eq('id', cadastroId)
+    .maybeSingle<CadastroWebhookRecord>()
+}
+
+async function releaseSubscriptionLock(
+  supabase: ReturnType<typeof createAdminClient>,
+  cadastroId: string,
+  lockToken: string
+) {
+  const { error } = await supabase
+    .from('cadastros')
+    .update({ asaas_subscription_id: null })
+    .eq('id', cadastroId)
+    .eq('asaas_subscription_id', lockToken)
+
+  if (error) {
+    console.error('Webhook: falha ao liberar lock da assinatura', {
+      cadastroId,
+      lockToken,
+      error,
+    })
+  }
+}
+
+async function findAsaasSubscriptionByExternalReference(
+  cadastroId: string,
+  asaasCustomerId: string
+): Promise<string | null> {
+  const subscriptions = await listAsaasSubscriptions({
+    customer: asaasCustomerId,
+    externalReference: cadastroId,
+    limit: 100,
+  })
+
+  const activeSubscription = subscriptions.find((subscription) => {
+    const status = String(subscription.status || '').trim().toUpperCase()
+    return status === 'ACTIVE' || status === 'INACTIVE'
+  })
+
+  const candidate = activeSubscription || subscriptions[0]
+  const id = normalizeSubscriptionId(candidate?.id)
+  return id || null
 }
 
 async function triggerTermoEmail(cadastroId: string, request: NextRequest) {
@@ -132,31 +256,15 @@ export async function POST(request: NextRequest) {
     const paymentId = payload.payment.id
     const supabase = createAdminClient()
 
-    let cadastroResult = await supabase
-      .from('cadastros')
-      .select(
-        'id, status, asaas_customer_id, asaas_payment_id, asaas_subscription_id, tipo_plano, mensalidade_valor, mensalidade_billing_type'
-      )
-      .eq('asaas_payment_id', paymentId)
-      .maybeSingle()
-
-    if (!cadastroResult.data && payload.payment.externalReference) {
-      cadastroResult = await supabase
-        .from('cadastros')
-        .select(
-          'id, status, asaas_customer_id, asaas_payment_id, asaas_subscription_id, tipo_plano, mensalidade_valor, mensalidade_billing_type'
-        )
-        .eq('id', payload.payment.externalReference)
-        .maybeSingle()
-    }
+    const cadastroResult = await fetchCadastroByPaymentReference(
+      supabase,
+      paymentId,
+      payload.payment.externalReference
+    )
 
     if (cadastroResult.error) {
       const details = `${cadastroResult.error.message || ''} ${cadastroResult.error.details || ''}`
-      if (
-        /asaas_payment_id|asaas_subscription_id|status|adesao_pago_em|mensalidade_billing_type|tipo_plano|mensalidade_valor/i.test(
-          details
-        )
-      ) {
+      if (isSchemaIssue(details)) {
         return NextResponse.json(
           {
             error:
@@ -179,7 +287,8 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    if (cadastro.status === 'ATIVO' && cadastro.asaas_subscription_id) {
+    const initialSubscriptionId = normalizeSubscriptionId(cadastro.asaas_subscription_id)
+    if (cadastro.status === 'ATIVO' && initialSubscriptionId && !isSubscriptionLockToken(initialSubscriptionId)) {
       return NextResponse.json({
         received: true,
         processed: true,
@@ -208,14 +317,84 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    let subscriptionId = cadastro.asaas_subscription_id || null
-    if (!subscriptionId) {
+    let lockToken: string | null = null
+    let subscriptionId = normalizeSubscriptionId(cadastro.asaas_subscription_id)
+    let createdNewSubscription = false
+
+    if (!subscriptionId || isSubscriptionLockToken(subscriptionId)) {
       if (!cadastro.asaas_customer_id) {
         return NextResponse.json(
           { error: 'Cliente sem asaas_customer_id. Não é possível criar assinatura.' },
           { status: 500 }
         )
       }
+
+      const currentLockToken = isSubscriptionLockToken(subscriptionId) ? subscriptionId : null
+      if (currentLockToken && !isSubscriptionLockStale(currentLockToken)) {
+        return NextResponse.json(
+          { error: 'Ativação já está sendo processada para este pagamento.' },
+          { status: 409 }
+        )
+      }
+
+      const newLockToken = createSubscriptionLockToken(paymentId)
+      let lockUpdateQuery = supabase
+        .from('cadastros')
+        .update({ asaas_subscription_id: newLockToken })
+        .eq('id', cadastro.id)
+
+      if (currentLockToken) {
+        lockUpdateQuery = lockUpdateQuery.eq('asaas_subscription_id', currentLockToken)
+      } else {
+        lockUpdateQuery = lockUpdateQuery.is('asaas_subscription_id', null)
+      }
+
+      const { data: lockData, error: lockError } = await lockUpdateQuery
+        .select('id')
+        .maybeSingle<{ id: string }>()
+
+      if (lockError) {
+        console.error('Webhook: erro ao adquirir lock de assinatura', lockError)
+        return NextResponse.json(
+          { error: 'Erro ao reservar processamento de assinatura.' },
+          { status: 500 }
+        )
+      }
+
+      if (!lockData) {
+        const refreshedCadastroResult = await fetchCadastroById(supabase, cadastro.id)
+        if (refreshedCadastroResult.error) {
+          console.error('Webhook: erro ao recarregar cadastro após lock concorrente', refreshedCadastroResult.error)
+          return NextResponse.json(
+            { error: 'Erro ao validar processamento concorrente da assinatura.' },
+            { status: 500 }
+          )
+        }
+
+        const refreshedCadastro = refreshedCadastroResult.data
+        const refreshedSubscriptionId = normalizeSubscriptionId(refreshedCadastro?.asaas_subscription_id)
+
+        if (
+          refreshedCadastro &&
+          refreshedCadastro.status === 'ATIVO' &&
+          refreshedSubscriptionId &&
+          !isSubscriptionLockToken(refreshedSubscriptionId)
+        ) {
+          return NextResponse.json({
+            received: true,
+            processed: true,
+            alreadyProcessed: true,
+            asaasSubscriptionId: refreshedSubscriptionId,
+          })
+        }
+
+        return NextResponse.json(
+          { error: 'Ativação já está sendo processada para este pagamento.' },
+          { status: 409 }
+        )
+      }
+
+      lockToken = newLockToken
 
       const billingSettings = await getBillingSettings()
       const billingTypeRequested = String(cadastro.mensalidade_billing_type || '')
@@ -229,6 +408,7 @@ export async function POST(request: NextRequest) {
           : getMensalidadeValueByPlanType(billingSettings, cadastro.tipo_plano)
 
       if (mensalidadeValue < MIN_ASAAS_CHARGE_VALUE) {
+        await releaseSubscriptionLock(supabase, cadastro.id, newLockToken)
         return NextResponse.json(
           {
             error: `Configuração de cobrança inválida. O valor mínimo permitido pelo Asaas é R$ ${MIN_ASAAS_CHARGE_VALUE.toFixed(2).replace('.', ',')}.`,
@@ -237,34 +417,82 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const nextDueDate = getNextMonthlyDueDate()
+      const alreadyExistingSubscriptionId = await findAsaasSubscriptionByExternalReference(
+        cadastro.id,
+        cadastro.asaas_customer_id
+      )
 
-      const subscription = await createAsaasSubscription({
-        customer: cadastro.asaas_customer_id,
-        billingType,
-        value: mensalidadeValue,
-        nextDueDate,
-        cycle: 'MONTHLY',
-        description: 'Mensalidade SHALOM Saúde',
-        externalReference: cadastro.id,
-      })
+      if (alreadyExistingSubscriptionId) {
+        subscriptionId = alreadyExistingSubscriptionId
+      } else {
+        const nextDueDate = getNextMonthlyDueDate()
 
-      subscriptionId = subscription.id
-    }
+        try {
+          const subscription = await createAsaasSubscription({
+            customer: cadastro.asaas_customer_id,
+            billingType,
+            value: mensalidadeValue,
+            nextDueDate,
+            cycle: 'MONTHLY',
+            maxPayments: FIDELIDADE_MAX_PAYMENTS,
+            description: 'Mensalidade SHALOM Saúde',
+            externalReference: cadastro.id,
+          })
 
-    const nowIso = new Date().toISOString()
-    const { error: updateError } = await supabase
-      .from('cadastros')
-      .update({
-        status: 'ATIVO',
-        adesao_pago_em: nowIso,
-        asaas_subscription_id: subscriptionId,
-      })
-      .eq('id', cadastro.id)
+          subscriptionId = subscription.id
+          createdNewSubscription = true
+        } catch (error) {
+          await releaseSubscriptionLock(supabase, cadastro.id, newLockToken)
+          throw error
+        }
+      }
 
-    if (updateError) {
-      console.error('Webhook: erro ao atualizar cadastro', updateError)
-      return NextResponse.json({ error: 'Erro ao ativar cliente.' }, { status: 500 })
+      const nowIso = new Date().toISOString()
+      const { data: updatedCadastro, error: updateError } = await supabase
+        .from('cadastros')
+        .update({
+          status: 'ATIVO',
+          adesao_pago_em: nowIso,
+          asaas_subscription_id: subscriptionId,
+        })
+        .eq('id', cadastro.id)
+        .eq('asaas_subscription_id', newLockToken)
+        .select('id')
+        .maybeSingle<{ id: string }>()
+
+      if (updateError || !updatedCadastro) {
+        if (createdNewSubscription && subscriptionId) {
+          try {
+            await cancelAsaasSubscription(subscriptionId)
+          } catch (rollbackError) {
+            console.error('Webhook: falha ao cancelar assinatura após erro de persistência', {
+              cadastroId: cadastro.id,
+              subscriptionId,
+              rollbackError,
+            })
+          }
+        }
+
+        await releaseSubscriptionLock(supabase, cadastro.id, newLockToken)
+
+        console.error('Webhook: erro ao atualizar cadastro após criar assinatura', updateError)
+        return NextResponse.json({ error: 'Erro ao ativar cliente.' }, { status: 500 })
+      }
+    } else {
+      const nowIso = new Date().toISOString()
+      const { error: updateError } = await supabase
+        .from('cadastros')
+        .update({
+          status: 'ATIVO',
+          adesao_pago_em: nowIso,
+          asaas_subscription_id: subscriptionId,
+        })
+        .eq('id', cadastro.id)
+
+      if (updateError) {
+        console.error('Webhook: erro ao atualizar cadastro com assinatura existente', updateError)
+        return NextResponse.json({ error: 'Erro ao ativar cliente.' }, { status: 500 })
+      }
     }
 
     try {
@@ -282,6 +510,7 @@ export async function POST(request: NextRequest) {
       cadastroId: cadastro.id,
       asaasPaymentId: paymentId,
       asaasSubscriptionId: subscriptionId,
+      lockUsed: Boolean(lockToken),
     })
   } catch (error) {
     if (error instanceof AsaasIntegrationError) {
