@@ -7,9 +7,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useOnlineStatus } from '@/hooks/use-online-status'
+import { trackPwaEvent } from '@/lib/pwa/analytics'
 
 export default function LoginPage() {
   const router = useRouter()
+  const isOnline = useOnlineStatus()
   const [cpf, setCpf] = useState('')
   const [dataNascimento, setDataNascimento] = useState('')
   const [error, setError] = useState('')
@@ -33,6 +36,13 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    if (!isOnline) {
+      trackPwaEvent('pwa_login_blocked_offline', { area: 'cliente' })
+      setError('Sem conexão. Conecte-se à internet para entrar.')
+      return
+    }
+
     setIsLoading(true)
 
     try {
@@ -53,8 +63,13 @@ export default function LoginPage() {
       }
 
       router.push('/cliente/dashboard')
-    } catch (err) {
-      setError('Erro ao conectar com o servidor')
+    } catch {
+      if (!navigator.onLine) {
+        trackPwaEvent('pwa_login_blocked_offline', { area: 'cliente' })
+        setError('Sem conexão. Conecte-se à internet para entrar.')
+      } else {
+        setError('Erro ao conectar com o servidor')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -108,12 +123,18 @@ export default function LoginPage() {
               </div>
             )}
 
+            {!isOnline && !error && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded">
+                Sem conexão. Conecte-se à internet para entrar.
+              </div>
+            )}
+
             <Button
               type="submit"
               className="w-full"
-              disabled={isLoading}
+              disabled={isLoading || !isOnline}
             >
-              {isLoading ? 'Entrando...' : 'Entrar'}
+              {isLoading ? 'Entrando...' : !isOnline ? 'Sem conexão' : 'Entrar'}
             </Button>
           </form>
 

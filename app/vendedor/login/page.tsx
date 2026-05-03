@@ -4,9 +4,12 @@ import { FormEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { useOnlineStatus } from '@/hooks/use-online-status'
+import { trackPwaEvent } from '@/lib/pwa/analytics'
 
 export default function VendedorLoginPage() {
   const router = useRouter()
+  const isOnline = useOnlineStatus()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -14,6 +17,12 @@ export default function VendedorLoginPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+
+    if (!isOnline) {
+      trackPwaEvent('pwa_login_blocked_offline', { area: 'vendedor' })
+      setError('Sem conexão. Conecte-se à internet para entrar.')
+      return
+    }
 
     try {
       setIsLoading(true)
@@ -33,7 +42,12 @@ export default function VendedorLoginPage() {
 
       router.push('/vendedor/dashboard')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao fazer login do vendedor.')
+      if (!navigator.onLine) {
+        trackPwaEvent('pwa_login_blocked_offline', { area: 'vendedor' })
+        setError('Sem conexão. Conecte-se à internet para entrar.')
+      } else {
+        setError(err instanceof Error ? err.message : 'Erro ao fazer login do vendedor.')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -76,8 +90,14 @@ export default function VendedorLoginPage() {
             </div>
           )}
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? 'Entrando...' : 'Entrar'}
+          {!isOnline && !error && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <p className="text-sm text-amber-800">Sem conexão. Conecte-se à internet para entrar.</p>
+            </div>
+          )}
+
+          <Button type="submit" className="w-full" disabled={isLoading || !isOnline}>
+            {isLoading ? 'Entrando...' : !isOnline ? 'Sem conexão' : 'Entrar'}
           </Button>
         </form>
 

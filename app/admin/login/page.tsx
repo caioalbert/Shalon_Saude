@@ -8,9 +8,12 @@ import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 import Image from 'next/image'
 import { HeartPulse, ShieldCheck, Stethoscope, Users } from 'lucide-react'
+import { useOnlineStatus } from '@/hooks/use-online-status'
+import { trackPwaEvent } from '@/lib/pwa/analytics'
 
 export default function AdminLogin() {
   const router = useRouter()
+  const isOnline = useOnlineStatus()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -18,6 +21,13 @@ export default function AdminLogin() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!isOnline) {
+      trackPwaEvent('pwa_login_blocked_offline', { area: 'admin' })
+      setError('Sem conexão. Conecte-se à internet para entrar.')
+      return
+    }
+
     try {
       setIsLoading(true)
       setError(null)
@@ -35,7 +45,12 @@ export default function AdminLogin() {
 
       router.push('/admin/dashboard')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro desconhecido')
+      if (!navigator.onLine) {
+        trackPwaEvent('pwa_login_blocked_offline', { area: 'admin' })
+        setError('Sem conexão. Conecte-se à internet para entrar.')
+      } else {
+        setError(err instanceof Error ? err.message : 'Erro desconhecido')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -128,6 +143,14 @@ export default function AdminLogin() {
                   </div>
                 )}
 
+                {!isOnline && !error && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-sm font-medium text-amber-800">
+                      Sem conexão. Conecte-se à internet para entrar.
+                    </p>
+                  </div>
+                )}
+
                 <div>
                   <Label htmlFor="email" className="font-medium text-gray-700">
                     Email *
@@ -164,10 +187,10 @@ export default function AdminLogin() {
 
                 <Button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={isLoading || !isOnline}
                   className="w-full bg-teal-700 py-2 text-base font-semibold hover:bg-teal-800"
                 >
-                  {isLoading ? 'Entrando...' : 'Entrar'}
+                  {isLoading ? 'Entrando...' : !isOnline ? 'Sem conexão' : 'Entrar'}
                 </Button>
               </form>
 

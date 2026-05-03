@@ -1,7 +1,10 @@
 import type { Metadata } from 'next'
+import type { Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
+import { PwaAnalyticsListeners } from '@/components/pwa/pwa-analytics-listeners'
+import { ServiceWorkerRegister } from '@/components/pwa/service-worker-register'
 import './globals.css'
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist' })
@@ -15,6 +18,7 @@ export const metadata: Metadata = {
   title: 'SHALOM Saúde - Cadastro e Adesão',
   description: 'Sistema de cadastro e adesão ao serviço SHALOM Saúde com captura de selfie e termo digital',
   generator: 'v0.app',
+  manifest: '/manifest.webmanifest',
   icons: {
     icon: [
       {
@@ -34,6 +38,10 @@ export const metadata: Metadata = {
   },
 }
 
+export const viewport: Viewport = {
+  themeColor: '#006B54',
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -43,6 +51,8 @@ export default function RootLayout({
     <html lang="pt-BR" suppressHydrationWarning>
       <body suppressHydrationWarning className={`${geist.variable} ${geistMono.variable} font-sans antialiased`}>
         {children}
+        <ServiceWorkerRegister />
+        <PwaAnalyticsListeners />
         <Analytics />
         <SpeedInsights />
       </body>
