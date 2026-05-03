@@ -123,3 +123,9 @@
     @apply bg-background text-foreground;
   }
 }
+
+@media (prefers-color-scheme: dark) {
+  .app-login-shell {
+    background-color: #000000;
+  }
+}
