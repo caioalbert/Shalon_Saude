@@ -201,6 +201,118 @@ Depois do deploy, verifique no painel da Vercel:
 2. **Speed Insights** para Core Web Vitals
 3. **Observability / Traces** para rastrear execução de rotas e APIs
 
+## PWA Android (AAB / Play Store)
+
+### Comportamento atual do app empacotado
+
+- O `start_url` atual do PWA é `/login`, então o app abre na tela de login.
+- Se o usuário já tiver sessão válida, o fluxo de autenticação pode redirecionar para a área logada.
+- O app está em estratégia **online-only**: sem internet, o usuário não consegue passar do login.
+
+### Pré-requisitos
+
+1. PWA publicado em **HTTPS** (produção), com `manifest.webmanifest` e service worker válidos.
+2. Conta de desenvolvedor Google Play ativa.
+3. Node.js + npm instalados.
+4. `keytool` (JDK) disponível (o Bubblewrap pode instalar dependências automaticamente).
+
+### Fluxo recomendado para gerar AAB com Bubblewrap
+
+> Importante: execute o processo em uma pasta isolada para não poluir a raiz do projeto web.
+
+1. Instalar CLI:
+
+```bash
+npm i -g @bubblewrap/cli
+```
+
+2. Criar pasta isolada e inicializar projeto Android:
+
+```bash
+mkdir -p android-twa
+cd android-twa
+bubblewrap init --manifest=https://shalon-saude.vercel.app/manifest.webmanifest --directory=.
+```
+
+3. Durante o `init`, conferir:
+- `Domain`: `shalon-saude.vercel.app`
+- `URL path`: `/login`
+- `Application ID` (package): use o ID definitivo da Play (ex.: `br.com.shalon.saude`)
+- `Display mode`: `standalone`
+- `Signing key`: manter e guardar com segurança
+
+4. Build do bundle (`.aab`):
+
+```bash
+export BUBBLEWRAP_KEYSTORE_PASSWORD='SUA_SENHA'
+export BUBBLEWRAP_KEY_PASSWORD='SUA_SENHA'
+HOME="$PWD/.home" GRADLE_USER_HOME="$PWD/.gradle" bubblewrap build --manifest=./twa-manifest.json
+```
+
+5. Artefatos gerados:
+- `app-release-bundle.aab` (arquivo para Play Console)
+- `app-release-signed.apk` (teste local)
+
+### Script pronto no repositório (recomendado)
+
+Este projeto possui script para rebuild Android sem poluir a raiz:
+
+```bash
+npm run android:build
+```
+
+Comportamento:
+- usa `twa-manifest.json` do diretório TWA (`android-twa`, `.android-twa`, `.twa-new` ou `.twa-build`);
+- executa `bubblewrap update` + `bubblewrap build`;
+- gera/copia artefatos em `android-artifacts/`:
+  - `android-artifacts/app-release-signed.apk`
+  - `android-artifacts/app-release-bundle.aab`
+
+Variáveis úteis:
+- `BUBBLEWRAP_KEYSTORE_PASSWORD` e `BUBBLEWRAP_KEY_PASSWORD` (evita prompt interativo)
+- `TWA_DIR` para forçar o diretório TWA específico
+- `SKIP_VERSION_UPGRADE=0` se quiser que o Bubblewrap incremente versão automaticamente
+
+### Publicação no Google Play (resumo)
+
+1. Play Console → **Test and release** → **Internal testing**.
+2. Criar release e enviar `app-release-bundle.aab`.
+3. Preencher ficha da loja e políticas (Data safety, conteúdo, etc.).
+4. Testar no track interno antes de produção.
+
+### Digital Asset Links (`assetlinks.json`)
+
+Sem `assetlinks.json` válido, o app pode abrir com barra do navegador (fallback para Custom Tab).
+
+1. Obter fingerprint SHA-256 da keystore:
+
+```bash
+keytool -list -v -keystore android.keystore -alias android
+```
+
+2. Publicar em `https://SEU_DOMINIO/.well-known/assetlinks.json`:
+
+```json
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "br.com.shalon.saude",
+      "sha256_cert_fingerprints": ["SUA_SHA256_AQUI"]
+    }
+  }
+]
+```
+
+3. Se o app for publicado com **Play App Signing**, inclua também o SHA-256 do certificado de assinatura da Play no mesmo array `sha256_cert_fingerprints`.
+
+### Atualização de versão do app Android
+
+- Suba o `appVersionCode` a cada nova release Android.
+- Você pode ajustar no `twa-manifest.json` e executar `bubblewrap update` seguido de `bubblewrap build`.
+- Nunca perca a keystore usada no primeiro upload, pois ela é necessária para futuras versões.
+
 ## Estrutura do Projeto
 
 ```

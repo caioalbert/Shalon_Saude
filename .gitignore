@@ -17,3 +17,39 @@ node_modules/
 .DS_Store
 *:Zone.Identifier
 tsconfig.tsbuildinfo
+
+# Android / TWA (Bubblewrap)
+android-twa/
+.android-twa/
+.twa-build/
+.twa-new/
+.home/
+.gradle/
+
+# Android signing files (sensíveis)
+*.keystore
+*.jks
+*.p12
+
+# Android build artifacts
+*.aab
+*.apk
+*.apks
+*.idsig
+app-release-unsigned-aligned.apk
+manifest-checksum.txt
+store_icon.png
+
+# Android project files gerados por engano na raiz
+/build/
+/build.gradle
+/settings.gradle
+/gradle/
+/gradle.properties
+/gradlew
+/gradlew.bat
+
+# Arquivos Android gerados dentro de /app (conflitam com Next.js app/)
+/app/build/
+/app/build.gradle
+/app/src/
