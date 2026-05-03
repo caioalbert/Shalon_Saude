@@ -24,6 +24,9 @@ export const metadata: Metadata = {
     statusBarStyle: 'default',
     title: 'SHALOM Saúde',
   },
+  other: {
+    'apple-mobile-web-app-capable': 'yes',
+  },
   icons: {
     icon: [
       {
@@ -45,6 +48,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: '#f8fafc',
+  viewportFit: 'cover',
+  colorScheme: 'light',
 }
 
 export default function RootLayout({
