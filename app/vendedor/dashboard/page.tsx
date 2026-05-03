@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Menu } from 'lucide-react'
@@ -61,6 +61,11 @@ export default function VendedorDashboardPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [isSavingPerfil, setIsSavingPerfil] = useState(false)
+  const [vendedorNome, setVendedorNome] = useState('')
+  const [vendedorEmail, setVendedorEmail] = useState('')
+  const [vendedorCodigoIndicacao, setVendedorCodigoIndicacao] = useState('')
+  const [vendedorSenha, setVendedorSenha] = useState('')
 
   const fetchResumo = useCallback(async () => {
     try {
@@ -91,6 +96,14 @@ export default function VendedorDashboardPage() {
     fetchResumo()
   }, [fetchResumo])
 
+  useEffect(() => {
+    if (!data?.vendedor) return
+
+    setVendedorNome(data.vendedor.nome || '')
+    setVendedorEmail(data.vendedor.email || '')
+    setVendedorCodigoIndicacao(data.vendedor.codigoIndicacao || '')
+  }, [data?.vendedor])
+
   const handleLogout = async () => {
     try {
       await fetch('/api/vendedor/logout', { method: 'POST' })
@@ -108,6 +121,56 @@ export default function VendedorDashboardPage() {
       setMessage('Link de venda copiado com sucesso.')
     } catch {
       setError('Não foi possível copiar o link automaticamente.')
+    }
+  }
+
+  const handleSalvarPerfil = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    const nome = vendedorNome.trim()
+    const email = vendedorEmail.trim().toLowerCase()
+    const codigoIndicacao = vendedorCodigoIndicacao.trim()
+    const senha = vendedorSenha.trim()
+
+    if (!nome || !email || !codigoIndicacao) {
+      setError('Nome, email e código de indicação são obrigatórios.')
+      return
+    }
+
+    try {
+      setIsSavingPerfil(true)
+      setError(null)
+      setMessage(null)
+
+      const response = await fetch('/api/vendedor/perfil', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome,
+          email,
+          codigoIndicacao,
+          senha: senha || undefined,
+        }),
+      })
+
+      const payload = await response.json().catch(() => null)
+
+      if (response.status === 401) {
+        router.push('/vendedor/login')
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Erro ao atualizar seu cadastro.')
+      }
+
+      setMessage(payload?.message || 'Seu cadastro foi atualizado com sucesso.')
+      setVendedorSenha('')
+      await fetchResumo()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao atualizar seu cadastro.')
+    } finally {
+      setIsSavingPerfil(false)
     }
   }
 
@@ -194,6 +257,72 @@ export default function VendedorDashboardPage() {
                 </div>
                 <Button onClick={handleCopyLink} variant="outline">Copiar Link de Venda</Button>
               </div>
+            </section>
+
+            <section className="space-y-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900">Meu cadastro</h3>
+              <p className="text-sm text-gray-600">
+                Atualize seus dados de acesso e seu código de indicação.
+              </p>
+
+              <form className="space-y-4" onSubmit={handleSalvarPerfil}>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <label className="space-y-1">
+                    <span className="text-sm font-medium text-gray-700">Nome *</span>
+                    <input
+                      value={vendedorNome}
+                      onChange={(event) => setVendedorNome(event.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                      required
+                      disabled={isSavingPerfil}
+                    />
+                  </label>
+
+                  <label className="space-y-1">
+                    <span className="text-sm font-medium text-gray-700">Email *</span>
+                    <input
+                      type="email"
+                      value={vendedorEmail}
+                      onChange={(event) => setVendedorEmail(event.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                      required
+                      disabled={isSavingPerfil}
+                    />
+                  </label>
+
+                  <label className="space-y-1">
+                    <span className="text-sm font-medium text-gray-700">Código de indicação *</span>
+                    <input
+                      value={vendedorCodigoIndicacao}
+                      onChange={(event) => setVendedorCodigoIndicacao(event.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                      required
+                      disabled={isSavingPerfil}
+                    />
+                  </label>
+
+                  <label className="space-y-1">
+                    <span className="text-sm font-medium text-gray-700">Nova senha (opcional)</span>
+                    <input
+                      type="password"
+                      minLength={6}
+                      value={vendedorSenha}
+                      onChange={(event) => setVendedorSenha(event.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                      placeholder="Mínimo 6 caracteres"
+                      disabled={isSavingPerfil}
+                    />
+                  </label>
+                </div>
+
+                <p className="text-xs text-gray-500">
+                  Se deixar a senha em branco, sua senha atual será mantida.
+                </p>
+
+                <Button type="submit" disabled={isSavingPerfil}>
+                  {isSavingPerfil ? 'Salvando...' : 'Salvar meu cadastro'}
+                </Button>
+              </form>
             </section>
 
             <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">

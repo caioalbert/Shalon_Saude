@@ -74,6 +74,11 @@ export default function AdminVendedorDetalhePage() {
   const [comprovanteFile, setComprovanteFile] = useState<File | null>(null)
   const [isSavingComissao, setIsSavingComissao] = useState(false)
   const [fileInputKey, setFileInputKey] = useState(0)
+  const [isSavingVendedor, setIsSavingVendedor] = useState(false)
+  const [vendedorNome, setVendedorNome] = useState('')
+  const [vendedorEmail, setVendedorEmail] = useState('')
+  const [vendedorCodigoIndicacao, setVendedorCodigoIndicacao] = useState('')
+  const [vendedorSenha, setVendedorSenha] = useState('')
 
   const fetchDetalhes = useCallback(async () => {
     if (!vendedorId) {
@@ -111,6 +116,14 @@ export default function AdminVendedorDetalhePage() {
   useEffect(() => {
     fetchDetalhes()
   }, [fetchDetalhes])
+
+  useEffect(() => {
+    if (!data?.vendedor) return
+
+    setVendedorNome(data.vendedor.nome || '')
+    setVendedorEmail(data.vendedor.email || '')
+    setVendedorCodigoIndicacao(data.vendedor.codigoIndicacao || '')
+  }, [data?.vendedor])
 
   const handleLogout = async () => {
     try {
@@ -175,6 +188,56 @@ export default function AdminVendedorDetalhePage() {
     const month = comissoesPendentes.find((item) => item.mesReferencia === monthReference)
     if (month) {
       setValorPagamento(month.valorPendente.toFixed(2))
+    }
+  }
+
+  const handleSalvarCadastroVendedor = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    const nome = vendedorNome.trim()
+    const email = vendedorEmail.trim().toLowerCase()
+    const codigoIndicacao = vendedorCodigoIndicacao.trim()
+    const senha = vendedorSenha.trim()
+
+    if (!nome || !email || !codigoIndicacao) {
+      setError('Nome, email e código de indicação são obrigatórios.')
+      return
+    }
+
+    try {
+      setIsSavingVendedor(true)
+      setError(null)
+      setMessage(null)
+
+      const response = await fetch(`/api/admin/vendedores/${encodeURIComponent(vendedorId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome,
+          email,
+          codigoIndicacao,
+          senha: senha || undefined,
+        }),
+      })
+
+      const payload = await response.json().catch(() => null)
+
+      if (response.status === 401) {
+        router.push('/admin/login')
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Erro ao atualizar cadastro do vendedor.')
+      }
+
+      setMessage(payload?.message || 'Cadastro do vendedor atualizado com sucesso.')
+      setVendedorSenha('')
+      await fetchDetalhes()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao atualizar cadastro do vendedor.')
+    } finally {
+      setIsSavingVendedor(false)
     }
   }
 
@@ -318,6 +381,72 @@ export default function AdminVendedorDetalhePage() {
                 </div>
                 <Button onClick={handleCopyLink} variant="outline">Copiar Link de Venda</Button>
               </div>
+            </section>
+
+            <section className="space-y-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900">Editar cadastro do vendedor</h3>
+              <p className="text-sm text-gray-600">
+                Atualize nome, email, código de indicação e senha de acesso.
+              </p>
+
+              <form className="space-y-4" onSubmit={handleSalvarCadastroVendedor}>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <label className="space-y-1">
+                    <span className="text-sm font-medium text-gray-700">Nome *</span>
+                    <input
+                      value={vendedorNome}
+                      onChange={(event) => setVendedorNome(event.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                      required
+                      disabled={isSavingVendedor}
+                    />
+                  </label>
+
+                  <label className="space-y-1">
+                    <span className="text-sm font-medium text-gray-700">Email *</span>
+                    <input
+                      type="email"
+                      value={vendedorEmail}
+                      onChange={(event) => setVendedorEmail(event.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                      required
+                      disabled={isSavingVendedor}
+                    />
+                  </label>
+
+                  <label className="space-y-1">
+                    <span className="text-sm font-medium text-gray-700">Código de indicação *</span>
+                    <input
+                      value={vendedorCodigoIndicacao}
+                      onChange={(event) => setVendedorCodigoIndicacao(event.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                      required
+                      disabled={isSavingVendedor}
+                    />
+                  </label>
+
+                  <label className="space-y-1">
+                    <span className="text-sm font-medium text-gray-700">Nova senha (opcional)</span>
+                    <input
+                      type="password"
+                      minLength={6}
+                      value={vendedorSenha}
+                      onChange={(event) => setVendedorSenha(event.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                      placeholder="Mínimo 6 caracteres"
+                      disabled={isSavingVendedor}
+                    />
+                  </label>
+                </div>
+
+                <p className="text-xs text-gray-500">
+                  Se deixar a senha em branco, a senha atual do vendedor será mantida.
+                </p>
+
+                <Button type="submit" disabled={isSavingVendedor}>
+                  {isSavingVendedor ? 'Salvando...' : 'Salvar cadastro'}
+                </Button>
+              </form>
             </section>
 
             <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">

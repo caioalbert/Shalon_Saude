@@ -29,6 +29,7 @@ export default function AdminVendedoresPage() {
   const [vendedores, setVendedores] = useState<Vendedor[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [actionVendedorId, setActionVendedorId] = useState<string | null>(null)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -131,6 +132,88 @@ export default function AdminVendedoresPage() {
       router.push('/admin/login')
     } catch (err) {
       console.error('Logout error:', err)
+    }
+  }
+
+  const handleToggleStatus = async (vendedor: Vendedor) => {
+    const nextAtivo = !vendedor.ativo
+    const confirmMessage = nextAtivo
+      ? `Deseja desbloquear o vendedor "${vendedor.nome}"?`
+      : `Deseja bloquear o vendedor "${vendedor.nome}"?`
+
+    if (!window.confirm(confirmMessage)) {
+      return
+    }
+
+    try {
+      setActionVendedorId(vendedor.id)
+      setError(null)
+      setMessage(null)
+
+      const response = await fetch(`/api/admin/vendedores/${encodeURIComponent(vendedor.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ativo: nextAtivo }),
+      })
+
+      const payload = await response.json().catch(() => null)
+
+      if (response.status === 401) {
+        router.push('/admin/login')
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Erro ao atualizar status do vendedor.')
+      }
+
+      setMessage(
+        payload?.message ||
+          (nextAtivo ? 'Vendedor desbloqueado com sucesso.' : 'Vendedor bloqueado com sucesso.')
+      )
+      await fetchVendedores()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao atualizar status do vendedor.')
+    } finally {
+      setActionVendedorId(null)
+    }
+  }
+
+  const handleDelete = async (vendedor: Vendedor) => {
+    const confirmed = window.confirm(
+      `Deseja realmente excluir o vendedor "${vendedor.nome}"?\n\nEssa ação remove o acesso do vendedor e não pode ser desfeita.`
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      setActionVendedorId(vendedor.id)
+      setError(null)
+      setMessage(null)
+
+      const response = await fetch(`/api/admin/vendedores/${encodeURIComponent(vendedor.id)}`, {
+        method: 'DELETE',
+      })
+
+      const payload = await response.json().catch(() => null)
+
+      if (response.status === 401) {
+        router.push('/admin/login')
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Erro ao excluir vendedor.')
+      }
+
+      setMessage(payload?.message || 'Vendedor excluído com sucesso.')
+      await fetchVendedores()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao excluir vendedor.')
+    } finally {
+      setActionVendedorId(null)
     }
   }
 
@@ -239,13 +322,36 @@ export default function AdminVendedoresPage() {
                         </span>
                       </td>
                       <td className="py-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleCopyLink(vendedor.codigo_indicacao)}
-                        >
-                          Copiar Link de Venda
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCopyLink(vendedor.codigo_indicacao)}
+                            disabled={actionVendedorId === vendedor.id}
+                          >
+                            Copiar Link
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleToggleStatus(vendedor)}
+                            disabled={actionVendedorId === vendedor.id}
+                          >
+                            {actionVendedorId === vendedor.id
+                              ? 'Processando...'
+                              : vendedor.ativo
+                                ? 'Bloquear'
+                                : 'Desbloquear'}
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDelete(vendedor)}
+                            disabled={actionVendedorId === vendedor.id}
+                          >
+                            Excluir
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
