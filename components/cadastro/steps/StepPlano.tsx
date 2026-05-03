@@ -1,5 +1,4 @@
 import { Button } from '@/components/ui/button'
-import { calculatePlanChargeBreakdown } from '@/lib/plan-pricing'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { CheckCircle2, XCircle } from 'lucide-react'
 
@@ -39,22 +38,7 @@ export function StepPlano({
     selectedPlan.valorDependenteAdicional > 0 &&
     Math.abs(selectedPlan.valor - selectedPlan.valorDependenteAdicional) < 0.0001
   )
-  const selectedPlanBreakdown = selectedPlan
-    ? calculatePlanChargeBreakdown(
-        {
-          valor: selectedPlan.valor,
-          permiteDependentes: selectedPlan.permiteDependentes,
-          minDependentes: selectedPlan.minDependentes,
-          valorDependenteAdicional: selectedPlan.valorDependenteAdicional,
-        },
-        0
-      )
-    : null
-  const selectedPlanDisplayValue = selectedPlan
-    ? selectedPlanPerLifeMode
-      ? selectedPlanBreakdown?.minimumAmount || selectedPlan.valor
-      : selectedPlan.valor
-    : 0
+  const selectedPlanDisplayValue = selectedPlan ? selectedPlan.valor : 0
 
   return (
     <div className="space-y-6">
@@ -73,18 +57,7 @@ export function StepPlano({
               plano.permiteDependentes &&
               plano.valorDependenteAdicional > 0 &&
               Math.abs(plano.valor - plano.valorDependenteAdicional) < 0.0001
-            const priceBreakdown = calculatePlanChargeBreakdown(
-              {
-                valor: plano.valor,
-                permiteDependentes: plano.permiteDependentes,
-                minDependentes: plano.minDependentes,
-                valorDependenteAdicional: plano.valorDependenteAdicional,
-              },
-              0
-            )
-            const displayPlanValue = isPerLifeMode
-              ? priceBreakdown.minimumAmount
-              : plano.valor
+            const displayPlanValue = plano.valor
 
             return (
               <label
@@ -107,13 +80,13 @@ export function StepPlano({
                 <div className="mt-6 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white px-4 py-4">
                   <p className="text-4xl font-extrabold leading-tight text-slate-800">
                     {formatCurrency(displayPlanValue)}
-                    {!isPerLifeMode && (
-                      <span className="ml-1 text-sm font-semibold text-slate-600">/mês</span>
-                    )}
+                    <span className="ml-1 text-sm font-semibold text-slate-600">
+                      {isPerLifeMode ? '/vida' : '/mês'}
+                    </span>
                   </p>
                   {isPerLifeMode && (
                     <p className="mt-1 text-sm font-medium text-slate-600">
-                      Valor por pessoa: {formatCurrency(plano.valor)}
+                      Valor por pessoa
                     </p>
                   )}
                 </div>
@@ -169,11 +142,11 @@ export function StepPlano({
           <p className="text-sm text-blue-900">
             <strong>Plano selecionado:</strong> {selectedPlan.nome} -{' '}
             {formatCurrency(selectedPlanDisplayValue)}
-            {!selectedPlanPerLifeMode ? '/mês' : ''}
+            {selectedPlanPerLifeMode ? '/vida' : '/mês'}
           </p>
           {selectedPlanPerLifeMode && (
             <p className="mt-1 text-xs text-blue-700">
-              Valor por pessoa: {formatCurrency(selectedPlan.valor)}
+              Valor por pessoa
             </p>
           )}
         </div>

@@ -1,7 +1,6 @@
 'use client'
 
 import { CadastroFormData, DependenteFormData } from '@/lib/types'
-import { calculatePlanChargeBreakdown } from '@/lib/plan-pricing'
 import { getAgeFromIsoDate, isValidCPF, isValidEmail } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -345,18 +344,7 @@ export function StepDependentes({
               plan.permiteDependentes &&
               plan.valorDependenteAdicional > 0 &&
               Math.abs(plan.valor - plan.valorDependenteAdicional) < 0.0001
-            const priceBreakdown = calculatePlanChargeBreakdown(
-              {
-                valor: plan.valor,
-                permiteDependentes: plan.permiteDependentes,
-                minDependentes: plan.minDependentes,
-                valorDependenteAdicional: plan.valorDependenteAdicional,
-              },
-              0
-            )
-            const displayPlanValue = isPerLifeMode
-              ? priceBreakdown.minimumAmount
-              : plan.valor
+            const displayPlanValue = plan.valor
             const dependentesDescription = plan.permiteDependentes
               ? plan.maxDependentes !== null && plan.maxDependentes > 0
                 ? `Mínimo ${plan.minDependentes + 1} e máximo ${plan.maxDependentes + 1} pessoas.`
@@ -382,13 +370,13 @@ export function StepDependentes({
                 <div className="mt-3 rounded-lg bg-gray-100 px-3 py-2">
                   <p className="text-sm font-semibold text-gray-900">
                     {formatCurrency(displayPlanValue)}
-                    {!isPerLifeMode && (
-                      <span className="ml-1 text-xs font-medium text-gray-600">/ mês</span>
-                    )}
+                    <span className="ml-1 text-xs font-medium text-gray-600">
+                      {isPerLifeMode ? '/vida' : '/mês'}
+                    </span>
                   </p>
                   {isPerLifeMode && (
                     <p className="mt-1 text-xs text-gray-600">
-                      Valor por pessoa: {formatCurrency(plan.valor)}
+                      Valor por pessoa
                     </p>
                   )}
                 </div>

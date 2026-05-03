@@ -1,7 +1,6 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { calculatePlanChargeBreakdown } from '@/lib/plan-pricing'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
@@ -318,18 +317,7 @@ export default function Home() {
                   plano.permiteDependentes &&
                   plano.valorDependenteAdicional > 0 &&
                   Math.abs(plano.valor - plano.valorDependenteAdicional) < 0.0001
-                const priceBreakdown = calculatePlanChargeBreakdown(
-                  {
-                    valor: plano.valor,
-                    permiteDependentes: plano.permiteDependentes,
-                    minDependentes: plano.minDependentes,
-                    valorDependenteAdicional: plano.valorDependenteAdicional,
-                  },
-                  0
-                )
-                const displayPlanValue = isPerLifeMode
-                  ? priceBreakdown.minimumAmount
-                  : plano.valor
+                const displayPlanValue = plano.valor
 
                 return (
                   <div
@@ -348,11 +336,11 @@ export default function Home() {
                       <span className="text-4xl font-bold text-teal-700">
                         {formatCurrency(displayPlanValue)}
                       </span>
-                      {!isPerLifeMode && <span className="text-gray-600">/mês</span>}
+                      <span className="text-gray-600">{isPerLifeMode ? '/vida' : '/mês'}</span>
                     </div>
                     {isPerLifeMode && (
                       <p className="mt-1 text-sm text-gray-600">
-                        Valor por pessoa: {formatCurrency(plano.valor)}
+                        Valor por pessoa
                       </p>
                     )}
                   </div>
