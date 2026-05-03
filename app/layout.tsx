@@ -19,6 +19,11 @@ export const metadata: Metadata = {
   description: 'Sistema de cadastro e adesão ao serviço SHALOM Saúde com captura de selfie e termo digital',
   generator: 'v0.app',
   manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'SHALOM Saúde',
+  },
   icons: {
     icon: [
       {
@@ -39,7 +44,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#006B54',
+  themeColor: '#f8fafc',
 }
 
 export default function RootLayout({
