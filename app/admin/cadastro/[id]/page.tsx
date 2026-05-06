@@ -248,16 +248,6 @@ export default function CadastroDetail() {
                     <p className="text-xs text-gray-600 uppercase font-medium">Escolaridade</p>
                     <p className="text-lg font-medium text-gray-900">{cadastro.escolaridade || '-'}</p>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-600 uppercase font-medium">Situação Profissional</p>
-                    <p className="text-lg font-medium text-gray-900">
-                      {cadastro.situacao_profissional || '-'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600 uppercase font-medium">Profissão</p>
-                    <p className="text-lg font-medium text-gray-900">{cadastro.profissao || '-'}</p>
-                  </div>
                 </div>
               </div>
 

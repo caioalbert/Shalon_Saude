@@ -42,9 +42,6 @@ export function StepTermo({ data }: StepTermoProps) {
               </>
             )}
             <strong>Escolaridade:</strong> {data.escolaridade || '[Escolaridade não preenchida]'} <br />
-            <strong>Situação Profissional:</strong>{' '}
-            {data.situacao_profissional || '[Situação profissional não preenchida]'} <br />
-            <strong>Profissão:</strong> {data.profissao || '[Não informada]'} <br />
             <strong>Email:</strong> {data.email || '[Email não preenchido]'} <br />
             <strong>Telefone:</strong> {data.telefone || '[Telefone não preenchido]'} <br />
           </p>

@@ -96,8 +96,6 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const estado_civil = toValue(body.estado_civil)
     const nome_conjuge = toValue(body.nome_conjuge)
     const escolaridade = toValue(body.escolaridade)
-    const situacao_profissional = toValue(body.situacao_profissional)
-    const profissao = toValue(body.profissao)
     const endereco = toValue(body.endereco)
     const numero = toValue(body.numero)
     const complemento = toValue(body.complemento)
@@ -116,7 +114,6 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       !sexo ||
       !estado_civil ||
       !escolaridade ||
-      !situacao_profissional ||
       !endereco ||
       !numero ||
       !bairro ||
@@ -152,8 +149,6 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         estado_civil,
         nome_conjuge: nome_conjuge || null,
         escolaridade,
-        situacao_profissional,
-        profissao: profissao || null,
         endereco,
         numero,
         complemento: complemento || null,

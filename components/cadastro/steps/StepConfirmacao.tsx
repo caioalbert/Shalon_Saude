@@ -156,14 +156,6 @@ export function StepConfirmacao({
             <p className="font-medium text-gray-800">{data.escolaridade || 'Não informada'}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-600">Situação Profissional</p>
-            <p className="font-medium text-gray-800">{data.situacao_profissional || 'Não informada'}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-600">Profissão</p>
-            <p className="font-medium text-gray-800">{data.profissao || 'Não informada'}</p>
-          </div>
-          <div>
             <p className="text-xs text-gray-600">Selfie</p>
             <p className="font-medium text-gray-800">{data.selfie_blob ? '✓ Capturada' : '✗ Não capturada'}</p>
           </div>

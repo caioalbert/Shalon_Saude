@@ -8,7 +8,6 @@ type CadastroCompletenessInput = {
   data_nascimento?: string | null
   estado_civil?: string | null
   escolaridade?: string | null
-  situacao_profissional?: string | null
   endereco?: string | null
   numero?: string | null
   bairro?: string | null
@@ -31,7 +30,6 @@ const REQUIRED_CADASTRO_FIELDS: Array<{ key: keyof CadastroCompletenessInput; la
   { key: 'data_nascimento', label: 'Data de nascimento' },
   { key: 'estado_civil', label: 'Estado civil' },
   { key: 'escolaridade', label: 'Escolaridade' },
-  { key: 'situacao_profissional', label: 'Situação profissional' },
   { key: 'endereco', label: 'Endereço' },
   { key: 'numero', label: 'Número' },
   { key: 'bairro', label: 'Bairro' },

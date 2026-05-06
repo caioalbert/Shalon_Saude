@@ -114,8 +114,6 @@ export function StepPessoal({ data, onUpdate, showValidation = false }: StepPess
     estado_civil: data.estado_civil || '',
     nome_conjuge: data.nome_conjuge || '',
     escolaridade: data.escolaridade || '',
-    situacao_profissional: data.situacao_profissional || '',
-    profissao: data.profissao || '',
   })
   const [dataNascimentoInput, setDataNascimentoInput] = useState(formatISOToDateInput(initialIsoDate))
   const [cpfError, setCpfError] = useState<string | null>(null)
@@ -436,41 +434,6 @@ export function StepPessoal({ data, onUpdate, showValidation = false }: StepPess
               </option>
             ))}
           </select>
-        </div>
-
-        <div>
-          <Label htmlFor="situacao_profissional" className="text-gray-700 font-medium">
-            Situação Profissional *
-          </Label>
-          <select
-            id="situacao_profissional"
-            name="situacao_profissional"
-            value={localData.situacao_profissional}
-            onChange={handleSelectChange}
-            onBlur={handleBlur}
-            required
-            className={selectClass('situacao_profissional')}
-          >
-            <option value="">Selecione...</option>
-            <option value="Empregado">Empregado</option>
-            <option value="Desempregado">Desempregado</option>
-          </select>
-        </div>
-
-        <div>
-          <Label htmlFor="profissao" className="text-gray-700 font-medium">
-            Profissão
-          </Label>
-          <Input
-            id="profissao"
-            name="profissao"
-            type="text"
-            placeholder="Ex.: Auxiliar administrativo"
-            value={localData.profissao}
-            onChange={handleChange}
-            onBlur={handleBlur}
-            className="mt-2 border-gray-300"
-          />
         </div>
 
       </div>

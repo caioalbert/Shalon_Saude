@@ -466,8 +466,7 @@ export function CadastroForm({
         !hasValue(formData.sexo) ||
         !hasValue(formData.data_nascimento) ||
         !hasValue(formData.estado_civil) ||
-        !hasValue(formData.escolaridade) ||
-        !hasValue(formData.situacao_profissional)
+        !hasValue(formData.escolaridade)
       ) {
         return 'Preencha todos os campos obrigatórios dos dados pessoais para continuar.'
       }
@@ -591,8 +590,7 @@ export function CadastroForm({
         !formData.sexo ||
         !formData.data_nascimento ||
         !formData.estado_civil ||
-        !formData.escolaridade ||
-        !formData.situacao_profissional
+        !formData.escolaridade
       ) {
         throw new Error('Dados pessoais incompletos')
       }
@@ -712,8 +710,6 @@ export function CadastroForm({
       submitData.append('estado_civil', formData.estado_civil || '')
       submitData.append('nome_conjuge', formData.nome_conjuge || '')
       submitData.append('escolaridade', formData.escolaridade || '')
-      submitData.append('situacao_profissional', formData.situacao_profissional || '')
-      submitData.append('profissao', formData.profissao || '')
       submitData.append('endereco', formData.endereco || '')
       submitData.append('numero', formData.numero || '')
       submitData.append('complemento', formData.complemento || '')

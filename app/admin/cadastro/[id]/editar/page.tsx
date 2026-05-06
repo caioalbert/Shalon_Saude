@@ -59,8 +59,6 @@ type FormData = {
   estado_civil: string
   nome_conjuge: string
   escolaridade: string
-  situacao_profissional: string
-  profissao: string
   endereco: string
   numero: string
   complemento: string
@@ -81,8 +79,6 @@ const EMPTY_FORM: FormData = {
   estado_civil: '',
   nome_conjuge: '',
   escolaridade: '',
-  situacao_profissional: '',
-  profissao: '',
   endereco: '',
   numero: '',
   complemento: '',
@@ -136,8 +132,6 @@ export default function AdminCadastroEditPage() {
           estado_civil: cadastro.estado_civil || '',
           nome_conjuge: cadastro.nome_conjuge || '',
           escolaridade: cadastro.escolaridade || '',
-          situacao_profissional: cadastro.situacao_profissional || '',
-          profissao: cadastro.profissao || '',
           endereco: cadastro.endereco || '',
           numero: cadastro.numero || '',
           complemento: cadastro.complemento || '',
@@ -168,7 +162,6 @@ export default function AdminCadastroEditPage() {
           form.sexo.trim() &&
           form.estado_civil.trim() &&
           form.escolaridade.trim() &&
-          form.situacao_profissional.trim() &&
           form.endereco.trim() &&
           form.numero.trim() &&
           form.bairro.trim() &&
@@ -399,27 +392,6 @@ export default function AdminCadastroEditPage() {
                     </option>
                   ))}
                 </select>
-              </div>
-
-              <div>
-                <Label htmlFor="situacao_profissional">Situação Profissional *</Label>
-                <select
-                  id="situacao_profissional"
-                  name="situacao_profissional"
-                  value={form.situacao_profissional}
-                  onChange={handleChange}
-                  required
-                  className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2"
-                >
-                  <option value="">Selecione...</option>
-                  <option value="Empregado">Empregado</option>
-                  <option value="Desempregado">Desempregado</option>
-                </select>
-              </div>
-
-              <div>
-                <Label htmlFor="profissao">Profissão</Label>
-                <Input id="profissao" name="profissao" value={form.profissao} onChange={handleChange} className="mt-2" />
               </div>
             </div>
           </div>

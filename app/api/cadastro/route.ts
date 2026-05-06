@@ -296,8 +296,6 @@ export async function POST(request: NextRequest) {
     const estado_civil = formData.get('estado_civil') as string
     const nome_conjuge = formData.get('nome_conjuge') as string
     const escolaridade = formData.get('escolaridade') as string
-    const situacao_profissional = formData.get('situacao_profissional') as string
-    const profissao = formData.get('profissao') as string
     const endereco = formData.get('endereco') as string
     const numero = formData.get('numero') as string
     const complemento = formData.get('complemento') as string
@@ -322,8 +320,6 @@ export async function POST(request: NextRequest) {
     const estadoCivilValue = estado_civil?.trim()
     const nomeConjugeValue = nome_conjuge?.trim()
     const escolaridadeValue = escolaridade?.trim()
-    const situacaoProfissionalValue = situacao_profissional?.trim()
-    const profissaoValue = profissao?.trim()
     const enderecoValue = endereco?.trim()
     const numeroValue = numero?.trim()
     const complementoValue = complemento?.trim()
@@ -346,8 +342,7 @@ export async function POST(request: NextRequest) {
       !sexoValue ||
       !dataNascimentoValue ||
       !estadoCivilValue ||
-      !escolaridadeValue ||
-      !situacaoProfissionalValue
+      !escolaridadeValue
     ) {
       return NextResponse.json(
         { error: 'Dados pessoais obrigatórios faltando' },
@@ -578,7 +573,7 @@ export async function POST(request: NextRequest) {
 
     let dependentes: Array<{
       nome: string
-      rg: string
+      rg?: string
       cpf?: string
       data_nascimento?: string
       relacao: string
@@ -607,7 +602,7 @@ export async function POST(request: NextRequest) {
         const dep = toRecord(item)
         return {
           nome: toTrimmed(dep.nome),
-          rg: toTrimmed(dep.rg),
+          rg: toTrimmed(dep.rg) || undefined,
           cpf: toTrimmed(dep.cpf) || undefined,
           data_nascimento: toTrimmed(dep.data_nascimento) || undefined,
           relacao: toTrimmed(dep.relacao),
@@ -790,8 +785,6 @@ export async function POST(request: NextRequest) {
           estado_civil: estadoCivilValue,
           nome_conjuge: nomeConjugeValue || null,
           escolaridade: escolaridadeValue,
-          situacao_profissional: situacaoProfissionalValue,
-          profissao: profissaoValue || null,
           endereco: enderecoValue,
           numero: numeroValue,
           complemento: complementoValue || null,
@@ -834,7 +827,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (
-        /column .*sexo|sexo .*column|telefone_celular|estado_civil|nome_conjuge|escolaridade|situacao_profissional|profissao|rg|asaas_customer_id|asaas_payment_id|asaas_subscription_id|status|adesao_pago_em|mensalidade_billing_type|tipo_plano|mensalidade_valor|vendedor_id|vendedor_codigo/i.test(
+        /column .*sexo|sexo .*column|telefone_celular|estado_civil|nome_conjuge|escolaridade|rg|asaas_customer_id|asaas_payment_id|asaas_subscription_id|status|adesao_pago_em|mensalidade_billing_type|tipo_plano|mensalidade_valor|vendedor_id|vendedor_codigo/i.test(
           details
         )
       ) {
@@ -869,7 +862,7 @@ export async function POST(request: NextRequest) {
       const dependentesComCadastroId = dependentes.map((dep) => ({
         cadastro_id: cadastroData.id,
         nome: dep.nome,
-        rg: dep.rg,
+        rg: dep.rg || null,
         cpf: dep.cpf || null,
         data_nascimento: dep.data_nascimento || null,
         relacao: dep.relacao,

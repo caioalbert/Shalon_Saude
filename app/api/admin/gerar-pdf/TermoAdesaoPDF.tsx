@@ -53,8 +53,6 @@ type CadastroPdfData = {
   estado_civil?: string | null
   nome_conjuge?: string | null
   escolaridade?: string | null
-  situacao_profissional?: string | null
-  profissao?: string | null
   endereco?: string | null
   numero?: string | null
   complemento?: string | null
@@ -139,9 +137,6 @@ export function TermoAdesaoPDF({ data, dependentes, termoBodyText }: TermoAdesao
           <Text style={styles.row}>Nome do Cônjuge: {data.nome_conjuge}</Text>
         ) : null}
         <Text style={styles.row}>Escolaridade: {data.escolaridade || ''}</Text>
-        <Text style={styles.row}>
-          Situação Profissional: {data.situacao_profissional || ''}   Profissão: {data.profissao || ''}
-        </Text>
 
         <Text style={styles.sectionTitle}>Dados dos Dependentes</Text>
         {dependentesRows.length > 0 ? (

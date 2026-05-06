@@ -10,8 +10,6 @@ export interface Cadastro {
   estado_civil?: string
   nome_conjuge?: string
   escolaridade?: string
-  situacao_profissional?: string
-  profissao?: string
   endereco?: string
   numero?: string
   complemento?: string
@@ -65,8 +63,6 @@ export interface CadastroFormData {
   estado_civil: string
   nome_conjuge: string
   escolaridade: string
-  situacao_profissional: string
-  profissao: string
   
   // Endereço
   endereco: string

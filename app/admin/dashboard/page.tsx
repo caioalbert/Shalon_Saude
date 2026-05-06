@@ -232,19 +232,9 @@ export default function AdminDashboard() {
     [cadastros]
   )
 
-  const situacaoProfissionalRanking = useMemo(
-    () => buildRanking(cadastros.map((item) => item.situacao_profissional), 'Não informada'),
-    [cadastros]
-  )
-
   const perfisCivisAtivos = useMemo(
     () => estadoCivilRanking.filter((item) => item.name !== 'Não informado').length,
     [estadoCivilRanking]
-  )
-
-  const situacoesProfissionaisAtivas = useMemo(
-    () => situacaoProfissionalRanking.filter((item) => item.name !== 'Não informada').length,
-    [situacaoProfissionalRanking]
   )
 
   const generatedRate = useMemo(() => {
@@ -291,10 +281,6 @@ export default function AdminDashboard() {
   )
 
   const estadoCivilChartData = useMemo(() => estadoCivilRanking.slice(0, 8), [estadoCivilRanking])
-  const situacaoProfissionalChartData = useMemo(
-    () => situacaoProfissionalRanking.slice(0, 8),
-    [situacaoProfissionalRanking]
-  )
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
@@ -463,7 +449,7 @@ export default function AdminDashboard() {
               <KpiCard
                 title="Perfis Civis Ativos"
                 value={perfisCivisAtivos}
-                subtitle={`Situações profissionais: ${situacoesProfissionaisAtivas}`}
+                subtitle={`Estados civis distintos: ${perfisCivisAtivos}`}
                 valueClassName="text-emerald-700"
                 icon={Users}
                 iconClassName="bg-emerald-100 text-emerald-700"
@@ -531,7 +517,7 @@ export default function AdminDashboard() {
               )}
             </section>
 
-            <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div className="mb-8 grid grid-cols-1 gap-6">
               <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div>
@@ -572,52 +558,6 @@ export default function AdminDashboard() {
                           }}
                         />
                         <Bar dataKey="total" fill="#059669" radius={[0, 8, 8, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </section>
-
-              <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">Clientes por Situação Profissional</h2>
-                    <p className="text-sm text-gray-600">Distribuição por vínculo profissional</p>
-                  </div>
-                  <div className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">
-                    {situacaoProfissionalRanking.length} categorias
-                  </div>
-                </div>
-
-                {situacaoProfissionalChartData.length === 0 ? (
-                  <div className="flex h-80 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
-                    Nenhuma situação profissional cadastrada.
-                  </div>
-                ) : (
-                  <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={situacaoProfissionalChartData}
-                        layout="vertical"
-                        margin={{ top: 8, right: 18, left: 18, bottom: 8 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                        <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
-                        <YAxis
-                          dataKey="shortName"
-                          type="category"
-                          width={140}
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <Tooltip
-                          formatter={(value: number | string) => [Number(value).toLocaleString('pt-BR'), 'Clientes']}
-                          labelFormatter={(label, payload) => {
-                            if (!payload || payload.length === 0) return label
-                            return payload[0].payload.name
-                          }}
-                        />
-                        <Bar dataKey="total" fill="#4f46e5" radius={[0, 8, 8, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
