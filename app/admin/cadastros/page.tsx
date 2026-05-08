@@ -14,16 +14,57 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
-import { Cadastro } from '@/lib/types'
+import { Cadastro, Dependente } from '@/lib/types'
 import { getMissingCadastroFields } from '@/lib/cadastro-completeness'
 
 type FinanceiroFilterOption = 'TODOS' | 'EM_DIA' | 'EM_ATRASO' | 'ADESAO_NAO_CONCLUIDA'
 type DadosFilterOption = 'TODOS' | 'PENDENTES' | 'COMPLETOS'
 type ExportScopeOption = 'FILTRADOS' | 'TODOS'
+type PlanoFilterOption = 'TODOS' | string
+type PessoaTipo = 'TITULAR' | 'DEPENDENTE'
+type AdminDependenteListItem = Pick<Dependente, 'id' | 'cadastro_id' | 'nome' | 'email' | 'cpf' | 'created_at'>
+type AdminPlanoListItem = {
+  codigo: string
+  nome: string
+  ativo: boolean
+  ordem: number
+}
+
+type ClienteListRow = {
+  rowId: string
+  tipo: PessoaTipo
+  cadastroId: string
+  cadastro: Cadastro
+  nome: string
+  email: string
+  cpf: string
+  createdAt: string
+  identificador: string
+  titularNome?: string
+  missingFieldsCount: number
+}
+
+function normalizePlano(value: unknown) {
+  return String(value || '').trim().toUpperCase()
+}
+
+function formatPlanoLabel(plano: string) {
+  if (plano === 'INDIVIDUAL') return 'Individual'
+  if (plano === 'FAMILIAR') return 'Familiar'
+
+  return plano
+    .toLowerCase()
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
 
 export default function AdminCadastrosPage() {
   const router = useRouter()
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
+  const [dependentes, setDependentes] = useState<AdminDependenteListItem[]>([])
+  const [planos, setPlanos] = useState<AdminPlanoListItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -31,6 +72,7 @@ export default function AdminCadastrosPage() {
   const [exportListLoading, setExportListLoading] = useState<'CSV' | 'PDF' | null>(null)
   const [financeiroFilter, setFinanceiroFilter] = useState<FinanceiroFilterOption>('TODOS')
   const [dadosFilter, setDadosFilter] = useState<DadosFilterOption>('TODOS')
+  const [planoFilter, setPlanoFilter] = useState<PlanoFilterOption>('TODOS')
   const [exportScope, setExportScope] = useState<ExportScopeOption>('FILTRADOS')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [resendingId, setResendingId] = useState<string | null>(null)
@@ -45,7 +87,7 @@ export default function AdminCadastrosPage() {
       setIsLoading(true)
       setError(null)
       setSuccessMessage(null)
-      const response = await fetch('/api/admin/cadastros')
+      const response = await fetch('/api/admin/cadastros?includeDependentes=true&includePlanos=true')
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -57,6 +99,8 @@ export default function AdminCadastrosPage() {
 
       const data = await response.json()
       setCadastros(data.cadastros || [])
+      setDependentes(data.dependentes || [])
+      setPlanos(data.planos || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido')
     } finally {
@@ -148,6 +192,7 @@ export default function AdminCadastrosPage() {
       }
 
       setCadastros((prev) => prev.filter((item) => item.id !== cadastro.id))
+      setDependentes((prev) => prev.filter((item) => item.cadastro_id !== cadastro.id))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao excluir cliente')
     } finally {
@@ -236,6 +281,10 @@ export default function AdminCadastrosPage() {
         if (dadosFilter !== 'TODOS') {
           params.set('dadosStatus', dadosFilter)
         }
+
+        if (planoFilter !== 'TODOS') {
+          params.set('plano', planoFilter)
+        }
       }
 
       const response = await fetch(`/api/admin/cadastros/exportar?${params.toString()}`)
@@ -281,41 +330,139 @@ export default function AdminCadastrosPage() {
     const withSelfie = cadastros.filter((item) => item.selfie_path).length
     const generatedTerms = cadastros.filter((item) => item.termo_pdf_path).length
     return {
-      total: cadastros.length,
+      totalPessoas: cadastros.length + dependentes.length,
       withDependentes,
       withSelfie,
       generatedTerms,
     }
+  }, [cadastros, dependentes])
+
+  const cadastrosById = useMemo(() => {
+    return cadastros.reduce((acc, cadastro) => {
+      acc.set(cadastro.id, cadastro)
+      return acc
+    }, new Map<string, Cadastro>())
   }, [cadastros])
 
-  const filteredCadastros = useMemo(
+  const listRows = useMemo(() => {
+    const titularRows: ClienteListRow[] = cadastros.map((cadastro) => ({
+      rowId: `titular-${cadastro.id}`,
+      tipo: 'TITULAR',
+      cadastroId: cadastro.id,
+      cadastro,
+      nome: cadastro.nome,
+      email: cadastro.email,
+      cpf: cadastro.cpf,
+      createdAt: cadastro.created_at,
+      identificador: 'Titular',
+      missingFieldsCount: getMissingCadastroFields(cadastro).length,
+    }))
+
+    const dependenteRows: ClienteListRow[] = []
+    dependentes.forEach((dependente) => {
+      const cadastroTitular = cadastrosById.get(dependente.cadastro_id)
+      if (!cadastroTitular) return
+
+      dependenteRows.push({
+        rowId: `dependente-${dependente.id}`,
+        tipo: 'DEPENDENTE',
+        cadastroId: cadastroTitular.id,
+        cadastro: cadastroTitular,
+        nome: String(dependente.nome || '').trim() || 'Dependente sem nome',
+        email: String(dependente.email || '').trim() || '-',
+        cpf: String(dependente.cpf || '').trim() || '-',
+        createdAt: dependente.created_at || cadastroTitular.created_at,
+        identificador: `Dependente de: ${cadastroTitular.nome}`,
+        titularNome: cadastroTitular.nome,
+        missingFieldsCount: getMissingCadastroFields(cadastroTitular).length,
+      })
+    })
+
+    return [...titularRows, ...dependenteRows].sort((a, b) => {
+      const dateA = new Date(a.createdAt).getTime()
+      const dateB = new Date(b.createdAt).getTime()
+      const safeA = Number.isFinite(dateA) ? dateA : 0
+      const safeB = Number.isFinite(dateB) ? dateB : 0
+      return safeB - safeA
+    })
+  }, [cadastros, dependentes, cadastrosById])
+
+  const planoOptions = useMemo(() => {
+    const byCode = new Map<string, { code: string; label: string; ordem: number; fromPlanos: boolean }>()
+
+    planos.forEach((plano) => {
+      const code = normalizePlano(plano.codigo)
+      if (!code) return
+
+      const labelName = String(plano.nome || '').trim()
+      byCode.set(code, {
+        code,
+        label: labelName || formatPlanoLabel(code),
+        ordem: Number.isFinite(Number(plano.ordem)) ? Number(plano.ordem) : 0,
+        fromPlanos: true,
+      })
+    })
+
+    cadastros.forEach((cadastro) => {
+      const code = normalizePlano(cadastro.tipo_plano)
+      if (!code || byCode.has(code)) return
+
+      byCode.set(code, {
+        code,
+        label: formatPlanoLabel(code),
+        ordem: Number.MAX_SAFE_INTEGER,
+        fromPlanos: false,
+      })
+    })
+
+    return Array.from(byCode.values()).sort((a, b) => {
+      if (a.ordem !== b.ordem) {
+        return a.ordem - b.ordem
+      }
+
+      if (a.fromPlanos !== b.fromPlanos) {
+        return a.fromPlanos ? -1 : 1
+      }
+
+      return a.label.localeCompare(b.label, 'pt-BR')
+    })
+  }, [planos, cadastros])
+
+  const filteredRows = useMemo(
     () =>
-      cadastros.filter((cadastro) => {
+      listRows.filter((row) => {
         const normalizedSearch = searchTerm.trim().toLowerCase()
         const matchesSearch =
           !normalizedSearch ||
-          cadastro.nome.toLowerCase().includes(normalizedSearch) ||
-          cadastro.email.toLowerCase().includes(normalizedSearch) ||
-          cadastro.cpf.includes(normalizedSearch)
+          row.nome.toLowerCase().includes(normalizedSearch) ||
+          row.email.toLowerCase().includes(normalizedSearch) ||
+          row.cpf.includes(normalizedSearch) ||
+          (row.titularNome || '').toLowerCase().includes(normalizedSearch)
 
         if (!matchesSearch) return false
 
-        if (financeiroFilter !== 'TODOS' && cadastro.financeiro_status !== financeiroFilter) {
+        if (financeiroFilter !== 'TODOS' && row.cadastro.financeiro_status !== financeiroFilter) {
           return false
+        }
+
+        if (planoFilter !== 'TODOS') {
+          const planoCadastro = normalizePlano(row.cadastro.tipo_plano)
+          if (planoCadastro !== planoFilter) {
+            return false
+          }
         }
 
         if (dadosFilter === 'TODOS') {
           return true
         }
 
-        const missingFields = getMissingCadastroFields(cadastro)
         if (dadosFilter === 'PENDENTES') {
-          return missingFields.length > 0
+          return row.missingFieldsCount > 0
         }
 
-        return missingFields.length === 0
+        return row.missingFieldsCount === 0
       }),
-    [cadastros, searchTerm, financeiroFilter, dadosFilter]
+    [listRows, searchTerm, financeiroFilter, planoFilter, dadosFilter]
   )
 
   const openMissingFieldsDialog = (cadastro: Cadastro) => {
@@ -407,8 +554,10 @@ export default function AdminCadastrosPage() {
       <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
           <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <p className="text-sm text-gray-600">Total de Clientes</p>
-            <p className="mt-1 text-2xl font-bold text-gray-900">{summary.total.toLocaleString('pt-BR')}</p>
+            <p className="text-sm text-gray-600">Total na Lista</p>
+            <p className="mt-1 text-2xl font-bold text-gray-900">
+              {summary.totalPessoas.toLocaleString('pt-BR')}
+            </p>
           </div>
           <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <p className="text-sm text-gray-600">Com Dependentes</p>
@@ -429,10 +578,10 @@ export default function AdminCadastrosPage() {
         </div>
 
         <div className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
             <input
               type="text"
-              placeholder="Pesquisar por nome, email ou CPF..."
+              placeholder="Pesquisar por nome, email, CPF ou titular..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="rounded-lg border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-teal-600 lg:col-span-2"
@@ -456,6 +605,18 @@ export default function AdminCadastrosPage() {
               <option value="PENDENTES">Dados: Pendentes</option>
               <option value="COMPLETOS">Dados: Completos</option>
             </select>
+            <select
+              value={planoFilter}
+              onChange={(e) => setPlanoFilter(e.target.value)}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+            >
+              <option value="TODOS">Plano: Todos</option>
+              {planoOptions.map((plano) => (
+                <option key={plano.code} value={plano.code}>
+                  Plano: {plano.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -469,6 +630,7 @@ export default function AdminCadastrosPage() {
                   setSearchTerm('')
                   setFinanceiroFilter('TODOS')
                   setDadosFilter('TODOS')
+                  setPlanoFilter('TODOS')
                 }}
                 variant="outline"
               >
@@ -533,7 +695,7 @@ export default function AdminCadastrosPage() {
           <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
             <p className="text-gray-600">Carregando clientes...</p>
           </div>
-        ) : filteredCadastros.length === 0 ? (
+        ) : filteredRows.length === 0 ? (
           <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
             <p className="text-gray-600">Nenhum cliente encontrado</p>
           </div>
@@ -546,7 +708,7 @@ export default function AdminCadastrosPage() {
               </div>
               <div className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
                 <ShieldCheck className="h-3.5 w-3.5" />
-                {filteredCadastros.length.toLocaleString('pt-BR')} resultados
+                {filteredRows.length.toLocaleString('pt-BR')} resultados
               </div>
             </div>
 
@@ -555,6 +717,9 @@ export default function AdminCadastrosPage() {
                 <thead className="border-b border-gray-200 bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">Nome</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">
+                      Identificador
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">Email</th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">CPF</th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700">
@@ -565,13 +730,24 @@ export default function AdminCadastrosPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredCadastros.map((cadastro) => (
-                    <tr key={cadastro.id} className="border-b border-gray-200 hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{cadastro.nome}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{cadastro.email}</td>
-                      <td className="px-6 py-4 text-sm font-mono text-gray-600">{cadastro.cpf}</td>
+                  {filteredRows.map((row) => (
+                    <tr key={row.rowId} className="border-b border-gray-200 hover:bg-gray-50">
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{row.nome}</td>
                       <td className="px-6 py-4 text-sm text-gray-600">
-                        {new Date(cadastro.created_at).toLocaleDateString('pt-BR', {
+                        {row.tipo === 'TITULAR' ? (
+                          <span className="inline-flex items-center rounded bg-teal-100 px-2 py-1 text-xs font-medium text-teal-700">
+                            Titular
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                            {row.identificador}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{row.email}</td>
+                      <td className="px-6 py-4 text-sm font-mono text-gray-600">{row.cpf}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {new Date(row.createdAt).toLocaleDateString('pt-BR', {
                           year: 'numeric',
                           month: '2-digit',
                           day: '2-digit',
@@ -579,89 +755,91 @@ export default function AdminCadastrosPage() {
                       </td>
                       <td className="px-6 py-4 text-sm">
                         <div className="flex flex-wrap gap-1">
-                          {cadastro.financeiro_status === 'EM_DIA' && (
+                          {row.cadastro.financeiro_status === 'EM_DIA' && (
                             <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
                               Em dias
                             </span>
                           )}
-                          {cadastro.financeiro_status === 'EM_ATRASO' && (
+                          {row.cadastro.financeiro_status === 'EM_ATRASO' && (
                             <span className="inline-flex items-center gap-1 rounded bg-rose-100 px-2 py-1 text-xs font-medium text-rose-700">
                               Em atraso
                             </span>
                           )}
-                          {cadastro.financeiro_status === 'ADESAO_NAO_CONCLUIDA' && (
+                          {row.cadastro.financeiro_status === 'ADESAO_NAO_CONCLUIDA' && (
                             <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
                               Adesão não concluída
                             </span>
                           )}
-                          {(() => {
-                            const missingFields = getMissingCadastroFields(cadastro)
-                            if (missingFields.length === 0) {
-                              return null
-                            }
-
-                            return (
-                              <button
-                                type="button"
-                                onClick={() => openMissingFieldsDialog(cadastro)}
-                                title="Clique para ver os dados pendentes"
-                                className="inline-flex cursor-pointer items-center gap-1 rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-1"
-                              >
-                                Dados pendentes ({missingFields.length})
-                              </button>
-                            )
-                          })()}
+                          {row.tipo === 'TITULAR' && row.missingFieldsCount > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => openMissingFieldsDialog(row.cadastro)}
+                              title="Clique para ver os dados pendentes"
+                              className="inline-flex cursor-pointer items-center gap-1 rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-1"
+                            >
+                              Dados pendentes ({row.missingFieldsCount})
+                            </button>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm">
                         <div className="flex items-center gap-2">
-                          <Link href={`/admin/cliente/${cadastro.id}`} title="Ver detalhes">
+                          <Link
+                            href={`/admin/cliente/${row.cadastroId}`}
+                            title={row.tipo === 'TITULAR' ? 'Ver detalhes' : `Ver titular: ${row.titularNome || '-'}`}
+                          >
                             <Button size="icon-sm" variant="outline" aria-label="Ver detalhes">
                               <Eye className="h-4 w-4" />
                             </Button>
                           </Link>
-                          <Link href={`/admin/cliente/${cadastro.id}/editar`} title="Editar cliente">
-                            <Button size="icon-sm" variant="outline" aria-label="Editar cliente">
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                          <Button
-                            size="icon-sm"
-                            variant="outline"
-                            onClick={() => handleResendTerm(cadastro)}
-                            disabled={
-                              resendingId === cadastro.id ||
-                              String(cadastro.status || '').toUpperCase() !== 'ATIVO'
-                            }
-                            aria-label="Reenviar termo"
-                            title={
-                              String(cadastro.status || '').toUpperCase() !== 'ATIVO'
-                                ? 'Termo disponível somente após confirmação do pagamento'
-                                : cadastro.termo_pdf_path
-                                  ? 'Reenviar termo por email'
-                                  : 'Gerar e enviar termo por email'
-                            }
-                          >
-                            {resendingId === cadastro.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Mail className="h-4 w-4" />
-                            )}
-                          </Button>
-                          <Button
-                            size="icon-sm"
-                            variant="destructive"
-                            onClick={() => handleDeleteCadastro(cadastro)}
-                            disabled={deletingId === cadastro.id}
-                            aria-label="Excluir cliente"
-                            title="Excluir cliente"
-                          >
-                            {deletingId === cadastro.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                          </Button>
+                          {row.tipo === 'TITULAR' ? (
+                            <>
+                              <Link href={`/admin/cliente/${row.cadastroId}/editar`} title="Editar cliente">
+                                <Button size="icon-sm" variant="outline" aria-label="Editar cliente">
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              </Link>
+                              <Button
+                                size="icon-sm"
+                                variant="outline"
+                                onClick={() => handleResendTerm(row.cadastro)}
+                                disabled={
+                                  resendingId === row.cadastroId ||
+                                  String(row.cadastro.status || '').toUpperCase() !== 'ATIVO'
+                                }
+                                aria-label="Reenviar termo"
+                                title={
+                                  String(row.cadastro.status || '').toUpperCase() !== 'ATIVO'
+                                    ? 'Termo disponível somente após confirmação do pagamento'
+                                    : row.cadastro.termo_pdf_path
+                                      ? 'Reenviar termo por email'
+                                      : 'Gerar e enviar termo por email'
+                                }
+                              >
+                                {resendingId === row.cadastroId ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Mail className="h-4 w-4" />
+                                )}
+                              </Button>
+                              <Button
+                                size="icon-sm"
+                                variant="destructive"
+                                onClick={() => handleDeleteCadastro(row.cadastro)}
+                                disabled={deletingId === row.cadastroId}
+                                aria-label="Excluir cliente"
+                                title="Excluir cliente"
+                              >
+                                {deletingId === row.cadastroId ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </>
+                          ) : (
+                            <span className="text-xs text-gray-500">Ações via titular</span>
+                          )}
                         </div>
                       </td>
                     </tr>

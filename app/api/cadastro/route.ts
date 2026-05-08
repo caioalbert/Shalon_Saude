@@ -13,9 +13,14 @@ import {
 import { calculatePlanChargeBreakdown } from '@/lib/plan-pricing'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { getTermoBodyText } from '@/lib/termo-template'
 import { getAgeFromIsoDate, isValidCPF, isValidEmail } from '@/lib/utils'
+import { renderToBuffer } from '@react-pdf/renderer'
+import type { DocumentProps } from '@react-pdf/renderer'
 import { del, put } from '@vercel/blob'
 import { NextRequest, NextResponse } from 'next/server'
+import React from 'react'
+import { TermoAdesaoPDF } from '../admin/gerar-pdf/TermoAdesaoPDF'
 
 const CONNECTIVITY_ERROR_REGEX =
   /fetch failed|enotfound|getaddrinfo|network|ssl handshake|tls|cloudflare|error code 52\d/i
@@ -30,6 +35,16 @@ function onlyDigits(value: string) {
 
 function toIsoDate(date: Date) {
   return date.toISOString().slice(0, 10)
+}
+
+function sanitizeFileName(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9\s_-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .toLowerCase()
 }
 
 type CadastroBillingType = 'BOLETO' | 'CREDIT_CARD'
@@ -279,6 +294,89 @@ async function cleanupFailedCadastroWithAsaas(
 ) {
   await cleanupFailedCadastro(cadastroId, selfiePath)
   await cleanupFailedAsaasRegistration(params)
+}
+
+async function generateAndPersistCadastroTermoPdf(params: {
+  supabase: any
+  cadastro: Record<string, unknown> & { id: string }
+  dependentes: Array<Record<string, unknown>>
+}) {
+  const { supabase, cadastro, dependentes } = params
+
+  try {
+    const termoBodyText = await getTermoBodyText()
+    const cadastroForTermo = {
+      nome: String(cadastro.nome || ''),
+      cpf: String(cadastro.cpf || ''),
+      rg: String(cadastro.rg || ''),
+      email: String(cadastro.email || ''),
+      telefone: String(cadastro.telefone || ''),
+      sexo: String(cadastro.sexo || ''),
+      data_nascimento: String(cadastro.data_nascimento || ''),
+      estado_civil: String(cadastro.estado_civil || ''),
+      nome_conjuge: String(cadastro.nome_conjuge || ''),
+      escolaridade: String(cadastro.escolaridade || ''),
+      endereco: String(cadastro.endereco || ''),
+      numero: String(cadastro.numero || ''),
+      complemento: String(cadastro.complemento || ''),
+      bairro: String(cadastro.bairro || ''),
+      cidade: String(cadastro.cidade || ''),
+      estado: String(cadastro.estado || ''),
+      cep: String(cadastro.cep || ''),
+    }
+    const dependentesForTermo = dependentes.map((dep) => ({
+      nome: String(dep.nome || ''),
+      relacao: String(dep.relacao || ''),
+      rg: String(dep.rg || ''),
+      cpf: String(dep.cpf || ''),
+      data_nascimento: String(dep.data_nascimento || ''),
+      email: String(dep.email || ''),
+      telefone_celular: String(dep.telefone_celular || ''),
+      sexo: String(dep.sexo || ''),
+    }))
+
+    const pdfDocument = React.createElement(TermoAdesaoPDF, {
+      data: cadastroForTermo,
+      dependentes: dependentesForTermo,
+      termoBodyText,
+    }) as unknown as React.ReactElement<DocumentProps>
+
+    const pdfBuffer = Buffer.from(await renderToBuffer(pdfDocument))
+    const safeName = sanitizeFileName(String(cadastro.nome || ''))
+    const fallbackId = String(cadastro.cpf || cadastro.id)
+      .replace(/\D/g, '')
+      .slice(-11)
+
+    const pdfBlob = await put(
+      `termos/${Date.now()}-${safeName || fallbackId || 'contrato'}.pdf`,
+      pdfBuffer,
+      {
+        access: 'private',
+        contentType: 'application/pdf',
+      }
+    )
+
+    const { error: updateError } = await supabase
+      .from('cadastros')
+      .update({ termo_pdf_path: pdfBlob.pathname })
+      .eq('id', cadastro.id)
+
+    if (updateError) {
+      console.error('Termo PDF persist update error:', {
+        cadastroId: cadastro.id,
+        error: updateError,
+      })
+      return null
+    }
+
+    return pdfBlob.pathname
+  } catch (error) {
+    console.error('Termo PDF generation error on cadastro:', {
+      cadastroId: cadastro.id,
+      error,
+    })
+    return null
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -858,6 +956,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Inserir dependentes se houver
+    const dependentesForTermo: Array<Record<string, unknown>> = []
+
     if (hasDependentes) {
       const dependentesComCadastroId = dependentes.map((dep) => ({
         cadastro_id: cadastroData.id,
@@ -901,7 +1001,15 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         )
       }
+
+      dependentesForTermo.push(...dependentesComCadastroId)
     }
+
+    const termoPdfPath = await generateAndPersistCadastroTermoPdf({
+      supabase,
+      cadastro: cadastroData,
+      dependentes: dependentesForTermo,
+    })
 
     return NextResponse.json({
       success: true,
@@ -920,6 +1028,8 @@ export async function POST(request: NextRequest) {
       tipoPlanoEscolhido: tipoPlano,
       mensalidadeValor,
       mensalidadeBillingTypeEscolhida: mensalidadeBillingType,
+      termoPdfPath,
+      termoGerado: Boolean(termoPdfPath),
     })
   } catch (error) {
     if (error instanceof AsaasIntegrationError) {

@@ -17,8 +17,6 @@ import {
 import {
   CalendarClock,
   Download,
-  FileSignature,
-  ImageIcon,
   Menu,
   RefreshCw,
   Users,
@@ -41,17 +39,30 @@ type KpiCardProps = {
   valueClassName: string
   icon: LucideIcon
   iconClassName: string
+  valueFormatter?: (value: number) => string
 }
 
 const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+const formatCurrencyBRL = (value: number) =>
+  value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
-function KpiCard({ title, value, subtitle, valueClassName, icon: Icon, iconClassName }: KpiCardProps) {
+function KpiCard({
+  title,
+  value,
+  subtitle,
+  valueClassName,
+  icon: Icon,
+  iconClassName,
+  valueFormatter,
+}: KpiCardProps) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium text-gray-600 sm:text-sm">{title}</p>
-          <p className={`mt-2 text-2xl font-bold sm:text-3xl ${valueClassName}`}>{value.toLocaleString('pt-BR')}</p>
+          <p className={`mt-2 text-2xl font-bold sm:text-3xl ${valueClassName}`}>
+            {valueFormatter ? valueFormatter(value) : value.toLocaleString('pt-BR')}
+          </p>
           <p className="mt-1 text-[11px] text-gray-500 sm:text-xs">{subtitle}</p>
         </div>
         <div className={`rounded-xl p-2.5 ${iconClassName}`}>
@@ -99,6 +110,10 @@ function buildRanking(values: Array<string | undefined>, fallbackLabel: string):
 export default function AdminDashboard() {
   const router = useRouter()
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
+  const [financeiroResumo, setFinanceiroResumo] = useState({
+    receitaMesAtual: 0,
+    comissoesPagasMesAtual: 0,
+  })
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [exportLoading, setExportLoading] = useState(false)
@@ -107,7 +122,7 @@ export default function AdminDashboard() {
     try {
       setIsLoading(true)
       setError(null)
-      const response = await fetch('/api/admin/cadastros')
+      const response = await fetch('/api/admin/cadastros?includeFinance=true')
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -119,6 +134,10 @@ export default function AdminDashboard() {
 
       const data = await response.json()
       setCadastros(data.cadastros || [])
+      setFinanceiroResumo({
+        receitaMesAtual: Number(data.financeiroResumo?.receitaMesAtual || 0),
+        comissoesPagasMesAtual: Number(data.financeiroResumo?.comissoesPagasMesAtual || 0),
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido')
     } finally {
@@ -193,18 +212,33 @@ export default function AdminDashboard() {
 
     const startMonth = new Date(now.getFullYear(), now.getMonth(), 1)
 
-    let withSelfie = 0
     let withDependentes = 0
-    let generatedTerms = 0
+    let clientesEmDia = 0
+    let adesoesNaoPagas = 0
+    let mensalidadesAtrasadas = 0
     let today = 0
     let last7Days = 0
     let last30Days = 0
     let currentMonth = 0
 
     cadastros.forEach((cadastro) => {
-      if (cadastro.selfie_path) withSelfie += 1
       if (cadastro.tem_dependentes) withDependentes += 1
-      if (cadastro.termo_pdf_path) generatedTerms += 1
+
+      const financeiroStatus = String(cadastro.financeiro_status || '').trim().toUpperCase()
+      const statusCadastro = String(cadastro.status || '').trim().toUpperCase()
+
+      if (financeiroStatus === 'EM_ATRASO') {
+        mensalidadesAtrasadas += 1
+      } else if (financeiroStatus === 'ADESAO_NAO_CONCLUIDA') {
+        adesoesNaoPagas += 1
+      } else if (financeiroStatus === 'EM_DIA') {
+        clientesEmDia += 1
+      } else if (statusCadastro === 'ATIVO') {
+        // Fallback para ambientes sem integração financeira ativa.
+        clientesEmDia += 1
+      } else if (statusCadastro && statusCadastro !== 'ATIVO') {
+        adesoesNaoPagas += 1
+      }
 
       const createdAt = parseDate(cadastro.created_at)
       if (!createdAt) return
@@ -217,9 +251,11 @@ export default function AdminDashboard() {
 
     return {
       total: cadastros.length,
-      withSelfie,
       withDependentes,
-      generatedTerms,
+      clientesEmDia,
+      clientesEmAtraso: adesoesNaoPagas + mensalidadesAtrasadas,
+      adesoesNaoPagas,
+      mensalidadesAtrasadas,
       today,
       last7Days,
       last30Days,
@@ -231,16 +267,6 @@ export default function AdminDashboard() {
     () => buildRanking(cadastros.map((item) => item.estado_civil), 'Não informado'),
     [cadastros]
   )
-
-  const perfisCivisAtivos = useMemo(
-    () => estadoCivilRanking.filter((item) => item.name !== 'Não informado').length,
-    [estadoCivilRanking]
-  )
-
-  const generatedRate = useMemo(() => {
-    if (summary.total === 0) return 0
-    return Math.round((summary.generatedTerms / summary.total) * 100)
-  }, [summary.generatedTerms, summary.total])
 
   const monthlyTrendData = useMemo(() => {
     const now = new Date()
@@ -421,15 +447,7 @@ export default function AdminDashboard() {
               />
             </div>
 
-            <div className="mb-8 grid grid-cols-2 gap-4 xl:grid-cols-4">
-              <KpiCard
-                title="Com Selfie"
-                value={summary.withSelfie}
-                subtitle="Identidade validada"
-                valueClassName="text-violet-700"
-                icon={ImageIcon}
-                iconClassName="bg-violet-100 text-violet-700"
-              />
+            <div className="mb-8 grid grid-cols-2 gap-4 xl:grid-cols-5">
               <KpiCard
                 title="Com Dependentes"
                 value={summary.withDependentes}
@@ -439,20 +457,57 @@ export default function AdminDashboard() {
                 iconClassName="bg-green-100 text-green-700"
               />
               <KpiCard
-                title="Termos Gerados"
-                value={summary.generatedTerms}
-                subtitle={`Taxa atual: ${generatedRate}%`}
-                valueClassName="text-purple-700"
-                icon={FileSignature}
-                iconClassName="bg-purple-100 text-purple-700"
-              />
-              <KpiCard
-                title="Perfis Civis Ativos"
-                value={perfisCivisAtivos}
-                subtitle={`Estados civis distintos: ${perfisCivisAtivos}`}
+                title="Clientes em Dia"
+                value={summary.clientesEmDia}
+                subtitle="Base ativa adimplente"
                 valueClassName="text-emerald-700"
                 icon={Users}
                 iconClassName="bg-emerald-100 text-emerald-700"
+              />
+              <KpiCard
+                title="Clientes em Atraso"
+                value={summary.clientesEmAtraso}
+                subtitle="Soma de pendências financeiras"
+                valueClassName="text-rose-700"
+                icon={RefreshCw}
+                iconClassName="bg-rose-100 text-rose-700"
+              />
+              <KpiCard
+                title="Adesões Não Pagas"
+                value={summary.adesoesNaoPagas}
+                subtitle="Cadastros sem pagamento inicial"
+                valueClassName="text-amber-700"
+                icon={CalendarClock}
+                iconClassName="bg-amber-100 text-amber-700"
+              />
+              <KpiCard
+                title="Mensalidades Atrasadas"
+                value={summary.mensalidadesAtrasadas}
+                subtitle="Assinaturas com cobrança vencida"
+                valueClassName="text-red-700"
+                icon={Download}
+                iconClassName="bg-red-100 text-red-700"
+              />
+            </div>
+
+            <div className="mb-8 grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <KpiCard
+                title="Receitas Mês"
+                value={financeiroResumo.receitaMesAtual}
+                subtitle="Soma das adesões pagas no mês atual"
+                valueClassName="text-teal-700"
+                icon={Download}
+                iconClassName="bg-teal-100 text-teal-700"
+                valueFormatter={formatCurrencyBRL}
+              />
+              <KpiCard
+                title="Comissões Pagas Mês"
+                value={financeiroResumo.comissoesPagasMesAtual}
+                subtitle="Pagamentos de comissão registrados no mês"
+                valueClassName="text-fuchsia-700"
+                icon={RefreshCw}
+                iconClassName="bg-fuchsia-100 text-fuchsia-700"
+                valueFormatter={formatCurrencyBRL}
               />
             </div>
 

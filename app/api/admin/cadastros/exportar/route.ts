@@ -10,6 +10,7 @@ import { CadastrosListPDF } from './CadastrosListPDF'
 
 type FinanceiroFilterOption = 'TODOS' | 'EM_DIA' | 'EM_ATRASO' | 'ADESAO_NAO_CONCLUIDA'
 type DadosFilterOption = 'TODOS' | 'PENDENTES' | 'COMPLETOS'
+type PlanoFilterOption = 'TODOS' | string
 type ExportTemplateOption = 'DEFAULT' | 'PARTNER'
 
 type ExportRow = {
@@ -82,10 +83,12 @@ function filterCadastros(
     searchTerm,
     financeiroFilter,
     dadosFilter,
+    planoFilter,
   }: {
     searchTerm: string
     financeiroFilter: FinanceiroFilterOption
     dadosFilter: DadosFilterOption
+    planoFilter: PlanoFilterOption
   }
 ) {
   const normalizedSearch = searchTerm.trim().toLowerCase()
@@ -107,6 +110,13 @@ function filterCadastros(
     if (financeiroFilter !== 'TODOS') {
       const financeiro = toText(cadastro.financeiro_status).trim().toUpperCase()
       if (financeiro !== financeiroFilter) {
+        return false
+      }
+    }
+
+    if (planoFilter !== 'TODOS') {
+      const plano = toText(cadastro.tipo_plano).trim().toUpperCase()
+      if (plano !== planoFilter) {
         return false
       }
     }
@@ -267,6 +277,7 @@ export async function GET(request: NextRequest) {
         : 30
     const financeiroFilterRaw = toText(searchParams.get('financeiroStatus')).trim().toUpperCase()
     const dadosFilterRaw = toText(searchParams.get('dadosStatus')).trim().toUpperCase()
+    const planoFilterRaw = toText(searchParams.get('plano')).trim().toUpperCase()
 
     const financeiroFilter = (
       FINANCEIRO_FILTERS.has(financeiroFilterRaw as FinanceiroFilterOption)
@@ -278,6 +289,7 @@ export async function GET(request: NextRequest) {
         ? dadosFilterRaw
         : 'TODOS'
     ) as DadosFilterOption
+    const planoFilter: PlanoFilterOption = planoFilterRaw || 'TODOS'
 
     const supabase = createAdminClient()
     const allCadastros = await listCadastrosWithIndicadores(supabase)
@@ -288,6 +300,7 @@ export async function GET(request: NextRequest) {
             searchTerm,
             financeiroFilter,
             dadosFilter,
+            planoFilter,
           })
 
     const cadastros =
@@ -325,7 +338,7 @@ export async function GET(request: NextRequest) {
     const filtrosSummary =
       scope === 'all'
         ? 'Sem filtros'
-        : `Busca: ${searchTerm || '-'} | Financeiro: ${financeiroFilter} | Dados: ${dadosFilter}`
+        : `Busca: ${searchTerm || '-'} | Financeiro: ${financeiroFilter} | Dados: ${dadosFilter} | Plano: ${planoFilter}`
 
     if (format === 'csv') {
       const csv =
