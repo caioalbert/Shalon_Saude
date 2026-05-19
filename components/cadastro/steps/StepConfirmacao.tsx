@@ -155,10 +155,6 @@ export function StepConfirmacao({
             <p className="text-xs text-gray-600">Escolaridade</p>
             <p className="font-medium text-gray-800">{data.escolaridade || 'Não informada'}</p>
           </div>
-          <div>
-            <p className="text-xs text-gray-600">Selfie</p>
-            <p className="font-medium text-gray-800">{data.selfie_blob ? '✓ Capturada' : '✗ Não capturada'}</p>
-          </div>
         </div>
 
         <div className="border-t pt-4 mt-4">
@@ -285,8 +281,8 @@ export function StepConfirmacao({
             className="mt-1"
           />
           <label htmlFor="privacidade" className="text-sm text-gray-700 cursor-pointer">
-            Autorizo o armazenamento e processamento dos meus dados pessoais e imagem (selfie)
-            conforme a <strong>Política de Privacidade</strong> *
+            Autorizo o armazenamento e processamento dos meus dados pessoais conforme a{' '}
+            <strong>Política de Privacidade</strong> *
           </label>
         </div>
 
@@ -301,7 +297,6 @@ export function StepConfirmacao({
           <li>Se escolher Cartão de Crédito, essa forma será usada também na assinatura mensal</li>
           <li>O termo será enviado para {data.email} após confirmação do pagamento</li>
           <li>Seu cadastro será armazenado com segurança em nossos servidores</li>
-          <li>Sua selfie será utilizada apenas para verificação de identidade</li>
         </ul>
       </div>
 

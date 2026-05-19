@@ -17,7 +17,7 @@ import { getTermoBodyText } from '@/lib/termo-template'
 import { getAgeFromIsoDate, isValidCPF, isValidEmail } from '@/lib/utils'
 import { renderToBuffer } from '@react-pdf/renderer'
 import type { DocumentProps } from '@react-pdf/renderer'
-import { del, put } from '@vercel/blob'
+import { put } from '@vercel/blob'
 import { NextRequest, NextResponse } from 'next/server'
 import React from 'react'
 import { TermoAdesaoPDF } from '../admin/gerar-pdf/TermoAdesaoPDF'
@@ -227,17 +227,7 @@ async function loadCadastroPlanOptions(settings: Awaited<ReturnType<typeof getBi
   return mapLegacyCadastroPlans(settings)
 }
 
-async function cleanupSelfieBlob(selfiePath: string | null) {
-  if (!selfiePath) return
-
-  try {
-    await del(selfiePath)
-  } catch (error) {
-    console.warn('Could not cleanup selfie blob:', { selfiePath, error })
-  }
-}
-
-async function cleanupFailedCadastro(cadastroId: string, selfiePath: string | null) {
+async function cleanupFailedCadastro(cadastroId: string) {
   try {
     const supabaseAdmin = createAdminClient()
     const { error } = await supabaseAdmin.from('cadastros').delete().eq('id', cadastroId)
@@ -247,8 +237,6 @@ async function cleanupFailedCadastro(cadastroId: string, selfiePath: string | nu
   } catch (error) {
     console.error('Rollback cadastro delete unexpected error:', error)
   }
-
-  await cleanupSelfieBlob(selfiePath)
 }
 
 function isAsaasMissingResourceError(error: unknown) {
@@ -286,13 +274,12 @@ async function cleanupFailedAsaasRegistration(params: {
 
 async function cleanupFailedCadastroWithAsaas(
   cadastroId: string,
-  selfiePath: string | null,
   params: {
     asaasCustomerId?: string | null
     asaasPaymentId?: string | null
   }
 ) {
-  await cleanupFailedCadastro(cadastroId, selfiePath)
+  await cleanupFailedCadastro(cadastroId)
   await cleanupFailedAsaasRegistration(params)
 }
 
@@ -406,7 +393,6 @@ export async function POST(request: NextRequest) {
     const vendedor_ref = formData.get('vendedor_ref') as string
     const temDependentesPayload = formData.get('tem_dependentes') === 'true'
     const dependentes_json = formData.get('dependentes') as string
-    const selfie = formData.get('selfie') as File | null
 
     const nomeValue = nome?.trim()
     const emailValue = email?.trim()
@@ -853,20 +839,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Fazer upload da selfie se houver
-    let selfie_path: string | null = null
-    if (selfie) {
-      try {
-        const blob = await put(`selfies/${Date.now()}-${nome.replace(/\s+/g, '-')}.jpg`, selfie, {
-          access: 'private',
-        })
-        selfie_path = blob.pathname
-      } catch (uploadError) {
-        console.error('Selfie upload error:', uploadError)
-        // Continuar mesmo se falhar o upload da selfie
-      }
-    }
-
     // Inserir cadastro no banco
     const { data: cadastroData, error: cadastroError } = await supabase
       .from('cadastros')
@@ -891,7 +863,6 @@ export async function POST(request: NextRequest) {
           estado: estadoValue,
           cep: cepValue,
           tem_dependentes: hasDependentes,
-          selfie_path,
           status: 'PENDENTE_PAGAMENTO',
           asaas_customer_id: asaasCustomerId,
           asaas_payment_id: asaasPaymentId,
@@ -907,7 +878,6 @@ export async function POST(request: NextRequest) {
 
     if (cadastroError) {
       const details = `${cadastroError.message || ''} ${cadastroError.details || ''}`
-      await cleanupSelfieBlob(selfie_path)
       await cleanupFailedAsaasRegistration({ asaasCustomerId, asaasPaymentId })
 
       if (/duplicate key|cadastros_cpf|cadastros_cpf_idx/i.test(details)) {
@@ -978,7 +948,7 @@ export async function POST(request: NextRequest) {
       if (dependentesError) {
         const details = `${dependentesError.message || ''} ${dependentesError.details || ''}`
         if (/column .*email|email .*column/i.test(details)) {
-          await cleanupFailedCadastroWithAsaas(cadastroData.id, selfie_path, {
+          await cleanupFailedCadastroWithAsaas(cadastroData.id, {
             asaasCustomerId,
             asaasPaymentId,
           })
@@ -992,7 +962,7 @@ export async function POST(request: NextRequest) {
         }
 
         console.error('Dependentes error:', dependentesError)
-        await cleanupFailedCadastroWithAsaas(cadastroData.id, selfie_path, {
+        await cleanupFailedCadastroWithAsaas(cadastroData.id, {
           asaasCustomerId,
           asaasPaymentId,
         })

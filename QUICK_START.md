@@ -56,10 +56,9 @@ Acesse: http://localhost:3000
 ### 1. Cadastro de Usuário
 
 1. Vá para `/cadastro`
-2. Preencha todos os dados (6 etapas)
-3. Use sua câmera para selfie
-4. Confirme e finalize
-5. Você verá tela de sucesso
+2. Preencha todos os dados (5 etapas)
+3. Confirme e finalize
+4. Você verá tela de sucesso
 
 ### 2. Painel Admin
 
@@ -67,7 +66,7 @@ Acesse: http://localhost:3000
 2. Use `admin@example.com` e sua senha
 3. Verá dashboard com estatísticas
 4. Clique em "Ver Detalhes" para visualizar cadastro
-5. Baixe PDF ou visualize selfie
+5. Baixe PDF
 
 ## Estrutura de Dados
 
@@ -87,7 +86,6 @@ Acesse: http://localhost:3000
 ## Funcionalidades Prontas
 
 - ✅ Formulário multi-step com validação
-- ✅ Captura de selfie via câmera
 - ✅ Armazenamento seguro de arquivos
 - ✅ Geração de PDF dinâmico
 - ✅ Painel administrativo completo
@@ -98,13 +96,9 @@ Acesse: http://localhost:3000
 
 1. **Resend**: Se quiser emails, configure RESEND_API_KEY e RESEND_FROM_EMAIL
 2. **Email em Produção**: Ajuste templates em `/api/enviar-termo`
-3. **SSL em Produção**: Necessário para câmera funcionar
-4. **Backup**: Configure backups Supabase
+3. **Backup**: Configure backups Supabase
 
 ## Troubleshooting
-
-**Câmera não funciona?**
-→ Certificar que está HTTPS (necessário em produção)
 
 **Database error?**
 → Verificar se tabelas foram criadas no Supabase

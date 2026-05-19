@@ -18,7 +18,6 @@ export interface Cadastro {
   estado?: string
   cep?: string
   tem_dependentes: boolean
-  selfie_path?: string
   status?: 'PENDENTE_PAGAMENTO' | 'ATIVO' | string
   asaas_customer_id?: string
   asaas_payment_id?: string
@@ -79,9 +78,6 @@ export interface CadastroFormData {
 
   // Plano
   tipo_plano: string
-  
-  // Selfie
-  selfie_blob?: Blob
   
   // Email para contato
   email: string

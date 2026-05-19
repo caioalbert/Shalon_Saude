@@ -7,7 +7,6 @@ import { StepPlano } from './steps/StepPlano'
 import { StepPessoal } from './steps/StepPessoal'
 import { StepEndereco } from './steps/StepEndereco'
 import { StepDependentes } from './steps/StepDependentes'
-import { StepSelfie } from './steps/StepSelfie'
 import { StepTermo } from './steps/StepTermo'
 import { StepConfirmacao } from './steps/StepConfirmacao'
 import { Button } from '@/components/ui/button'
@@ -17,7 +16,6 @@ const STEPS = [
   'Dados Pessoais',
   'Endereço',
   'Dependentes',
-  'Selfie',
   'Termo de Adesão',
   'Confirmação',
 ]
@@ -405,7 +403,7 @@ export function CadastroForm({
       if (nextStep === 3) {
         const selectedPlan = getPlanByCode(formData.tipo_plano)
         if (!selectedPlan?.permiteDependentes) {
-          nextStep = 4 // Pula para Selfie
+          nextStep = 4 // Pula para Termo
         }
       }
 
@@ -552,11 +550,7 @@ export function CadastroForm({
       }
     }
 
-    if (currentStep === 4 && !formData.selfie_blob) {
-      return 'Capture ou envie uma selfie para continuar.'
-    }
-
-    if (currentStep === 6) {
+    if (currentStep === 5) {
       if (!formData.tipo_plano || !selectedPlan) {
         return 'Selecione o tipo de plano.'
       }
@@ -725,10 +719,6 @@ export function CadastroForm({
         submitData.append('vendedor_ref', vendedorRef)
       }
 
-      if (formData.selfie_blob) {
-        submitData.append('selfie', formData.selfie_blob)
-      }
-
       const response = await fetch('/api/cadastro', {
         method: 'POST',
         body: submitData,
@@ -786,16 +776,8 @@ export function CadastroForm({
           />
         )
       case 4:
-        return (
-          <StepSelfie
-            data={formData}
-            onUpdate={updateFormData}
-            showValidation={validationStep === 4}
-          />
-        )
-      case 5:
         return <StepTermo data={formData} />
-      case 6:
+      case 5:
         return (
           <StepConfirmacao
             data={formData}
@@ -808,7 +790,7 @@ export function CadastroForm({
             onMensalidadeBillingTypeChange={(value) =>
               updateFormData({ mensalidade_billing_type: value })
             }
-            showValidation={validationStep === 6}
+            showValidation={validationStep === 5}
           />
         )
       default:

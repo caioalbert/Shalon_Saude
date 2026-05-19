@@ -1,6 +1,7 @@
 type CadastroComissaoBase = {
   status?: string | null
   adesao_pago_em?: string | null
+  adesao_valor?: number | string | null
   mensalidade_valor?: number | string | null
 }
 
@@ -47,6 +48,16 @@ function roundCurrency(value: number) {
 export function normalizeCurrencyValue(value: unknown) {
   const amount = Number(value)
   return Number.isFinite(amount) ? amount : 0
+}
+
+export function calculateCadastroComissaoValue(
+  cadastro: Pick<CadastroComissaoBase, 'adesao_valor' | 'mensalidade_valor'>
+) {
+  const mensalidadeValor = normalizeCurrencyValue(cadastro.mensalidade_valor)
+  const adesaoValorInformado = normalizeCurrencyValue(cadastro.adesao_valor)
+  const adesaoValor = adesaoValorInformado > 0 ? adesaoValorInformado : mensalidadeValor
+
+  return roundCurrency((adesaoValor * 0.5) + (mensalidadeValor * 0.5))
 }
 
 export function toMonthReferenceUTC(date: Date) {
@@ -124,7 +135,7 @@ export function buildComissaoResumo(
     const current = vendasByMonth.get(monthReference) || { quantidade: 0, valor: 0 }
 
     current.quantidade += 1
-    current.valor += normalizeCurrencyValue(cadastro.mensalidade_valor)
+    current.valor += calculateCadastroComissaoValue(cadastro)
     vendasByMonth.set(monthReference, current)
     totalVendasPagas += 1
   })

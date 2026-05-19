@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { calculateCadastroComissaoValue } from '@/lib/comissoes'
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 
 type CadastroVendedor = {
@@ -361,6 +362,9 @@ export default function VendedorDashboardPage() {
 
             <section className="space-y-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-gray-900">Histórico mensal de comissão</h3>
+              <p className="text-sm text-gray-600">
+                Regra por venda: 50% da adesão + 50% da primeira mensalidade.
+              </p>
 
               {comissoesMensais.length === 0 ? (
                 <p className="text-sm text-gray-600">Nenhuma comissão mensal calculada até o momento.</p>
@@ -432,7 +436,7 @@ export default function VendedorDashboardPage() {
                         <th className="py-2 pr-4">Cliente</th>
                         <th className="py-2 pr-4">Email</th>
                         <th className="py-2 pr-4">Status</th>
-                        <th className="py-2 pr-4">Valor da adesão</th>
+                        <th className="py-2 pr-4">Comissão da venda</th>
                         <th className="py-2 pr-4">Pago em</th>
                         <th className="py-2">Cliente desde</th>
                       </tr>
@@ -455,7 +459,7 @@ export default function VendedorDashboardPage() {
                               </span>
                             </td>
                             <td className="py-2 pr-4 text-gray-700">
-                              {formatCurrency(Number(cadastro.mensalidade_valor || 0))}
+                              {formatCurrency(calculateCadastroComissaoValue(cadastro))}
                             </td>
                             <td className="py-2 pr-4 text-gray-700">
                               {cadastro.adesao_pago_em

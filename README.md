@@ -1,19 +1,14 @@
 # SHALOM Saúde - Sistema de Cadastro Digital
 
-Sistema completo de cadastro, adesão e gerenciamento de termos digitais para o SHALOM Saúde. Inclui formulário multi-step, captura de selfie, geração de PDF dinâmico e painel administrativo.
+Sistema completo de cadastro, adesão e gerenciamento de termos digitais para o SHALOM Saúde. Inclui formulário multi-step, geração de PDF dinâmico e painel administrativo.
 
 ## Funcionalidades:
 
 ✅ **Formulário de Cadastro Multi-Step**
-- 6 etapas intuitivas: Dados Pessoais, Endereço, Dependentes, Selfie, Termo, Confirmação
+- 5 etapas intuitivas: Dados Pessoais, Endereço, Dependentes, Termo, Confirmação
 - Validação de entrada em tempo real
 - Formatação automática de CPF, CEP e Telefone
 - Dependentes com email obrigatório (menores podem usar email do titular)
-
-✅ **Captura de Selfie**
-- Acesso direto à câmera do navegador
-- Preview da foto antes de confirmar
-- Armazenamento seguro em Vercel Blob (privado)
 
 ✅ **Termo de Adesão Digital**
 - Geração dinâmica de PDF com dados do cadastro
@@ -24,7 +19,6 @@ Sistema completo de cadastro, adesão e gerenciamento de termos digitais para o 
 - Dashboard com estatísticas e filtros
 - Visualização detalhada de cada cadastro
 - Download do termo em PDF
-- Visualização de selfie
 - Listagem de dependentes
 
 ✅ **Envio de Email**
@@ -46,7 +40,7 @@ Sistema completo de cadastro, adesão e gerenciamento de termos digitais para o 
 - **Frontend**: Next.js 16, React 19, TypeScript
 - **Backend**: Next.js API Routes
 - **Banco de Dados**: Supabase (PostgreSQL)
-- **Storage**: Vercel Blob (para selfies e PDFs)
+- **Storage**: Vercel Blob (para PDFs)
 - **Email**: Resend
 - **Pagamentos**: Asaas API
 - **Autenticação**: Supabase Auth
@@ -325,7 +319,6 @@ keytool -list -v -keystore android.keystore -alias android
 │   │   │   ├── logout/
 │   │   │   ├── cadastros/
 │   │   │   ├── cadastro/[id]/
-│   │   │   ├── selfie/
 │   │   │   └── gerar-pdf/
 │   │   └── enviar-termo/          # API para envio de email
 │   ├── cadastro/                  # Página de cadastro
@@ -344,7 +337,6 @@ keytool -list -v -keystore android.keystore -alias android
 │           ├── StepPessoal.tsx
 │           ├── StepEndereco.tsx
 │           ├── StepDependentes.tsx
-│           ├── StepSelfie.tsx
 │           ├── StepTermo.tsx
 │           └── StepConfirmacao.tsx
 ├── lib/
@@ -365,12 +357,10 @@ keytool -list -v -keystore android.keystore -alias android
 ### Cadastro (Client → Server → DB)
 
 1. Usuário preenche formulário multi-step
-2. Selfie é capturada e convertida em Blob
-3. `POST /api/cadastro` envia FormData com todos dados
-4. Server faz upload da selfie para Vercel Blob
-5. Server insere dados em Supabase
-6. Server envia email com API `/api/enviar-termo`
-7. Cliente recebe ID do cadastro e mostra sucesso
+2. `POST /api/cadastro` envia FormData com todos dados
+3. Server insere dados em Supabase
+4. Server envia email com API `/api/enviar-termo`
+5. Cliente recebe ID do cadastro e mostra sucesso
 
 ### Consulta (Admin)
 
@@ -380,7 +370,7 @@ keytool -list -v -keystore android.keystore -alias android
 4. Token de sessão é armazenado em cookie
 5. Admin acessa `/admin/dashboard` e lista cadastros
 6. Clica em "Ver Detalhes" para visualizar cadastro específico
-7. Pode baixar PDF ou visualizar selfie
+7. Pode baixar PDF
 
 ## Modelo de Dados
 
@@ -403,7 +393,6 @@ keytool -list -v -keystore android.keystore -alias android
 | estado | TEXT |
 | cep | TEXT |
 | tem_dependentes | BOOLEAN |
-| selfie_path | TEXT |
 | status | TEXT |
 | asaas_customer_id | TEXT |
 | asaas_payment_id | TEXT |
@@ -449,7 +438,7 @@ keytool -list -v -keystore android.keystore -alias android
 ## Segurança
 
 - Tabelas com RLS habilitado
-- Selfies e PDFs armazenados em Blob privado
+- PDFs armazenados em Blob privado
 - Autenticação obrigatória para painel admin
 - Validação de entrada em todas as APIs
 - Senhas com hash via Supabase Auth
@@ -461,10 +450,6 @@ keytool -list -v -keystore android.keystore -alias android
 - Verificar se tabelas foram criadas
 - Reexecutar o `scripts/001_create_tables.sql` após atualização de schema
 - Checar permissões de RLS
-
-### Erro: "Camera not accessible"
-- Verificar permissões de câmera no navegador
-- Usar HTTPS em produção
 
 ### Erro: "Admin login failed"
 - Verificar se usuário existe com `is_admin: true` em metadata

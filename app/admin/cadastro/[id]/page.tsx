@@ -17,7 +17,6 @@ export default function CadastroDetail() {
   const [dependentes, setDependentes] = useState<Dependente[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selfieUrl, setSelfieUrl] = useState<string | null>(null)
 
   useEffect(() => {
     fetchCadastro()
@@ -39,21 +38,6 @@ export default function CadastroDetail() {
       const data = await response.json()
       setCadastro(data.cadastro)
       setDependentes(data.dependentes || [])
-
-      // Buscar URL da selfie se existir
-      if (data.cadastro.selfie_path) {
-        try {
-          const selfieResponse = await fetch(
-            `/api/admin/selfie?pathname=${encodeURIComponent(data.cadastro.selfie_path)}`
-          )
-          if (selfieResponse.ok) {
-            const blob = await selfieResponse.blob()
-            setSelfieUrl(URL.createObjectURL(blob))
-          }
-        } catch (err) {
-          console.error('Selfie fetch error:', err)
-        }
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido')
     } finally {
@@ -177,28 +161,8 @@ export default function CadastroDetail() {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Selfie */}
-          {selfieUrl && (
-            <div className="lg:col-span-1">
-              <div className="bg-white rounded-lg shadow p-6 space-y-4">
-                <h2 className="text-lg font-semibold text-gray-900">Selfie</h2>
-                <div className="aspect-square bg-gray-200 rounded-lg overflow-hidden">
-                  <img
-                    src={selfieUrl}
-                    alt="Selfie do cliente"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <p className="text-xs text-gray-500">
-                  Capturada em: {new Date(cadastro.created_at).toLocaleDateString('pt-BR')}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Dados */}
-          <div className={selfieUrl ? 'lg:col-span-2' : 'lg:col-span-3'}>
+        <div className="grid grid-cols-1">
+          <div>
             <div className="space-y-6">
               {/* Dados Pessoais */}
               <div className="bg-white rounded-lg shadow p-6 space-y-4">

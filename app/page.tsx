@@ -7,7 +7,6 @@ import { useEffect, useState } from 'react'
 import {
   BadgeCheck,
   Brain,
-  Camera,
   Check,
   Clock3,
   FileCheck2,
@@ -41,8 +40,8 @@ const BENEFITS = [
   },
   {
     title: 'Identidade validada',
-    description: 'Selfie com verificação de autenticidade.',
-    icon: Camera,
+    description: 'Dados cadastrais revisados antes da confirmação.',
+    icon: Lock,
     iconClass: 'bg-cyan-100 text-cyan-700',
   },
   {
@@ -421,7 +420,7 @@ export default function Home() {
         <div className="mx-auto w-full max-w-7xl px-6 sm:px-10 lg:px-16">
           <div className="mb-12 text-center">
             <h2 className="mb-4 text-3xl font-bold text-gray-900">Como Funciona</h2>
-            <p className="text-lg text-gray-600">Processo simples em 6 etapas</p>
+            <p className="text-lg text-gray-600">Processo simples em 5 etapas</p>
           </div>
 
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
@@ -443,16 +442,11 @@ export default function Home() {
               },
               {
                 number: '4',
-                title: 'Selfie',
-                description: 'Tire uma foto para verificação',
-              },
-              {
-                number: '5',
                 title: 'Termo',
                 description: 'Revise o termo de adesão',
               },
               {
-                number: '6',
+                number: '5',
                 title: 'Confirmação',
                 description: 'Confirme e finalize o cadastro',
               },

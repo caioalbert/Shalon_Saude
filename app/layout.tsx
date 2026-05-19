@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: 'SHALOM Saúde - Cadastro e Adesão',
-  description: 'Sistema de cadastro e adesão ao serviço SHALOM Saúde com captura de selfie e termo digital',
+  description: 'Sistema de cadastro e adesão ao serviço SHALOM Saúde com termo digital',
   generator: 'v0.app',
   manifest: '/manifest.webmanifest',
   appleWebApp: {

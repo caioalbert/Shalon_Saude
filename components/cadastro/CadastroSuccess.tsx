@@ -368,20 +368,6 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
                 </svg>
                 <span>Você receberá um email em breve com seu termo em PDF</span>
               </div>
-              <div className="flex items-start space-x-3">
-                <svg
-                  className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <span>Sua selfie foi armazenada com segurança</span>
-              </div>
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">

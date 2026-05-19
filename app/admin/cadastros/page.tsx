@@ -327,12 +327,10 @@ export default function AdminCadastrosPage() {
 
   const summary = useMemo(() => {
     const withDependentes = cadastros.filter((item) => item.tem_dependentes).length
-    const withSelfie = cadastros.filter((item) => item.selfie_path).length
     const generatedTerms = cadastros.filter((item) => item.termo_pdf_path).length
     return {
       totalPessoas: cadastros.length + dependentes.length,
       withDependentes,
-      withSelfie,
       generatedTerms,
     }
   }, [cadastros, dependentes])
@@ -552,7 +550,7 @@ export default function AdminCadastrosPage() {
       </header>
 
       <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <p className="text-sm text-gray-600">Total na Lista</p>
             <p className="mt-1 text-2xl font-bold text-gray-900">
@@ -564,10 +562,6 @@ export default function AdminCadastrosPage() {
             <p className="mt-1 text-2xl font-bold text-green-700">
               {summary.withDependentes.toLocaleString('pt-BR')}
             </p>
-          </div>
-          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <p className="text-sm text-gray-600">Com Selfie</p>
-            <p className="mt-1 text-2xl font-bold text-blue-700">{summary.withSelfie.toLocaleString('pt-BR')}</p>
           </div>
           <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <p className="text-sm text-gray-600">Termos Gerados</p>

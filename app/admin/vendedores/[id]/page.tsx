@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { calculateCadastroComissaoValue } from '@/lib/comissoes'
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 
 type ClienteVendedor = {
@@ -490,7 +491,8 @@ export default function AdminVendedorDetalhePage() {
             <section className="space-y-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-gray-900">Fechamento de Comissão</h3>
               <p className="text-sm text-gray-600">
-                Registre o pagamento por mês e anexe o comprovante para auditoria.
+                Registre o pagamento por mês e anexe o comprovante para auditoria. Regra por venda:
+                50% da adesão + 50% da primeira mensalidade.
               </p>
 
               {comissoesPendentes.length === 0 ? (
@@ -666,7 +668,7 @@ export default function AdminVendedorDetalhePage() {
                               </span>
                             </td>
                             <td className="py-2 pr-4 text-gray-700">
-                              {formatCurrency(Number(cliente.mensalidade_valor || 0))}
+                              {formatCurrency(calculateCadastroComissaoValue(cliente))}
                             </td>
                             <td className="py-2 pr-4 text-gray-700">
                               {cliente.adesao_pago_em

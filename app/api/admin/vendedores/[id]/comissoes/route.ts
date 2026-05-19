@@ -1,6 +1,7 @@
 import { put } from '@vercel/blob'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
+  calculateCadastroComissaoValue,
   formatMonthReferenceLabel,
   getMonthRangeUTC,
   normalizeCurrencyValue,
@@ -173,7 +174,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const totalComissaoMes = (vendasMes || []).reduce((acc, venda) => {
-      return acc + normalizeCurrencyValue(venda.mensalidade_valor)
+      return acc + calculateCadastroComissaoValue(venda)
     }, 0)
 
     if (totalComissaoMes <= 0) {

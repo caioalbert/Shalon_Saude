@@ -19,7 +19,6 @@ CREATE TABLE IF NOT EXISTS cadastros (
   estado TEXT,
   cep TEXT,
   tem_dependentes BOOLEAN DEFAULT FALSE,
-  selfie_path TEXT,
   asaas_customer_id TEXT,
   asaas_payment_id TEXT,
   asaas_subscription_id TEXT,
