@@ -14,7 +14,7 @@ export default function LoginPage() {
   const router = useRouter()
   const isOnline = useOnlineStatus()
   const [cpf, setCpf] = useState('')
-  const [dataNascimento, setDataNascimento] = useState('')
+  const [cpfPrefix, setCpfPrefix] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
@@ -33,9 +33,27 @@ export default function LoginPage() {
     setCpf(formatCPF(e.target.value))
   }
 
+  const handlePrefixChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCpfPrefix(e.target.value.replace(/\D/g, '').slice(0, 4))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    const cpfClean = cpf.replace(/\D/g, '')
+    if (cpfClean.length !== 11) {
+      setError('Informe um CPF válido com 11 dígitos.')
+      return
+    }
+    if (cpfPrefix.length !== 4) {
+      setError('Informe os 4 primeiros dígitos do CPF.')
+      return
+    }
+    if (cpfClean.slice(0, 4) !== cpfPrefix) {
+      setError('Os 4 primeiros dígitos não conferem com o CPF informado.')
+      return
+    }
 
     if (!isOnline) {
       trackPwaEvent('pwa_login_blocked_offline', { area: 'cliente' })
@@ -50,8 +68,8 @@ export default function LoginPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          cpf: cpf.replace(/\D/g, ''),
-          data_nascimento: dataNascimento,
+          cpf: cpfClean,
+          cpf_prefix: cpfPrefix,
         }),
       })
 
@@ -106,15 +124,25 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <Label htmlFor="data_nascimento" className="mb-2 block">Data de Nascimento</Label>
+              <Label htmlFor="cpf_prefix" className="mb-2 block">
+                4 primeiros dígitos do CPF
+              </Label>
               <Input
-                id="data_nascimento"
-                type="date"
-                value={dataNascimento}
-                onChange={(e) => setDataNascimento(e.target.value)}
+                id="cpf_prefix"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                value={cpfPrefix}
+                onChange={handlePrefixChange}
+                placeholder="0000"
+                maxLength={4}
                 required
                 disabled={isLoading}
+                className="tracking-widest"
               />
+              <p className="mt-1 text-xs text-gray-500">
+                Confirmação de segurança (somente números).
+              </p>
             </div>
 
             {error && (
@@ -154,7 +182,7 @@ export default function LoginPage() {
         </div>
 
         <div className="mt-4 text-center text-sm text-gray-600">
-          <p>Use seu CPF e data de nascimento para acessar</p>
+          <p>Use seu CPF completo e os 4 primeiros dígitos para acessar</p>
         </div>
       </div>
     </div>

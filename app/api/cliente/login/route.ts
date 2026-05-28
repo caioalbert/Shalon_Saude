@@ -1,3 +1,7 @@
+import {
+  formatCpfForDb,
+  verifyCpfPrefix,
+} from '@/lib/cliente-login-verify'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { SignJWT } from 'jose'
@@ -9,39 +13,63 @@ const JWT_SECRET = new TextEncoder().encode(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { cpf, data_nascimento } = body
+    const { cpf, cpf_prefix } = body
 
-    if (!cpf || !data_nascimento) {
+    if (!cpf) {
+      return NextResponse.json({ error: 'CPF é obrigatório.' }, { status: 400 })
+    }
+
+    const hasPrefix =
+      cpf_prefix !== undefined && cpf_prefix !== null && String(cpf_prefix).trim() !== ''
+    if (!hasPrefix) {
       return NextResponse.json(
-        { error: 'CPF e data de nascimento são obrigatórios.' },
+        {
+          error: 'Informe os 4 primeiros dígitos do CPF.',
+        },
         { status: 400 }
       )
     }
 
-    const cpfClean = cpf.replace(/\D/g, '')
-    const cpfFormatted = cpfClean.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+    const cpfClean = String(cpf).replace(/\D/g, '')
+    if (cpfClean.length !== 11) {
+      return NextResponse.json({ error: 'CPF inválido.' }, { status: 400 })
+    }
+
+    const prefixClean = String(cpf_prefix).replace(/\D/g, '')
+    if (prefixClean.length !== 4) {
+      return NextResponse.json(
+        { error: 'Informe exatamente os 4 primeiros dígitos do CPF.' },
+        { status: 400 }
+      )
+    }
+    if (cpfClean.slice(0, 4) !== prefixClean) {
+      return NextResponse.json(
+        { error: 'CPF ou dígitos de confirmação incorretos.' },
+        { status: 401 }
+      )
+    }
+
+    const cpfFormatted = formatCpfForDb(cpfClean)
 
     const supabase = await createClient()
     const { data: cadastro, error } = await supabase
       .from('cadastros')
-      .select('id, nome, email, cpf, data_nascimento, status')
+      .select('id, nome, email, cpf, status')
       .eq('cpf', cpfFormatted)
       .single()
 
     if (error || !cadastro) {
       return NextResponse.json(
-        { error: 'CPF ou data de nascimento incorretos.' },
+        { error: 'CPF ou dígitos de confirmação incorretos.' },
         { status: 401 }
       )
     }
 
-    // Comparar apenas a data (YYYY-MM-DD) ignorando timezone
-    const dataNascimentoDb = cadastro.data_nascimento?.split('T')[0] || cadastro.data_nascimento
-    const dataNascimentoInput = data_nascimento.split('T')[0]
+    const secondFactorOk = verifyCpfPrefix(cadastro, String(cpf_prefix))
 
-    if (dataNascimentoDb !== dataNascimentoInput) {
+    if (!secondFactorOk) {
       return NextResponse.json(
-        { error: 'CPF ou data de nascimento incorretos.' },
+        { error: 'CPF ou dígitos de confirmação incorretos.' },
         { status: 401 }
       )
     }
@@ -53,8 +81,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Gerar token JWT
-    const token = await new SignJWT({ 
+    const token = await new SignJWT({
       clienteId: cadastro.id,
       cpf: cadastro.cpf,
       nome: cadastro.nome,
@@ -66,6 +93,7 @@ export async function POST(request: NextRequest) {
 
     const response = NextResponse.json({
       success: true,
+      token,
       cliente: {
         id: cadastro.id,
         nome: cadastro.nome,
@@ -77,16 +105,13 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 7 dias
+      maxAge: 60 * 60 * 24 * 7,
       path: '/',
     })
 
     return response
   } catch (error) {
     console.error('Erro no login do cliente:', error)
-    return NextResponse.json(
-      { error: 'Erro ao processar login.' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erro ao processar login.' }, { status: 500 })
   }
 }
