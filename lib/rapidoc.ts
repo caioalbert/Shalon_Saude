@@ -241,6 +241,86 @@ export async function resolveRapidocUrl(
   return appointmentResult
 }
 
+export type RapidocBeneficiaryPayload = {
+  name: string
+  cpf: string
+  birthday: string // yyyy-MM-dd
+  phone?: string
+  email?: string
+  zipCode?: string
+  address?: string
+  city?: string
+  state?: string
+  paymentType?: 'S' | 'A' // S = recorrente, A = consulta (default S)
+  serviceType?: 'G' | 'P' | 'GP' | 'GS' | 'GSP'
+  holder?: string // CPF do titular (opcional)
+  general?: string
+}
+
+/**
+ * Cadastra (importa) uma lista de beneficiários (titulares e/ou dependentes) na base da Rapidoc.
+ * A API espera um Content-Type específico e um array JSON.
+ */
+export async function addBeneficiariesToRapidoc(
+  beneficiaries: RapidocBeneficiaryPayload[]
+): Promise<RapidocResult<any>> {
+  if (!RAPIDOC_JWT || !RAPIDOC_CLIENT_ID) {
+    return {
+      ok: false,
+      reason: 'no_config',
+      message: 'Credenciais da Rapidoc não configuradas.',
+    }
+  }
+
+  if (!beneficiaries || beneficiaries.length === 0) {
+    return { ok: false, reason: 'api_error', message: 'Nenhum beneficiário informado para cadastro.' }
+  }
+
+  try {
+    const res = await fetch(`${RAPIDOC_API_URL}/beneficiaries`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RAPIDOC_JWT}`,
+        'clientId': RAPIDOC_CLIENT_ID,
+        'Content-Type': 'application/vnd.rapidoc.tema-v2+json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(beneficiaries),
+    })
+
+    const textResponse = await res.text()
+    let data
+    try {
+      data = textResponse ? JSON.parse(textResponse) : {}
+    } catch {
+      data = { raw: textResponse }
+    }
+
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, reason: 'auth', message: 'Token de acesso à Rapidoc inválido ao tentar cadastrar.' }
+    }
+
+    // Retornos 200, 201 e 202 normalmente indicam sucesso na importação.
+    if (!res.ok) {
+      console.error('[Rapidoc API] Erro ao cadastrar beneficiário:', res.status, data)
+      return {
+        ok: false,
+        reason: 'api_error',
+        message: data?.message || `Erro ao cadastrar na Rapidoc (HTTP ${res.status}).`,
+      }
+    }
+
+    return { ok: true, data }
+  } catch (err) {
+    console.error('[Rapidoc API] Erro de rede ao cadastrar:', err)
+    return {
+      ok: false,
+      reason: 'api_error',
+      message: 'Não foi possível conectar à Rapidoc para efetuar o cadastro.',
+    }
+  }
+}
+
 /** @deprecated Usar resolveRapidocUrl — mantido para compatibilidade */
 export const RAPIDOC_FALLBACK_URL =
   normalizeUrl(
