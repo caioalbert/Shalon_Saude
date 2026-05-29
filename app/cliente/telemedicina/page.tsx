@@ -78,16 +78,18 @@ export default function ClienteTelemedicinaPage() {
       }
 
       if (!data.url) {
-        throw new Error('URL de acesso à telemedicina não retornada.')
+        // Agora a API retorna { url: null, warning: "...", reason: "..." }
+        throw new Error(data.warning || 'URL de acesso à telemedicina não retornada.')
       }
 
-      openExternalUrl(data.url || RAPIDOC_FALLBACK_URL)
+      openExternalUrl(data.url)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao abrir telemedicina')
     } finally {
       setIsLoadingUrl(false)
     }
   }, [router])
+
 
   if (isLoading) {
     return (

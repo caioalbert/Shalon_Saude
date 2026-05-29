@@ -231,7 +231,16 @@ export async function resolveRapidocUrl(
 
   // 2a. Verificar se o CPF existe na Rapidoc
   const beneficiaryResult = await checkRapidocBeneficiary(cliente.cpf)
-  if (!beneficiaryResult.ok) return beneficiaryResult
+
+  if (!beneficiaryResult.ok) {
+    // Se não encontrou o CPF, a regra original era mandar para o link de cadastro da Rapidoc
+    if (beneficiaryResult.reason === 'not_found') {
+      const cpfDigits = sanitizeDigits(cliente.cpf)
+      const registerUrl = `${RAPIDOC_API_BASE.replace('/api', '')}/beneficiary?cpf=${cpfDigits}&clientId=${RAPIDOC_CLIENT_ID}`
+      return { ok: true, data: { url: registerUrl } }
+    }
+    return beneficiaryResult
+  }
 
   // 2b. Gerar URL de acesso (request-appointment)
   const appointmentResult = await getRequestAppointmentUrl(beneficiaryResult.data.uuid)
