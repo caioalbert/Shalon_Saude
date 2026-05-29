@@ -1,26 +1,62 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { Info, ReceiptText } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { ClienteScreenHeader } from '@/components/cliente/screen-header'
+import { clienteColors, clienteCopy, clienteRadius } from '@/lib/cliente-ui'
 
 type Payment = {
   id: string
   status?: string
   value?: number
   dueDate?: string
+  paymentDate?: string
+  clientPaymentDate?: string
   description?: string
   billingType?: string
   invoiceUrl?: string
   bankSlipUrl?: string
 }
 
+const STATUS_INFO: Record<string, { label: string; color: string; bg: string }> = {
+  PENDING: { label: 'Pendente', color: '#B45309', bg: '#FEF3C7' },
+  OVERDUE: { label: 'Vencido', color: '#B91C1C', bg: '#FEE2E2' },
+  RECEIVED: { label: 'Pago', color: '#047857', bg: '#D1FAE5' },
+  CONFIRMED: { label: 'Pago', color: '#047857', bg: '#D1FAE5' },
+  REFUNDED: { label: 'Reembolsado', color: '#4B5563', bg: '#E5E7EB' },
+}
+
+const BILLING_TYPE: Record<string, string> = {
+  PIX: 'PIX',
+  BOLETO: 'BolePIX',
+  CREDIT_CARD: 'Cartão',
+}
+
+function isPaidStatus(status?: string) {
+  return ['RECEIVED', 'CONFIRMED'].includes(status || '')
+}
+
+function formatCurrency(value?: number) {
+  if (value == null) return '-'
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+function formatDate(date?: string) {
+  return date ? new Date(date).toLocaleDateString('pt-BR') : '-'
+}
+
 export default function ClientePagamentos() {
   const router = useRouter()
   const [payments, setPayments] = useState<Payment[]>([])
+  const [adesao, setAdesao] = useState<Payment | null>(null)
+  const [adesaoPagoEm, setAdesaoPagoEm] = useState<string | null>(null)
+  const [mensalidadeValor, setMensalidadeValor] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [infoMessage, setInfoMessage] = useState('')
 
   useEffect(() => {
     fetchPayments()
@@ -29,7 +65,7 @@ export default function ClientePagamentos() {
   const fetchPayments = async () => {
     try {
       const response = await fetch('/api/cliente/pagamentos')
-      
+
       if (response.status === 401) {
         router.push('/login')
         return
@@ -42,202 +78,302 @@ export default function ClientePagamentos() {
         return
       }
 
+      setAdesao(data.adesao || null)
+      setAdesaoPagoEm(data.adesao_pago_em || null)
+      setMensalidadeValor(data.mensalidade_valor ?? null)
       setPayments(data.payments || [])
-      
-      // Mostrar mensagem se houver
-      if (data.message && data.payments.length === 0) {
-        setError(data.message)
+      if (data.message && (!data.payments || data.payments.length === 0)) {
+        setInfoMessage(data.message)
       }
-    } catch (err) {
+    } catch {
       setError('Erro ao conectar com o servidor')
     } finally {
       setIsLoading(false)
     }
   }
 
-  const formatCurrency = (value?: number) =>
-    value ? value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'
-
-  const formatDate = (date?: string) =>
-    date ? new Date(date).toLocaleDateString('pt-BR') : '-'
-
-  const statusLabels: Record<string, { label: string; color: string }> = {
-    PENDING: { label: 'Pendente', color: 'bg-yellow-100 text-yellow-800' },
-    RECEIVED: { label: 'Pago', color: 'bg-green-100 text-green-800' },
-    CONFIRMED: { label: 'Pago', color: 'bg-green-100 text-green-800' },
-    OVERDUE: { label: 'Vencido', color: 'bg-red-100 text-red-800' },
-    REFUNDED: { label: 'Reembolsado', color: 'bg-gray-100 text-gray-800' },
-  }
-
-  const billingTypeLabels: Record<string, string> = {
-    PIX: 'PIX',
-    BOLETO: 'BolePIX',
-    CREDIT_CARD: 'Cartão',
-  }
-
-  const isPaid = (status?: string) => ['RECEIVED', 'CONFIRMED'].includes(status || '')
-  const paymentsPaid = payments.filter(p => isPaid(p.status))
-  const paymentsPending = payments.filter(p => !isPaid(p.status))
+  const paymentsPending = useMemo(
+    () => payments.filter((payment) => !isPaidStatus(payment.status)),
+    [payments]
+  )
+  const paymentsPaid = useMemo(
+    () => payments.filter((payment) => isPaidStatus(payment.status)),
+    [payments]
+  )
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Carregando...</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: clienteColors.background }}>
+        <p style={{ color: clienteColors.textMuted }}>Carregando...</p>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center gap-4">
-            <Link href="/cliente/dashboard">
-              <Button variant="ghost" size="sm" className="text-gray-600">
-                ← Voltar
-              </Button>
-            </Link>
-            <h1 className="text-2xl font-bold" style={{ color: '#006B54' }}>Pagamentos</h1>
-          </div>
+    <div className="min-h-screen" style={{ backgroundColor: clienteColors.background }}>
+      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+        <div className="mb-4 flex justify-end">
+          <Link href="/cliente/dashboard">
+            <Button variant="outline" style={{ borderRadius: clienteRadius.full, borderColor: clienteColors.border }}>
+              Voltar
+            </Button>
+          </Link>
         </div>
-      </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {error && (
-          <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-xl mb-6">
-            <p className="text-sm">{error}</p>
-          </div>
-        )}
+        <ClienteScreenHeader
+          title={clienteCopy.modules.pagamentos.title}
+          subtitle={clienteCopy.modules.pagamentos.subtitle}
+        />
 
-        {payments.length === 0 && !error ? (
-          <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
-            <p className="text-gray-600">Nenhum pagamento encontrado.</p>
-          </div>
-        ) : payments.length === 0 && error ? (
-          <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
-            <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center bg-blue-50">
-              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">Aguardando confirmação</h2>
-            <p className="text-gray-600">
-              Seus pagamentos aparecerão aqui após a confirmação do pagamento de adesão.
+        {infoMessage ? (
+          <div
+            className="mb-4 flex items-start gap-2 border p-4"
+            style={{ borderColor: '#BFDBFE', backgroundColor: '#EFF6FF', borderRadius: clienteRadius.md }}
+          >
+            <Info className="mt-0.5 h-5 w-5 shrink-0" style={{ color: clienteColors.accent }} />
+            <p className="text-sm leading-5" style={{ color: '#1D4ED8' }}>
+              {infoMessage}
             </p>
           </div>
-        ) : (
-          <div className="space-y-6">
-            {/* Pagamentos Pendentes */}
-            {paymentsPending.length > 0 && (
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-3">Pendentes</h2>
-                <div className="space-y-3">
-                  {paymentsPending.map((payment) => {
-                    const statusInfo = statusLabels[payment.status || ''] || {
-                      label: payment.status || 'Desconhecido',
-                      color: 'bg-gray-100 text-gray-800',
-                    }
+        ) : null}
 
-                    return (
-                      <div key={payment.id} className="bg-white rounded-2xl shadow-sm p-6 border-l-4 border-yellow-400">
-                        <div className="flex items-center justify-between mb-3">
-                          <div>
-                            <p className="font-semibold text-gray-900">{payment.description || 'Mensalidade'}</p>
-                            <p className="text-sm text-gray-500">Vencimento: {formatDate(payment.dueDate)}</p>
-                          </div>
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
-                            {statusInfo.label}
-                          </span>
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs text-gray-500">Valor</p>
-                            <p className="text-lg font-bold" style={{ color: '#006B54' }}>{formatCurrency(payment.value)}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            {payment.invoiceUrl && (
-                              <a
-                                href={payment.invoiceUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm px-4 py-2 rounded-lg text-white hover:opacity-90"
-                                style={{ backgroundColor: '#006B54' }}
-                              >
-                                Pagar
-                              </a>
-                            )}
-                            {payment.bankSlipUrl && (
-                              <a
-                                href={payment.bankSlipUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50"
-                              >
-                                Ver Boleto
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Pagamentos Pagos */}
-            {paymentsPaid.length > 0 && (
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-3">Pagos</h2>
-                <div className="space-y-3">
-                  {paymentsPaid.map((payment) => {
-                    const statusInfo = statusLabels[payment.status || ''] || {
-                      label: payment.status || 'Desconhecido',
-                      color: 'bg-gray-100 text-gray-800',
-                    }
-
-                    return (
-                      <div key={payment.id} className="bg-white rounded-2xl shadow-sm p-6 border-l-4 border-green-400">
-                        <div className="flex items-center justify-between mb-3">
-                          <div>
-                            <p className="font-semibold text-gray-900">{payment.description || 'Mensalidade'}</p>
-                            <p className="text-sm text-gray-500">Pago em: {formatDate(payment.dueDate)}</p>
-                          </div>
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
-                            ✓ {statusInfo.label}
-                          </span>
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs text-gray-500">Valor</p>
-                            <p className="text-lg font-bold text-gray-900">{formatCurrency(payment.value)}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            {payment.invoiceUrl && (
-                              <a
-                                href={payment.invoiceUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50"
-                              >
-                                Ver Fatura
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
+        {error ? (
+          <div
+            className="mb-4 border p-4"
+            style={{
+              borderColor: '#FECACA',
+              backgroundColor: '#FEF2F2',
+              borderRadius: clienteRadius.md,
+              color: clienteColors.danger,
+            }}
+          >
+            <p className="text-sm">{error}</p>
           </div>
-        )}
+        ) : null}
+
+        {!error && !infoMessage && payments.length === 0 && !adesao && !adesaoPagoEm ? (
+          <div
+            className="border p-8 text-center"
+            style={{
+              backgroundColor: clienteColors.surface,
+              borderColor: clienteColors.border,
+              borderRadius: clienteRadius.lg,
+            }}
+          >
+            <ReceiptText className="mx-auto h-12 w-12" style={{ color: clienteColors.border }} />
+            <h2 className="mt-3 text-lg font-semibold" style={{ color: clienteColors.text }}>
+              Nenhum pagamento encontrado
+            </h2>
+            <p className="mt-2 text-sm leading-6" style={{ color: clienteColors.textMuted }}>
+              Seus pagamentos aparecerão aqui após confirmação do pagamento de adesão.
+            </p>
+          </div>
+        ) : null}
+
+        {(adesao || adesaoPagoEm) ? (
+          <section className="mb-6">
+            <p
+              className="mb-2 text-xs font-semibold uppercase tracking-[0.08em]"
+              style={{ color: clienteColors.textMuted }}
+            >
+              Adesão
+            </p>
+            {adesao ? (
+              <PaymentCard payment={{ ...adesao, description: 'Pagamento de Adesão' }} />
+            ) : (
+              <div
+                className="border p-4"
+                style={{
+                  backgroundColor: clienteColors.surface,
+                  borderColor: clienteColors.border,
+                  borderLeftWidth: '4px',
+                  borderLeftColor: clienteColors.success,
+                  borderRadius: clienteRadius.md,
+                }}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: clienteColors.text }}>Pagamento de Adesão</p>
+                    <p className="mt-0.5 text-xs" style={{ color: clienteColors.textMuted }}>
+                      Pago em: {formatDate(adesaoPagoEm!)}
+                    </p>
+                  </div>
+                  <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ backgroundColor: '#D1FAE5', color: '#047857' }}>
+                    ✓ Pago
+                  </span>
+                </div>
+              </div>
+            )}
+          </section>
+        ) : null}
+
+        {(() => {
+          // Cobranças reais do Asaas
+          if (payments.length > 0) {
+            return (
+              <>
+                {paymentsPending.length > 0 ? (
+                  <section className="mb-6">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: clienteColors.textMuted }}>Pendentes</p>
+                    <div className="space-y-2">
+                      {paymentsPending.map((p) => <PaymentCard key={p.id} payment={p} />)}
+                    </div>
+                  </section>
+                ) : null}
+                {paymentsPaid.length > 0 ? (
+                  <section>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: clienteColors.textMuted }}>Pagos</p>
+                    <div className="space-y-2">
+                      {paymentsPaid.map((p) => <PaymentCard key={p.id} payment={p} />)}
+                    </div>
+                  </section>
+                ) : null}
+              </>
+            )
+          }
+
+          // Projeção das 12 parcelas a partir da data de adesão
+          const base = adesaoPagoEm
+          if (!base) return null
+          const [y, m, day] = base.slice(0, 10).split('-').map(Number)
+          const nm = m === 12 ? 1 : m + 1
+          const ny = m === 12 ? y + 1 : y
+          const baseDate = `${ny}-${String(nm).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+          const [by, bm, bd] = baseDate.split('-').map(Number)
+          const hoje = new Date().toISOString().slice(0, 10)
+          const parcelas = Array.from({ length: 12 }, (_, i) => {
+            const total = bm - 1 + i
+            const yr = by + Math.floor(total / 12)
+            const mo = (total % 12) + 1
+            return { index: i + 1, dueDate: `${yr}-${String(mo).padStart(2, '0')}-${String(bd).padStart(2, '0')}` }
+          })
+
+          return (
+            <section>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: clienteColors.textMuted }}>Mensalidades</p>
+              <div className="space-y-2">
+                {parcelas.map(({ index, dueDate }) => (
+                  <div
+                    key={index}
+                    className="border p-4"
+                    style={{
+                      backgroundColor: clienteColors.surface,
+                      borderColor: clienteColors.border,
+                      borderLeftWidth: '4px',
+                      borderLeftColor: dueDate < hoje ? clienteColors.danger : clienteColors.border,
+                      borderRadius: clienteRadius.md,
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold" style={{ color: clienteColors.text }}>Mensalidade {index}/12</p>
+                        <p className="mt-0.5 text-xs" style={{ color: clienteColors.textMuted }}>Vencimento: {formatDate(dueDate)}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <p className="text-lg font-bold" style={{ color: clienteColors.text }}>{formatCurrency(mensalidadeValor ?? adesao?.value)}</p>
+                        <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ backgroundColor: dueDate < hoje ? '#FEE2E2' : '#F3F4F6', color: dueDate < hoje ? '#B91C1C' : '#6B7280' }}>
+                          {dueDate < hoje ? 'Não gerado' : 'Agendado'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )
+        })()}
       </main>
+    </div>
+  )
+}
+
+function PaymentCard({ payment }: { payment: Payment }) {
+  const isPaid = isPaidStatus(payment.status)
+  const status = STATUS_INFO[payment.status || ''] || {
+    label: payment.status || 'Desconhecido',
+    color: clienteColors.textMuted,
+    bg: clienteColors.border,
+  }
+
+  return (
+    <div
+      className="border p-4"
+      style={{
+        backgroundColor: clienteColors.surface,
+        borderColor: clienteColors.border,
+        borderLeftWidth: '4px',
+        borderLeftColor: isPaid ? clienteColors.success : clienteColors.warning,
+        borderRadius: clienteRadius.md,
+      }}
+    >
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold" style={{ color: clienteColors.text }}>
+            {payment.description || 'Mensalidade'}
+          </p>
+          <p className="mt-0.5 text-xs" style={{ color: clienteColors.textMuted }}>
+            {isPaid ? 'Pago em: ' : 'Vencimento: '}
+            {formatDate(isPaid ? payment.paymentDate || payment.dueDate : payment.dueDate)}
+          </p>
+          {payment.billingType ? (
+            <p className="mt-0.5 text-xs" style={{ color: clienteColors.textMuted }}>
+              {BILLING_TYPE[payment.billingType] || payment.billingType}
+            </p>
+          ) : null}
+        </div>
+
+        <span
+          className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+          style={{ backgroundColor: status.bg, color: status.color }}
+        >
+          {isPaid ? '✓ ' : ''}
+          {status.label}
+        </span>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xl font-bold" style={{ color: isPaid ? clienteColors.text : clienteColors.primary }}>
+          {formatCurrency(payment.value)}
+        </p>
+
+        <div className="flex flex-wrap gap-2">
+          {payment.invoiceUrl && !isPaid ? (
+            <a
+              href={payment.invoiceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-full px-4 py-2 text-sm font-semibold text-white"
+              style={{ backgroundColor: clienteColors.primary }}
+            >
+              Pagar
+            </a>
+          ) : null}
+
+          {payment.bankSlipUrl && !isPaid ? (
+            <a
+              href={payment.bankSlipUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-full border px-4 py-2 text-sm font-medium"
+              style={{ borderColor: clienteColors.border, color: clienteColors.text }}
+            >
+              Ver boleto
+            </a>
+          ) : null}
+
+          {payment.invoiceUrl && isPaid ? (
+            <a
+              href={payment.invoiceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-full border px-4 py-2 text-sm font-medium"
+              style={{ borderColor: clienteColors.border, color: clienteColors.text }}
+            >
+              Ver fatura
+            </a>
+          ) : null}
+        </div>
+      </div>
     </div>
   )
 }

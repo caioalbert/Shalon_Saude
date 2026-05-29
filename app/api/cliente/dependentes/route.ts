@@ -3,9 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 // GET - Listar dependentes
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const auth = await requireClienteAuth()
+    const auth = await requireClienteAuth(request)
     
     const supabase = await createClient()
     const { data: dependentes, error } = await supabase
@@ -42,7 +42,7 @@ export async function GET() {
 // POST - Adicionar dependente
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireClienteAuth()
+    const auth = await requireClienteAuth(request)
     const body = await request.json()
 
     const { nome, cpf, data_nascimento, relacao, email, telefone_celular, sexo } = body
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
 // PUT - Atualizar dependente
 export async function PUT(request: NextRequest) {
   try {
-    const auth = await requireClienteAuth()
+    const auth = await requireClienteAuth(request)
     const body = await request.json()
 
     const { id, nome, cpf, data_nascimento, relacao, email, telefone_celular, sexo } = body
@@ -218,7 +218,7 @@ export async function PUT(request: NextRequest) {
 // DELETE - Remover dependente
 export async function DELETE(request: NextRequest) {
   try {
-    const auth = await requireClienteAuth()
+    const auth = await requireClienteAuth(request)
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
 

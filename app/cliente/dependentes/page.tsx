@@ -1,16 +1,18 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { HelpCircle, Lock, Pencil, Trash2, UserPlus, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog'
 import {
   Select,
@@ -19,7 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import Link from 'next/link'
+import { ClienteScreenHeader } from '@/components/cliente/screen-header'
+import { clienteColors, clienteCopy, clienteRadius, clienteSupport } from '@/lib/cliente-ui'
 
 type Dependente = {
   id: string
@@ -40,6 +43,9 @@ type Plano = {
   max_dependentes: number | null
 }
 
+const RELACOES = ['Cônjuge', 'Filho(a)', 'Pai/Mãe', 'Irmão(ã)', 'Outro']
+const SEXOS = ['Masculino', 'Feminino']
+
 export default function ClienteDependentes() {
   const router = useRouter()
   const [dependentes, setDependentes] = useState<Dependente[]>([])
@@ -49,7 +55,7 @@ export default function ClienteDependentes() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  
+
   const [formData, setFormData] = useState({
     nome: '',
     cpf: '',
@@ -68,26 +74,25 @@ export default function ClienteDependentes() {
   const fetchPlano = async () => {
     try {
       const response = await fetch('/api/cliente/plano')
-      
+
       if (response.status === 401) {
         router.push('/login')
         return
       }
 
       const data = await response.json()
-
       if (response.ok) {
         setPlano(data.plano)
       }
-    } catch (err) {
-      console.error('Erro ao conectar com o servidor:', err)
+    } catch {
+      setPlano(null)
     }
   }
 
   const fetchDependentes = async () => {
     try {
       const response = await fetch('/api/cliente/dependentes')
-      
+
       if (response.status === 401) {
         router.push('/login')
         return
@@ -101,12 +106,18 @@ export default function ClienteDependentes() {
       }
 
       setDependentes(data.dependentes || [])
-    } catch (err) {
+    } catch {
       setError('Erro ao conectar com o servidor')
     } finally {
       setIsLoading(false)
     }
   }
+
+  const canAdd = useMemo(() => {
+    if (!plano?.permite_dependentes) return false
+    if (plano.max_dependentes === null) return true
+    return dependentes.length < plano.max_dependentes
+  }, [plano, dependentes.length])
 
   const handleAdd = () => {
     setEditingId(null)
@@ -160,7 +171,7 @@ export default function ClienteDependentes() {
 
       setIsDialogOpen(false)
       fetchDependentes()
-    } catch (err) {
+    } catch {
       setError('Erro ao conectar com o servidor')
     } finally {
       setIsSaving(false)
@@ -168,9 +179,7 @@ export default function ClienteDependentes() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja remover este dependente?')) {
-      return
-    }
+    if (!confirm('Tem certeza que deseja remover este dependente?')) return
 
     try {
       const response = await fetch(`/api/cliente/dependentes?id=${id}`, {
@@ -184,7 +193,7 @@ export default function ClienteDependentes() {
       }
 
       fetchDependentes()
-    } catch (err) {
+    } catch {
       setError('Erro ao conectar com o servidor')
     }
   }
@@ -200,191 +209,253 @@ export default function ClienteDependentes() {
     return value
   }
 
-  const formatDate = (date: string) =>
-    new Date(date).toLocaleDateString('pt-BR')
+  const formatDate = (date: string) => new Date(date).toLocaleDateString('pt-BR')
+
+  const initials = (name: string) => {
+    return name
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || '')
+      .join('')
+  }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Carregando...</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: clienteColors.background }}>
+        <p style={{ color: clienteColors.textMuted }}>Carregando...</p>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href="/cliente/dashboard">
-                <Button variant="ghost" size="sm" className="text-gray-600">
-                  ← Voltar
-                </Button>
-              </Link>
-              <h1 className="text-2xl font-bold" style={{ color: '#006B54' }}>Dependentes</h1>
-            </div>
-            {plano?.permite_dependentes && (
-              <Button 
-                onClick={handleAdd}
-                style={{ backgroundColor: '#006B54' }}
-                className="text-white hover:opacity-90"
-              >
-                + Adicionar Dependente
-              </Button>
-            )}
-          </div>
+    <div className="min-h-screen" style={{ backgroundColor: clienteColors.background }}>
+      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+        <div className="mb-4 flex justify-end">
+          <Link href="/cliente/dashboard">
+            <Button variant="outline" style={{ borderRadius: clienteRadius.full, borderColor: clienteColors.border }}>
+              Voltar
+            </Button>
+          </Link>
         </div>
-      </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6">
+        <ClienteScreenHeader
+          title={clienteCopy.modules.dependentes.title}
+          subtitle={clienteCopy.modules.dependentes.subtitle}
+        />
+
+        {error ? (
+          <div
+            className="mb-4 border px-4 py-3 text-sm"
+            style={{
+              borderColor: '#FECACA',
+              backgroundColor: '#FEF2F2',
+              color: clienteColors.danger,
+              borderRadius: clienteRadius.md,
+            }}
+          >
             {error}
           </div>
-        )}
+        ) : null}
 
-        {/* Plano não identificado */}
-        {plano === null && (
-          <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
-            <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center bg-gray-100">
-              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Não conseguimos identificar seu plano</h2>
-            <p className="text-gray-600 mb-6">
-              Entre em contato com o suporte ou escolha um novo plano.
+        {plano === null ? (
+          <div
+            className="mb-4 border p-8 text-center"
+            style={{
+              backgroundColor: clienteColors.surface,
+              borderColor: clienteColors.border,
+              borderRadius: clienteRadius.lg,
+            }}
+          >
+            <HelpCircle className="mx-auto h-12 w-12" style={{ color: clienteColors.border }} />
+            <h2 className="mt-3 text-lg font-semibold" style={{ color: clienteColors.text }}>
+              Plano não identificado
+            </h2>
+            <p className="mt-2 text-sm leading-6" style={{ color: clienteColors.textMuted }}>
+              Entre em contato com o suporte para mais informações.
             </p>
-            <div className="flex gap-3 justify-center">
-              <Button 
-                variant="outline"
-                onClick={() => window.open('https://wa.me/5585991452514', '_blank')}
-              >
-                Contatar Suporte
-              </Button>
-              <Button 
-                style={{ backgroundColor: '#006B54' }}
-                className="text-white hover:opacity-90"
-                disabled
-              >
-                Escolher Plano (Em breve)
-              </Button>
-            </div>
+            <a
+              href={clienteSupport.whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex rounded-full px-5 py-2.5 text-sm font-semibold text-white"
+              style={{ backgroundColor: '#25D366' }}
+            >
+              Contatar suporte
+            </a>
           </div>
-        )}
+        ) : null}
 
-        {/* Plano não permite dependentes */}
-        {plano && !plano.permite_dependentes && (
-          <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
-            <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ backgroundColor: '#FFF4E6' }}>
-              <svg className="w-8 h-8" style={{ color: '#FF9800' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Seu plano não permite dependentes</h2>
-            <p className="text-gray-600 mb-6">
+        {plano && !plano.permite_dependentes ? (
+          <div
+            className="mb-4 border p-8 text-center"
+            style={{
+              backgroundColor: clienteColors.surface,
+              borderColor: clienteColors.border,
+              borderRadius: clienteRadius.lg,
+            }}
+          >
+            <Lock className="mx-auto h-12 w-12" style={{ color: clienteColors.border }} />
+            <h2 className="mt-3 text-lg font-semibold" style={{ color: clienteColors.text }}>
+              Seu plano não permite dependentes
+            </h2>
+            <p className="mt-2 text-sm leading-6" style={{ color: clienteColors.textMuted }}>
               Faça upgrade para um plano familiar e adicione seus dependentes.
             </p>
-            <Button 
-              style={{ backgroundColor: '#006B54' }}
-              className="text-white hover:opacity-90"
-              disabled
-            >
-              Fazer Upgrade (Em breve)
-            </Button>
           </div>
-        )}
+        ) : null}
 
-        {/* Plano permite dependentes */}
-        {plano && plano.permite_dependentes && (
+        {plano?.permite_dependentes ? (
           <>
+            <div
+              className="mb-4 flex items-start gap-2 border p-4"
+              style={{
+                backgroundColor: `${clienteColors.primary}10`,
+                borderColor: clienteColors.borderMint,
+                borderRadius: clienteRadius.md,
+              }}
+            >
+              <Users className="mt-0.5 h-4 w-4 shrink-0" style={{ color: clienteColors.primary }} />
+              <p className="text-sm leading-5" style={{ color: clienteColors.primary }}>
+                <span className="font-semibold">{plano.nome}</span>
+                {' - '}
+                {dependentes.length}
+                {plano.max_dependentes !== null ? ` de ${plano.max_dependentes}` : ''}
+                {' dependente'}
+                {dependentes.length !== 1 ? 's' : ''}
+                {' cadastrado'}
+                {dependentes.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+
             {dependentes.length === 0 ? (
-              <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
-                <p className="text-gray-600 mb-4">Nenhum dependente cadastrado.</p>
-                <Button 
+              <div
+                className="border p-8 text-center"
+                style={{
+                  backgroundColor: clienteColors.surface,
+                  borderColor: clienteColors.border,
+                  borderRadius: clienteRadius.lg,
+                }}
+              >
+                <Users className="mx-auto h-12 w-12" style={{ color: clienteColors.border }} />
+                <h2 className="mt-3 text-lg font-semibold" style={{ color: clienteColors.text }}>
+                  Nenhum dependente cadastrado
+                </h2>
+                <p className="mt-2 text-sm leading-6" style={{ color: clienteColors.textMuted }}>
+                  Adicione os membros da família ao seu plano.
+                </p>
+                <Button
                   onClick={handleAdd}
-                  style={{ backgroundColor: '#006B54' }}
-                  className="text-white hover:opacity-90"
+                  className="mt-4 rounded-full px-5"
+                  style={{
+                    backgroundColor: clienteColors.primary,
+                    color: clienteColors.surface,
+                    borderRadius: clienteRadius.full,
+                  }}
                 >
-                  Adicionar Primeiro Dependente
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Adicionar primeiro dependente
                 </Button>
               </div>
             ) : (
-              <>
-                {/* Info do plano */}
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-                  <p className="text-sm text-blue-900">
-                    <strong>{plano.nome}</strong> - {dependentes.length} de {plano.max_dependentes || '∞'} dependentes cadastrados
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {dependentes.map((dependente) => (
-              <div key={dependente.id} className="bg-white rounded-lg shadow p-6">
-                <div className="mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900">{dependente.nome}</h3>
-                  <p className="text-sm text-gray-600">{dependente.relacao}</p>
-                </div>
-
-                <div className="space-y-2 mb-4">
-                  <div>
-                    <p className="text-xs text-gray-600">CPF</p>
-                    <p className="text-sm text-gray-900">{formatCPF(dependente.cpf)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600">Data de Nascimento</p>
-                    <p className="text-sm text-gray-900">{formatDate(dependente.data_nascimento)}</p>
-                  </div>
-                  {dependente.email && (
-                    <div>
-                      <p className="text-xs text-gray-600">Email</p>
-                      <p className="text-sm text-gray-900">{dependente.email}</p>
+              <div className="space-y-2">
+                {dependentes.map((dependente) => (
+                  <div
+                    key={dependente.id}
+                    className="border p-4"
+                    style={{
+                      backgroundColor: clienteColors.surface,
+                      borderColor: clienteColors.border,
+                      borderRadius: clienteRadius.md,
+                    }}
+                  >
+                    <div className="mb-4 flex items-start gap-3">
+                      <div
+                        className="flex h-12 w-12 shrink-0 items-center justify-center text-sm font-bold text-white"
+                        style={{
+                          backgroundColor: clienteColors.primary,
+                          borderRadius: clienteRadius.full,
+                        }}
+                      >
+                        {initials(dependente.nome)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-base font-semibold" style={{ color: clienteColors.text }}>
+                          {dependente.nome}
+                        </p>
+                        <p className="text-xs" style={{ color: clienteColors.textMuted }}>
+                          {dependente.relacao}
+                        </p>
+                        <p className="mt-1 text-xs" style={{ color: clienteColors.textMuted }}>
+                          {formatCPF(dependente.cpf)}
+                        </p>
+                        <p className="text-xs" style={{ color: clienteColors.textMuted }}>
+                          Nasc.: {formatDate(dependente.data_nascimento)}
+                        </p>
+                      </div>
                     </div>
-                  )}
-                </div>
 
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => handleEdit(dependente)}
-                  >
-                    Editar
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => handleDelete(dependente.id)}
-                  >
-                    Remover
-                  </Button>
-                </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => handleEdit(dependente)}
+                        style={{ borderColor: clienteColors.primary, color: clienteColors.primary }}
+                      >
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Editar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => handleDelete(dependente.id)}
+                        style={{
+                          borderColor: '#FECACA',
+                          backgroundColor: '#FEF2F2',
+                          color: clienteColors.danger,
+                        }}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Remover
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-              </>
             )}
           </>
-        )}
+        ) : null}
       </main>
 
-      {/* Dialog */}
+      {canAdd ? (
+        <div className="pointer-events-none fixed inset-x-0 bottom-6 px-4 sm:px-6">
+          <div className="mx-auto max-w-3xl">
+            <Button
+              onClick={handleAdd}
+              className="pointer-events-auto h-12 w-full text-base font-bold"
+              style={{
+                backgroundColor: clienteColors.primary,
+                color: clienteColors.surface,
+                borderRadius: clienteRadius.full,
+                boxShadow: `0 10px 20px ${clienteColors.primaryDark}55`,
+              }}
+            >
+              <UserPlus className="mr-2 h-5 w-5" />
+              Adicionar dependente
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>
-              {editingId ? 'Editar Dependente' : 'Adicionar Dependente'}
-            </DialogTitle>
+            <DialogTitle>{editingId ? 'Editar dependente' : 'Adicionar dependente'}</DialogTitle>
           </DialogHeader>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <Label htmlFor="nome">Nome Completo *</Label>
+              <Label htmlFor="nome">Nome completo *</Label>
               <Input
                 id="nome"
                 value={formData.nome}
@@ -405,7 +476,7 @@ export default function ClienteDependentes() {
             </div>
 
             <div>
-              <Label htmlFor="data_nascimento">Data de Nascimento *</Label>
+              <Label htmlFor="data_nascimento">Data de nascimento *</Label>
               <Input
                 id="data_nascimento"
                 type="date"
@@ -416,7 +487,7 @@ export default function ClienteDependentes() {
             </div>
 
             <div>
-              <Label htmlFor="relacao">Relação *</Label>
+              <Label htmlFor="relacao">Relacao *</Label>
               <Select
                 value={formData.relacao}
                 onValueChange={(value) => setFormData({ ...formData, relacao: value })}
@@ -425,11 +496,11 @@ export default function ClienteDependentes() {
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Cônjuge">Cônjuge</SelectItem>
-                  <SelectItem value="Filho(a)">Filho(a)</SelectItem>
-                  <SelectItem value="Pai/Mãe">Pai/Mãe</SelectItem>
-                  <SelectItem value="Irmão(ã)">Irmão(ã)</SelectItem>
-                  <SelectItem value="Outro">Outro</SelectItem>
+                  {RELACOES.map((relacao) => (
+                    <SelectItem key={relacao} value={relacao}>
+                      {relacao}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -444,8 +515,11 @@ export default function ClienteDependentes() {
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Masculino">Masculino</SelectItem>
-                  <SelectItem value="Feminino">Feminino</SelectItem>
+                  {SEXOS.map((sexo) => (
+                    <SelectItem key={sexo} value={sexo}>
+                      {sexo}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -461,7 +535,7 @@ export default function ClienteDependentes() {
             </div>
 
             <div className="md:col-span-2">
-              <Label htmlFor="telefone_celular">Telefone Celular</Label>
+              <Label htmlFor="telefone_celular">Telefone celular</Label>
               <Input
                 id="telefone_celular"
                 value={formData.telefone_celular}
@@ -474,7 +548,11 @@ export default function ClienteDependentes() {
             <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>
               Cancelar
             </Button>
-            <Button onClick={handleSave} disabled={isSaving}>
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              style={{ backgroundColor: clienteColors.primary, color: clienteColors.surface }}
+            >
               {isSaving ? 'Salvando...' : 'Salvar'}
             </Button>
           </DialogFooter>

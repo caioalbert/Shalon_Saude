@@ -8,6 +8,90 @@ import { Cadastro, Dependente } from '@/lib/types'
 import Link from 'next/link'
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 
+type AsaasPaymentInfo = {
+  id: string
+  status?: string
+  value?: number
+  dueDate?: string
+  paymentDate?: string
+  clientPaymentDate?: string
+  confirmedDate?: string
+  description?: string
+  billingType?: string
+  invoiceUrl?: string
+  bankSlipUrl?: string
+}
+
+type PagamentosData = {
+  adesao: AsaasPaymentInfo | null
+  mensalidades: AsaasPaymentInfo[]
+  assinatura: { id: string; status?: string; value?: number; nextDueDate?: string; billingType?: string } | null
+  adesao_pago_em: string | null
+  mensalidade_valor: number | null
+  tipo_plano: string | null
+  asaas_subscription_id: string | null
+}
+
+const STATUS_LABEL: Record<string, { label: string; color: string; bg: string }> = {
+  PENDING: { label: 'Pendente', color: '#B45309', bg: '#FEF3C7' },
+  OVERDUE: { label: 'Vencido', color: '#B91C1C', bg: '#FEE2E2' },
+  RECEIVED: { label: 'Pago', color: '#047857', bg: '#D1FAE5' },
+  CONFIRMED: { label: 'Pago', color: '#047857', bg: '#D1FAE5' },
+  REFUNDED: { label: 'Reembolsado', color: '#4B5563', bg: '#E5E7EB' },
+}
+
+function formatCurrency(value?: number | null) {
+  if (value == null) return '-'
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+function formatDate(date?: string | null) {
+  return date ? new Date(date).toLocaleDateString('pt-BR') : '-'
+}
+
+function isPaid(status?: string) {
+  return ['RECEIVED', 'CONFIRMED'].includes(status || '')
+}
+
+function PaymentRow({ payment, label }: { payment: AsaasPaymentInfo; label?: string }) {
+  const statusInfo = STATUS_LABEL[payment.status || ''] || {
+    label: payment.status || '-',
+    color: '#6B7280',
+    bg: '#F3F4F6',
+  }
+  const paid = isPaid(payment.status)
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border border-gray-200 rounded p-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-gray-900">{label || payment.description || 'Mensalidade'}</p>
+        <p className="text-xs text-gray-500">
+          {paid ? 'Pago em: ' : 'Vencimento: '}
+          {formatDate(paid ? payment.paymentDate || payment.clientPaymentDate || payment.dueDate : payment.dueDate)}
+        </p>
+      </div>
+      <div className="flex items-center gap-3">
+        <span className="text-sm font-semibold text-gray-900">{formatCurrency(payment.value)}</span>
+        <span
+          className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+          style={{ backgroundColor: statusInfo.bg, color: statusInfo.color }}
+        >
+          {statusInfo.label}
+        </span>
+        {payment.invoiceUrl && (
+          <a
+            href={payment.invoiceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-blue-600 hover:underline"
+          >
+            Ver fatura
+          </a>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function CadastroDetail() {
   const router = useRouter()
   const params = useParams()
@@ -15,6 +99,7 @@ export default function CadastroDetail() {
 
   const [cadastro, setCadastro] = useState<Cadastro | null>(null)
   const [dependentes, setDependentes] = useState<Dependente[]>([])
+  const [pagamentos, setPagamentos] = useState<PagamentosData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -25,19 +110,27 @@ export default function CadastroDetail() {
   const fetchCadastro = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch(`/api/admin/cadastro/${id}`)
+      const [cadastroRes, pagamentosRes] = await Promise.all([
+        fetch(`/api/admin/cadastro/${id}`),
+        fetch(`/api/admin/cadastro/${id}/pagamentos`),
+      ])
 
-      if (!response.ok) {
-        if (response.status === 401) {
+      if (!cadastroRes.ok) {
+        if (cadastroRes.status === 401) {
           router.push('/admin/login')
           return
         }
         throw new Error('Cliente não encontrado')
       }
 
-      const data = await response.json()
+      const data = await cadastroRes.json()
       setCadastro(data.cadastro)
       setDependentes(data.dependentes || [])
+
+      if (pagamentosRes.ok) {
+        const pagData = await pagamentosRes.json()
+        setPagamentos(pagData)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido')
     } finally {
@@ -316,6 +409,115 @@ export default function CadastroDetail() {
                     </p>
                   </div>
                 </div>
+              </div>
+
+              {/* Pagamentos */}
+              <div className="bg-white rounded-lg shadow p-6 space-y-4">
+                <h2 className="text-lg font-semibold text-gray-900">Pagamentos</h2>
+
+                {pagamentos === null ? (
+                  <p className="text-sm text-gray-500">Carregando pagamentos...</p>
+                ) : (
+                  <>
+                    {/* Adesão */}
+                    <div>
+                      <p className="text-xs text-gray-600 uppercase font-medium mb-2">Adesão</p>
+                      {pagamentos.adesao ? (
+                        <PaymentRow payment={pagamentos.adesao} label="Pagamento de Adesão" />
+                      ) : pagamentos.adesao_pago_em ? (
+                        <div className="border border-gray-200 rounded p-3">
+                          <p className="text-sm font-medium text-gray-900">Pagamento de Adesão</p>
+                          <p className="text-xs text-gray-500">
+                            Pago em: {formatDate(pagamentos.adesao_pago_em)}
+                          </p>
+                          <span className="inline-block mt-1 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-green-100 text-green-700">
+                            Pago
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-400">Nenhum pagamento de adesão encontrado.</p>
+                      )}
+                    </div>
+
+                    {/* Mensalidades */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs text-gray-600 uppercase font-medium">
+                          Mensalidades
+                          {pagamentos.tipo_plano && (
+                            <span className="ml-2 normal-case font-normal text-gray-400">
+                              ({pagamentos.tipo_plano === 'FAMILIAR' ? 'Familiar' : 'Individual'}
+                              {pagamentos.mensalidade_valor != null
+                                ? ` · ${formatCurrency(pagamentos.mensalidade_valor)}/mês`
+                                : ''})
+                            </span>
+                          )}
+                        </p>
+                      </div>
+
+                      {(() => {
+                        if (pagamentos.mensalidades.length > 0) {
+                          return (
+                            <div className="space-y-2">
+                              {pagamentos.mensalidades.map((m) => (
+                                <PaymentRow key={m.id} payment={m} />
+                              ))}
+                            </div>
+                          )
+                        }
+
+                        // Usa nextDueDate da assinatura ou calcula a partir da data de adesão
+                        const baseDate = pagamentos.assinatura?.nextDueDate
+                          ?? (pagamentos.adesao_pago_em
+                            ? (() => {
+                                // Extrai só YYYY-MM-DD para evitar problemas de timezone
+                                const [y, m, day] = pagamentos.adesao_pago_em!.slice(0, 10).split('-').map(Number)
+                                const nextMonth = m === 12 ? 1 : m + 1
+                                const nextYear = m === 12 ? y + 1 : y
+                                return `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                              })()
+                            : null)
+                        const valor = pagamentos.assinatura?.value ?? pagamentos.mensalidade_valor
+
+                        if (baseDate && valor != null) {
+                          const hoje = new Date().toISOString().slice(0, 10)
+                          const [by, bm, bd] = baseDate.split('-').map(Number)
+                          const parcelas = Array.from({ length: 12 }, (_, i) => {
+                            const totalMonths = bm - 1 + i
+                            const year = by + Math.floor(totalMonths / 12)
+                            const month = (totalMonths % 12) + 1
+                            const dueDate = `${year}-${String(month).padStart(2, '0')}-${String(bd).padStart(2, '0')}`
+                            return { index: i + 1, dueDate }
+                          })
+                          return (
+                            <div className="space-y-2">
+                              {parcelas.map(({ index, dueDate }) => (
+                                <div key={index} className="flex flex-wrap items-center justify-between gap-3 border border-gray-200 rounded p-3">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium text-gray-900">Mensalidade {index}/12</p>
+                                    <p className="text-xs text-gray-500">Vencimento: {formatDate(dueDate)}</p>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-sm font-semibold text-gray-900">{formatCurrency(valor)}</span>
+                                    <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={dueDate < hoje ? { backgroundColor: '#FEE2E2', color: '#B91C1C' } : { backgroundColor: '#F3F4F6', color: '#6B7280' }}>
+                                      {dueDate < hoje ? 'Não gerado' : 'Agendado'}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        }
+
+                        return (
+                          <p className="text-sm text-gray-400">
+                            {pagamentos.asaas_subscription_id ? 'Nenhuma mensalidade encontrada.' : 'Assinatura não criada ainda.'}
+                          </p>
+                        )
+                      })()}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

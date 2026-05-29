@@ -1,13 +1,15 @@
 import { put } from '@vercel/blob'
+import { AsaasIntegrationError } from '@/lib/asaas'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
-  calculateCadastroComissaoValue,
+  buildComissaoResumo,
   formatMonthReferenceLabel,
   getMonthRangeUTC,
   normalizeCurrencyValue,
   parseMonthReference,
   toMonthReferenceUTC,
 } from '@/lib/comissoes'
+import { hydrateCadastrosWithPrimeiraMensalidadePaga } from '@/lib/comissoes-asaas'
 import { requireAdminAuth } from '@/lib/supabase/admin-auth'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -140,21 +142,22 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Vendedor não encontrado.' }, { status: 404 })
     }
 
-    const { data: vendasMes, error: vendasMesError } = await supabase
+    const { data: cadastrosAtivos, error: cadastrosAtivosError } = await supabase
       .from('cadastros')
-      .select('id, status, adesao_pago_em, mensalidade_valor')
+      .select(
+        'id, status, adesao_pago_em, mensalidade_valor, asaas_subscription_id'
+      )
       .eq('vendedor_id', vendedor.id)
       .eq('status', 'ATIVO')
-      .gte('adesao_pago_em', monthRange.startIso)
-      .lt('adesao_pago_em', monthRange.endIso)
+      .not('adesao_pago_em', 'is', null)
 
-    if (vendasMesError) {
-      const details = `${vendasMesError.message || ''} ${vendasMesError.details || ''}`
-      if (/column .*vendedor_id|mensalidade_valor|adesao_pago_em|status/i.test(details)) {
+    if (cadastrosAtivosError) {
+      const details = `${cadastrosAtivosError.message || ''} ${cadastrosAtivosError.details || ''}`
+      if (/column .*vendedor_id|mensalidade_valor|adesao_pago_em|status|asaas_subscription_id/i.test(details)) {
         return NextResponse.json(
           {
             error:
-              'Banco desatualizado. Execute scripts/006_add_plan_type_pricing.sql e scripts/007_add_vendedores_module.sql no Supabase SQL Editor.',
+              'Banco desatualizado. Execute scripts/004_add_cadastro_pagamentos.sql, scripts/006_add_plan_type_pricing.sql e scripts/007_add_vendedores_module.sql no Supabase SQL Editor.',
           },
           { status: 500 }
         )
@@ -173,14 +176,19 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Erro ao calcular comissão do mês.' }, { status: 500 })
     }
 
-    const totalComissaoMes = (vendasMes || []).reduce((acc, venda) => {
-      return acc + calculateCadastroComissaoValue(venda)
-    }, 0)
+    const cadastrosComPrimeiraMensalidade = await hydrateCadastrosWithPrimeiraMensalidadePaga(
+      cadastrosAtivos || []
+    )
+    const resumoCompetencias = buildComissaoResumo(cadastrosComPrimeiraMensalidade, [])
+    const competenciaMes = resumoCompetencias.comissoesMensais.find(
+      (item) => item.mesReferencia === monthRange.monthReference
+    )
+    const totalComissaoMes = normalizeCurrencyValue(competenciaMes?.valorTotal)
 
     if (totalComissaoMes <= 0) {
       return NextResponse.json(
         {
-          error: `Sem vendas pagas para ${formatMonthReferenceLabel(monthRange.monthReference)}.`,
+          error: `Sem comissão devida para ${formatMonthReferenceLabel(monthRange.monthReference)}.`,
         },
         { status: 400 }
       )
@@ -319,6 +327,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
       pagamento: pagamentoSalvo,
     })
   } catch (error) {
+    if (error instanceof AsaasIntegrationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+
     const message = error instanceof Error ? error.message : String(error)
     if (/fetch failed|enotfound|getaddrinfo|network/i.test(message)) {
       return NextResponse.json(

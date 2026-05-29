@@ -1,9 +1,23 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import Image from 'next/image'
+import {
+  AlertTriangle,
+  ChevronRight,
+  CreditCard,
+  Flower2,
+  HeartPulse,
+  LogOut,
+  PhoneCall,
+  Users,
+  Video,
+  type LucideIcon,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { clienteColors, clienteCopy, clienteRadius, clienteSupport } from '@/lib/cliente-ui'
 
 type Cadastro = {
   id: string
@@ -17,11 +31,21 @@ type Cadastro = {
   mensalidade_billing_type: string
   adesao_pago_em: string | null
   created_at: string
+  financeiro_status?: string | null
   dependentes: Array<{
     id: string
     nome: string
     relacao: string
   }>
+}
+
+type QuickAction = {
+  title: string
+  description: string
+  href?: string
+  icon: LucideIcon
+  iconColor: string
+  badge?: string
 }
 
 export default function ClienteDashboard() {
@@ -30,14 +54,10 @@ export default function ClienteDashboard() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    fetchCadastro()
-  }, [])
-
-  const fetchCadastro = async () => {
+  const fetchCadastro = useCallback(async () => {
     try {
       const response = await fetch('/api/cliente/me')
-      
+
       if (response.status === 401) {
         router.push('/login')
         return
@@ -51,12 +71,16 @@ export default function ClienteDashboard() {
       }
 
       setCadastro(data.cadastro)
-    } catch (err) {
+    } catch {
       setError('Erro ao conectar com o servidor')
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [router])
+
+  useEffect(() => {
+    fetchCadastro()
+  }, [fetchCadastro])
 
   const handleLogout = async () => {
     await fetch('/api/cliente/logout', { method: 'POST' })
@@ -66,183 +90,267 @@ export default function ClienteDashboard() {
   const formatCurrency = (value: number) =>
     value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
-  const formatDate = (date: string) =>
-    new Date(date).toLocaleDateString('pt-BR')
+  const quickActions = useMemo<QuickAction[]>(() => {
+    const dependentesCount = cadastro?.dependentes.length ?? 0
 
-  const billingTypeLabels: Record<string, string> = {
-    PIX: 'PIX',
-    BOLETO: 'BolePIX',
-    CREDIT_CARD: 'Cartão de Crédito',
-  }
+    return [
+      {
+        title: clienteCopy.modules.pagamentos.title,
+        description: clienteCopy.modules.pagamentos.subtitle,
+        href: '/cliente/pagamentos',
+        icon: CreditCard,
+        iconColor: '#2196F3',
+      },
+      {
+        title: clienteCopy.modules.dependentes.title,
+        description: `${dependentesCount} cadastrado${dependentesCount !== 1 ? 's' : ''} no plano`,
+        href: '/cliente/dependentes',
+        icon: Users,
+        iconColor: '#FF9800',
+      },
+      {
+        title: clienteCopy.modules.saude.title,
+        description: clienteCopy.modules.saude.subtitle,
+        icon: HeartPulse,
+        iconColor: clienteColors.primary,
+      },
+      {
+        title: clienteCopy.modules.telemedicina.title,
+        description: 'Agendar ou entrar na fila de atendimento',
+        href: '/cliente/telemedicina',
+        icon: Video,
+        iconColor: clienteColors.accent,
+        badge: 'Online',
+      },
+      {
+        title: clienteCopy.modules.funeraria.title,
+        description: clienteCopy.modules.funeraria.subtitle,
+        icon: Flower2,
+        iconColor: clienteColors.funeral,
+      },
+    ]
+  }, [cadastro?.dependentes.length])
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Carregando...</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: clienteColors.background }}>
+        <p style={{ color: clienteColors.textMuted }}>Carregando...</p>
       </div>
     )
   }
 
   if (error || !cadastro) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow p-6 max-w-md w-full">
-          <p className="text-red-600 mb-4">{error || 'Erro ao carregar dados'}</p>
-          <Button onClick={() => router.push('/login')}>Voltar ao Login</Button>
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: clienteColors.background }}>
+        <div
+          className="w-full max-w-md border p-6"
+          style={{
+            backgroundColor: clienteColors.surface,
+            borderColor: '#FECACA',
+            borderRadius: clienteRadius.lg,
+          }}
+        >
+          <p className="mb-4" style={{ color: clienteColors.danger }}>
+            {error || 'Erro ao carregar dados'}
+          </p>
+          <Button
+            onClick={() => router.push('/login')}
+            style={{
+              backgroundColor: clienteColors.primary,
+              color: clienteColors.surface,
+              borderRadius: clienteRadius.full,
+            }}
+          >
+            Voltar ao login
+          </Button>
         </div>
       </div>
     )
   }
 
+  const greeting = cadastro.nome.split(' ')[0]
+  const isActive = cadastro.status === 'ATIVO'
+  const hasDebt = String(cadastro.financeiro_status || '').trim().toUpperCase() === 'EM_ATRASO'
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h1 className="text-2xl font-bold" style={{ color: '#006B54' }}>SHALOM Saúde</h1>
-              <p className="text-lg text-gray-700 mt-1">Olá, {cadastro.nome.split(' ')[0]} 👋</p>
-            </div>
-            <Button 
-              variant="ghost" 
-              onClick={handleLogout}
-              className="text-gray-600 hover:text-gray-900"
-            >
-              Sair
-            </Button>
-          </div>
-          
-          {/* Search Bar */}
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Buscar..."
-              className="w-full px-4 py-3 pl-10 bg-gray-100 rounded-full border-0 focus:outline-none focus:ring-2 focus:ring-[#006B54]"
+    <div className="min-h-screen" style={{ backgroundColor: clienteColors.background }}>
+      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+        <section className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <Image
+              src="/logo-horizontal-v2.png"
+              alt="SHALOM Saúde"
+              width={420}
+              height={136}
+              unoptimized
+              className="h-12 w-auto"
             />
-            <svg className="w-5 h-5 text-gray-400 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Bento Grid - Quick Actions */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition cursor-not-allowed opacity-60">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3" style={{ backgroundColor: '#E8F5F3' }}>
-              <svg className="w-6 h-6" style={{ color: '#006B54' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </div>
-            <h3 className="font-semibold text-gray-900 text-sm">Telemedicina</h3>
-            <p className="text-xs text-gray-500 mt-1">Em breve</p>
+            <p className="mt-4 text-2xl font-bold" style={{ color: clienteColors.text }}>
+              Olá, {greeting} 👋
+            </p>
+            <p className="mt-1 text-sm" style={{ color: clienteColors.textMuted }}>
+              {clienteCopy.appTagline}
+            </p>
           </div>
 
-          <Link href="/cliente/dependentes">
-            <div className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition cursor-pointer">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3" style={{ backgroundColor: '#FFF4E6' }}>
-                <svg className="w-6 h-6" style={{ color: '#FF9800' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
-              <h3 className="font-semibold text-gray-900 text-sm">Dependentes</h3>
-              <p className="text-xs text-gray-500 mt-1">{cadastro.dependentes.length} cadastrado{cadastro.dependentes.length !== 1 ? 's' : ''}</p>
-            </div>
-          </Link>
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={handleLogout}
+            style={{ borderRadius: clienteRadius.full, borderColor: clienteColors.border }}
+          >
+            <LogOut className="h-4 w-4" />
+            Sair
+          </Button>
+        </section>
 
-          <Link href="/cliente/pagamentos">
-            <div className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition cursor-pointer">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3" style={{ backgroundColor: '#E3F2FD' }}>
-                <svg className="w-6 h-6" style={{ color: '#2196F3' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                </svg>
-              </div>
-              <h3 className="font-semibold text-gray-900 text-sm">Financeiro</h3>
-              <p className="text-xs text-gray-500 mt-1">Pagamentos</p>
-            </div>
-          </Link>
-
-          <div className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition cursor-not-allowed opacity-60">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3" style={{ backgroundColor: '#FFF0F5' }}>
-              <svg className="w-6 h-6" style={{ color: '#E91E63' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-              </svg>
-            </div>
-            <h3 className="font-semibold text-gray-900 text-sm">Plano Funerário</h3>
-            <p className="text-xs text-gray-500 mt-1">Em breve</p>
-          </div>
-        </div>
-
-        {/* Status Card */}
-        <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Meu Plano</h2>
+        <section
+          className="mb-4 border p-6"
+          style={{
+            backgroundColor: clienteColors.surface,
+            borderColor: clienteColors.border,
+            borderRadius: clienteRadius.lg,
+          }}
+        >
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold" style={{ color: clienteColors.text }}>
+              Meu plano
+            </h2>
             <span
-              className={`px-3 py-1 rounded-full text-xs font-medium ${
-                cadastro.status === 'ATIVO'
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-yellow-100 text-yellow-700'
-              }`}
+              className="rounded-full px-3 py-1 text-xs font-semibold"
+              style={{
+                backgroundColor: isActive ? '#D1FAE5' : '#FEF3C7',
+                color: isActive ? clienteColors.success : clienteColors.warning,
+              }}
             >
               {cadastro.status}
             </span>
           </div>
-          
-          <div className="grid grid-cols-2 gap-4">
+
+          <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <p className="text-xs text-gray-500">Plano</p>
-              <p className="font-semibold text-gray-900 mt-1">{cadastro.tipo_plano}</p>
+              <p style={{ color: clienteColors.textMuted }}>Plano</p>
+              <p className="mt-1 font-semibold" style={{ color: clienteColors.text }}>
+                {cadastro.tipo_plano}
+              </p>
             </div>
             <div>
-              <p className="text-xs text-gray-500">Mensalidade</p>
-              <p className="font-semibold text-gray-900 mt-1">{formatCurrency(cadastro.mensalidade_valor)}</p>
+              <p style={{ color: clienteColors.textMuted }}>Mensalidade</p>
+              <p className="mt-1 font-semibold" style={{ color: clienteColors.text }}>
+                {formatCurrency(cadastro.mensalidade_valor)}
+              </p>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Minhas Consultas */}
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Minhas Consultas</h2>
-          
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl cursor-not-allowed opacity-60">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: '#E8F5F3' }}>
-                  <svg className="w-5 h-5" style={{ color: '#006B54' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900 text-sm">Agendar Consulta</p>
-                  <p className="text-xs text-gray-500">Em breve</p>
-                </div>
-              </div>
-              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </div>
+        {hasDebt ? (
+          <section
+            className="mb-4 flex items-start gap-2 border p-4"
+            style={{
+              backgroundColor: clienteColors.amberBg,
+              borderColor: '#FDE68A',
+              borderRadius: clienteRadius.md,
+            }}
+          >
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" style={{ color: clienteColors.amber }} />
+            <p className="text-sm leading-5" style={{ color: clienteColors.amber }}>
+              Você possui pagamentos em atraso.{' '}
+              <Link href="/cliente/pagamentos" className="font-bold underline">
+                Ver financeiro →
+              </Link>
+            </p>
+          </section>
+        ) : null}
 
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl cursor-not-allowed opacity-60">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: '#E8F5F3' }}>
-                  <svg className="w-5 h-5" style={{ color: '#006B54' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900 text-sm">Histórico de Consultas</p>
-                  <p className="text-xs text-gray-500">Em breve</p>
-                </div>
-              </div>
-              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </div>
+        <section
+          className="mb-6 flex items-center justify-between gap-3 border p-4"
+          style={{
+            backgroundColor: clienteColors.danger,
+            borderColor: clienteColors.danger,
+            borderRadius: clienteRadius.md,
+          }}
+        >
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/90">Emergência</p>
+            <p className="text-lg font-bold text-white">{clienteSupport.emergencyPhone}</p>
           </div>
-        </div>
+          <a
+            href={`tel:${clienteSupport.emergencyPhone.replace(/\D/g, '')}`}
+            className="inline-flex items-center gap-2 rounded-full border border-white/40 px-4 py-2 text-sm font-semibold text-white"
+          >
+            <PhoneCall className="h-4 w-4" />
+            Ligar
+          </a>
+        </section>
+
+        <p
+          className="mb-2 text-xs font-semibold uppercase tracking-[0.08em]"
+          style={{ color: clienteColors.textMuted }}
+        >
+          Acesso rápido
+        </p>
+
+        <section className="space-y-2">
+          {quickActions.map((action) => {
+            const Icon = action.icon
+            const disabled = !action.href
+            const content = (
+              <div
+                className={`flex items-center gap-4 border p-4 transition ${disabled ? 'opacity-65' : 'hover:opacity-90'}`}
+                style={{
+                  backgroundColor: clienteColors.surface,
+                  borderColor: clienteColors.border,
+                  borderRadius: clienteRadius.md,
+                }}
+              >
+                <div
+                  className="flex h-12 w-12 items-center justify-center"
+                  style={{
+                    borderRadius: clienteRadius.sm,
+                    backgroundColor: `${action.iconColor}18`,
+                  }}
+                >
+                  <Icon className="h-6 w-6" style={{ color: action.iconColor }} />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-base font-semibold" style={{ color: clienteColors.text }}>
+                      {action.title}
+                    </p>
+                    {action.badge ? (
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[11px] font-semibold text-white"
+                        style={{ backgroundColor: clienteColors.secondary }}
+                      >
+                        {action.badge}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-0.5 text-sm" style={{ color: clienteColors.textMuted }}>
+                    {action.description}
+                  </p>
+                </div>
+
+                <ChevronRight className="h-5 w-5" style={{ color: clienteColors.textMuted }} />
+              </div>
+            )
+
+            if (action.href) {
+              return (
+                <Link key={action.title} href={action.href}>
+                  {content}
+                </Link>
+              )
+            }
+
+            return (
+              <div key={action.title} aria-disabled>
+                {content}
+              </div>
+            )
+          })}
+        </section>
       </main>
     </div>
   )

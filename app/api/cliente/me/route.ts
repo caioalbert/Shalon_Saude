@@ -1,10 +1,10 @@
 import { requireClienteAuth } from '@/lib/supabase/cliente-auth'
 import { createClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const auth = await requireClienteAuth()
+    const auth = await requireClienteAuth(request)
     
     const supabase = await createClient()
     const { data: cadastro, error } = await supabase

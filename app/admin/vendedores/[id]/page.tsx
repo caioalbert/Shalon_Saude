@@ -25,6 +25,11 @@ type ComissaoMensal = {
   mesReferencia: string
   mesLabel: string
   quantidadeVendas: number
+  quantidadeMensalidadesSubsequentes: number
+  valorAdesaoMes: number
+  valorMensalidadeSubsequenteMes: number
+  mesReferenciaBaseMensalidade: string | null
+  mesLabelBaseMensalidade: string | null
   valorTotal: number
   valorPagoRegistrado: number
   valorPendente: number
@@ -491,8 +496,9 @@ export default function AdminVendedorDetalhePage() {
             <section className="space-y-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-gray-900">Fechamento de Comissão</h3>
               <p className="text-sm text-gray-600">
-                Registre o pagamento por mês e anexe o comprovante para auditoria. Regra por venda:
-                50% da adesão + 50% da primeira mensalidade.
+                Registre o pagamento por competência mensal e anexe o comprovante para auditoria.
+                Em cada venda: 50% da adesão entra após 30 dias do pagamento da adesão, e 50% da
+                1ª mensalidade entra apenas quando essa mensalidade estiver paga pelo cliente.
               </p>
 
               {comissoesPendentes.length === 0 ? (
@@ -503,7 +509,7 @@ export default function AdminVendedorDetalhePage() {
                 <form className="space-y-4" onSubmit={handleRegistrarPagamento}>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <label className="space-y-1">
-                      <span className="text-sm font-medium text-gray-700">Mês *</span>
+                      <span className="text-sm font-medium text-gray-700">Competência *</span>
                       <select
                         value={mesReferenciaSelecionada}
                         onChange={(event) => handleMesReferenciaChange(event.target.value)}
@@ -513,7 +519,7 @@ export default function AdminVendedorDetalhePage() {
                       >
                         {comissoesPendentes.map((item) => (
                           <option key={item.mesReferencia} value={item.mesReferencia}>
-                            {item.mesLabel} - {formatCurrency(item.valorPendente)}
+                            Mês {item.mesLabel} - {formatCurrency(item.valorPendente)}
                           </option>
                         ))}
                       </select>
@@ -558,9 +564,21 @@ export default function AdminVendedorDetalhePage() {
                   </label>
 
                   {selectedComissao && (
-                    <p className="text-xs text-gray-500">
-                      Valor pendente de referência: {formatCurrency(selectedComissao.valorPendente)}
-                    </p>
+                    <div className="space-y-1 rounded-md border border-indigo-100 bg-indigo-50 p-3 text-xs text-indigo-900">
+                      <p className="font-semibold text-indigo-950">Mês {selectedComissao.mesLabel}</p>
+                      <p>Vendas do mês: {selectedComissao.quantidadeVendas}</p>
+                      <p>
+                        50% das adesões (liberadas 30 dias após pagamento da adesão):{' '}
+                        {formatCurrency(selectedComissao.valorAdesaoMes)}
+                      </p>
+                      <p>
+                        50% da 1ª mensalidade (somente quando a 1ª parcela estiver paga):{' '}
+                        {formatCurrency(selectedComissao.valorMensalidadeSubsequenteMes)}
+                      </p>
+                      <p className="font-medium">
+                        Valor pendente de referência: {formatCurrency(selectedComissao.valorPendente)}
+                      </p>
+                    </div>
                   )}
 
                   <Button type="submit" disabled={isSavingComissao}>
@@ -581,8 +599,10 @@ export default function AdminVendedorDetalhePage() {
                     <thead>
                       <tr className="border-b border-gray-200 text-left text-gray-600">
                         <th className="py-2 pr-4">Mês</th>
-                        <th className="py-2 pr-4">Vendas</th>
-                        <th className="py-2 pr-4">Comissão</th>
+                        <th className="py-2 pr-4">Vendas do mês</th>
+                        <th className="py-2 pr-4">50% adesão (30 dias)</th>
+                        <th className="py-2 pr-4">50% 1ª mensalidade (se paga)</th>
+                        <th className="py-2 pr-4">Total da competência</th>
                         <th className="py-2 pr-4">Status</th>
                         <th className="py-2 pr-4">Pago em</th>
                         <th className="py-2 pr-4">Comprovante</th>
@@ -592,8 +612,14 @@ export default function AdminVendedorDetalhePage() {
                     <tbody>
                       {data.comissoesMensais.map((item) => (
                         <tr key={item.mesReferencia} className="border-b border-gray-100">
-                          <td className="py-2 pr-4 font-medium text-gray-900">{item.mesLabel}</td>
+                          <td className="py-2 pr-4 font-medium text-gray-900">Mês {item.mesLabel}</td>
                           <td className="py-2 pr-4 text-gray-700">{item.quantidadeVendas}</td>
+                          <td className="py-2 pr-4 text-gray-700">
+                            {formatCurrency(item.valorAdesaoMes)}
+                          </td>
+                          <td className="py-2 pr-4 text-gray-700">
+                            {formatCurrency(item.valorMensalidadeSubsequenteMes)}
+                          </td>
                           <td className="py-2 pr-4 text-gray-700">{formatCurrency(item.valorTotal)}</td>
                           <td className="py-2 pr-4">
                             <span

@@ -100,6 +100,13 @@ Edite `.env.local` com:
 - `ASAAS_MENSALIDADE_VALUE` - (Opcional/legado) fallback único para ambos os planos
 - `ASAAS_ADESAO_VALUE` - (Opcional/legado) fallback único para compatibilidade
 
+#### Rapidoc
+- `RAPIDOC_ACCESS_URL` - URL SSO/portal usada pelo endpoint `/api/cliente/telemedicina/url`. Aceita placeholders como `{nome}`, `{email}`, `{cpf_digits}`, `{telefone_digits}` e `{data_nascimento}`.
+- `RAPIDOC_API_BASE_URL` - Base da API Rapidoc para fallback e acesso direto. Produção: `https://api.rapidoc.tech/tema/api`.
+- `NEXT_PUBLIC_RAPIDOC_API_BASE_URL` - Base pública equivalente usada no cliente.
+- `RAPIDOC_FALLBACK_URL` - URL de fallback server-side quando a URL de acesso não estiver configurada.
+- `NEXT_PUBLIC_RAPIDOC_FALLBACK_URL` - URL pública usada no cliente como fallback.
+
 #### Aplicação
 - `NEXT_PUBLIC_APP_URL` - URL da aplicação (ex: http://localhost:3000)
 

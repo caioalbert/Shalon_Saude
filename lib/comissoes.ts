@@ -3,6 +3,7 @@ type CadastroComissaoBase = {
   adesao_pago_em?: string | null
   adesao_valor?: number | string | null
   mensalidade_valor?: number | string | null
+  primeira_mensalidade_paga_em?: string | null
 }
 
 type PagamentoComissaoBase = {
@@ -19,6 +20,11 @@ export type ComissaoMensalResumo = {
   mesReferencia: string
   mesLabel: string
   quantidadeVendas: number
+  quantidadeMensalidadesSubsequentes: number
+  valorAdesaoMes: number
+  valorMensalidadeSubsequenteMes: number
+  mesReferenciaBaseMensalidade: string | null
+  mesLabelBaseMensalidade: string | null
   valorTotal: number
   valorPagoRegistrado: number
   valorPendente: number
@@ -53,11 +59,25 @@ export function normalizeCurrencyValue(value: unknown) {
 export function calculateCadastroComissaoValue(
   cadastro: Pick<CadastroComissaoBase, 'adesao_valor' | 'mensalidade_valor'>
 ) {
+  const breakdown = calculateCadastroComissaoBreakdown(cadastro)
+  return breakdown.total
+}
+
+export function calculateCadastroComissaoBreakdown(
+  cadastro: Pick<CadastroComissaoBase, 'adesao_valor' | 'mensalidade_valor'>
+) {
   const mensalidadeValor = normalizeCurrencyValue(cadastro.mensalidade_valor)
   const adesaoValorInformado = normalizeCurrencyValue(cadastro.adesao_valor)
   const adesaoValor = adesaoValorInformado > 0 ? adesaoValorInformado : mensalidadeValor
 
-  return roundCurrency((adesaoValor * 0.5) + (mensalidadeValor * 0.5))
+  const valorAdesao = roundCurrency(adesaoValor * 0.5)
+  const valorMensalidadeSubsequente = roundCurrency(mensalidadeValor * 0.5)
+
+  return {
+    valorAdesao,
+    valorMensalidadeSubsequente,
+    total: roundCurrency(valorAdesao + valorMensalidadeSubsequente),
+  }
 }
 
 export function toMonthReferenceUTC(date: Date) {
@@ -116,12 +136,24 @@ export function formatMonthReferenceLabel(monthReference: string) {
   }).format(range.monthStartDate)
 }
 
+function addDays(date: Date, days: number) {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000)
+}
+
 export function buildComissaoResumo(
   cadastros: CadastroComissaoBase[],
   pagamentos: PagamentoComissaoBase[],
   referenceDate: Date = new Date()
 ): ComissaoResumo {
-  const vendasByMonth = new Map<string, { quantidade: number; valor: number }>()
+  const competenciaByMonth = new Map<
+    string,
+    {
+      quantidadeVendas: number
+      quantidadeMensalidadesSubsequentes: number
+      valorAdesaoMes: number
+      valorMensalidadeSubsequenteMes: number
+    }
+  >()
   let totalVendasPagas = 0
 
   cadastros.forEach((cadastro) => {
@@ -131,12 +163,41 @@ export function buildComissaoResumo(
     const paidDate = new Date(String(cadastro.adesao_pago_em))
     if (Number.isNaN(paidDate.getTime())) return
 
-    const monthReference = toMonthReferenceUTC(paidDate)
-    const current = vendasByMonth.get(monthReference) || { quantidade: 0, valor: 0 }
+    const adesaoCompetenciaDate = addDays(paidDate, 30)
+    const monthReferenceVenda = toMonthReferenceUTC(adesaoCompetenciaDate)
+    const breakdown = calculateCadastroComissaoBreakdown(cadastro)
+    const vendaMonth = competenciaByMonth.get(monthReferenceVenda) || {
+      quantidadeVendas: 0,
+      quantidadeMensalidadesSubsequentes: 0,
+      valorAdesaoMes: 0,
+      valorMensalidadeSubsequenteMes: 0,
+    }
 
-    current.quantidade += 1
-    current.valor += calculateCadastroComissaoValue(cadastro)
-    vendasByMonth.set(monthReference, current)
+    vendaMonth.quantidadeVendas += 1
+    vendaMonth.valorAdesaoMes += breakdown.valorAdesao
+    competenciaByMonth.set(monthReferenceVenda, vendaMonth)
+
+    const primeiraMensalidadePagaEm = String(cadastro.primeira_mensalidade_paga_em || '').trim()
+    if (primeiraMensalidadePagaEm) {
+      const primeiraMensalidadePagaDate = new Date(primeiraMensalidadePagaEm)
+      if (Number.isNaN(primeiraMensalidadePagaDate.getTime())) {
+        totalVendasPagas += 1
+        return
+      }
+
+      const monthReferenceMensalidade = toMonthReferenceUTC(primeiraMensalidadePagaDate)
+      const mensalidadeMonth = competenciaByMonth.get(monthReferenceMensalidade) || {
+        quantidadeVendas: 0,
+        quantidadeMensalidadesSubsequentes: 0,
+        valorAdesaoMes: 0,
+        valorMensalidadeSubsequenteMes: 0,
+      }
+
+      mensalidadeMonth.quantidadeMensalidadesSubsequentes += 1
+      mensalidadeMonth.valorMensalidadeSubsequenteMes += breakdown.valorMensalidadeSubsequente
+      competenciaByMonth.set(monthReferenceMensalidade, mensalidadeMonth)
+    }
+
     totalVendasPagas += 1
   })
 
@@ -148,7 +209,7 @@ export function buildComissaoResumo(
   })
 
   const allMonthReferences = new Set<string>([
-    ...Array.from(vendasByMonth.keys()),
+    ...Array.from(competenciaByMonth.keys()),
     ...Array.from(pagamentosByMonth.keys()),
   ])
 
@@ -164,9 +225,20 @@ export function buildComissaoResumo(
   const comissoesMensais: ComissaoMensalResumo[] = Array.from(allMonthReferences)
     .sort((a, b) => b.localeCompare(a))
     .map((monthReference) => {
-      const venda = vendasByMonth.get(monthReference) || { quantidade: 0, valor: 0 }
+      const competencia = competenciaByMonth.get(monthReference) || {
+        quantidadeVendas: 0,
+        quantidadeMensalidadesSubsequentes: 0,
+        valorAdesaoMes: 0,
+        valorMensalidadeSubsequenteMes: 0,
+      }
       const pagamento = pagamentosByMonth.get(monthReference) || null
-      const valorTotal = roundCurrency(venda.valor)
+      const valorAdesaoMes = roundCurrency(competencia.valorAdesaoMes)
+      const valorMensalidadeSubsequenteMes = roundCurrency(
+        competencia.valorMensalidadeSubsequenteMes
+      )
+      const valorTotal = roundCurrency(valorAdesaoMes + valorMensalidadeSubsequenteMes)
+      const mesReferenciaBaseMensalidade = null
+      const mesLabelBaseMensalidade = null
       const valorPagoRegistrado = pagamento
         ? roundCurrency(
             normalizeCurrencyValue(pagamento.valor_total) || normalizeCurrencyValue(valorTotal)
@@ -191,7 +263,12 @@ export function buildComissaoResumo(
       return {
         mesReferencia: monthReference,
         mesLabel: formatMonthReferenceLabel(monthReference),
-        quantidadeVendas: venda.quantidade,
+        quantidadeVendas: competencia.quantidadeVendas,
+        quantidadeMensalidadesSubsequentes: competencia.quantidadeMensalidadesSubsequentes,
+        valorAdesaoMes,
+        valorMensalidadeSubsequenteMes,
+        mesReferenciaBaseMensalidade,
+        mesLabelBaseMensalidade,
         valorTotal,
         valorPagoRegistrado,
         valorPendente,

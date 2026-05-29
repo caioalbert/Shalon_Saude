@@ -79,6 +79,9 @@ type AsaasPaymentResponse = {
   status?: string
   customer?: string
   externalReference?: string
+  paymentDate?: string
+  clientPaymentDate?: string
+  confirmedDate?: string
   billingType?: string
   value?: number
   dueDate?: string
@@ -167,6 +170,9 @@ export type AsaasPaymentInfo = {
   status?: string
   customer?: string
   externalReference?: string
+  paymentDate?: string
+  clientPaymentDate?: string
+  confirmedDate?: string
   billingType?: string
   value?: number
   dueDate?: string
@@ -715,11 +721,46 @@ export async function getAsaasPayment(paymentId: string): Promise<AsaasPaymentIn
     status: data.status,
     customer: data.customer,
     externalReference: data.externalReference,
+    paymentDate: data.paymentDate,
+    clientPaymentDate: data.clientPaymentDate,
+    confirmedDate: data.confirmedDate,
     billingType: data.billingType,
     value: data.value,
     invoiceUrl: data.invoiceUrl,
     bankSlipUrl: data.bankSlipUrl,
     creditCardToken: data.creditCardToken,
+  }
+}
+
+export async function getAsaasSubscription(subscriptionId: string): Promise<AsaasSubscriptionInfo> {
+  const response = await asaasRequest(
+    `subscriptions/${subscriptionId}`,
+    { method: 'GET' },
+    'Não foi possível consultar a assinatura no Asaas.'
+  )
+
+  const data = await parseAsaasJson<AsaasSubscriptionResponse>(
+    response,
+    'Asaas retornou uma resposta inválida ao consultar a assinatura.'
+  )
+
+  if (!data.id) {
+    throw new AsaasIntegrationError(
+      'Asaas retornou uma resposta inválida ao consultar a assinatura.',
+      'invalid_response',
+      502
+    )
+  }
+
+  return {
+    id: data.id,
+    customer: data.customer,
+    status: data.status,
+    billingType: data.billingType,
+    value: data.value,
+    nextDueDate: data.nextDueDate,
+    description: data.description,
+    externalReference: data.externalReference,
   }
 }
 
@@ -746,6 +787,9 @@ export async function listAsaasPayments(customerId: string): Promise<AsaasPaymen
       status: p.status,
       customer: p.customer,
       externalReference: p.externalReference,
+      paymentDate: p.paymentDate,
+      clientPaymentDate: p.clientPaymentDate,
+      confirmedDate: p.confirmedDate,
       billingType: p.billingType,
       value: p.value,
       dueDate: p.dueDate,
@@ -779,6 +823,9 @@ export async function listAsaasSubscriptionPayments(subscriptionId: string): Pro
       status: p.status,
       customer: p.customer,
       externalReference: p.externalReference,
+      paymentDate: p.paymentDate,
+      clientPaymentDate: p.clientPaymentDate,
+      confirmedDate: p.confirmedDate,
       billingType: p.billingType,
       value: p.value,
       dueDate: p.dueDate,

@@ -1,5 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { AsaasIntegrationError } from '@/lib/asaas'
 import { buildComissaoResumo } from '@/lib/comissoes'
+import { hydrateCadastrosWithPrimeiraMensalidadePaga } from '@/lib/comissoes-asaas'
 import { requireAdminAuth } from '@/lib/supabase/admin-auth'
 import { isValidEmail } from '@/lib/utils'
 import { NextRequest, NextResponse } from 'next/server'
@@ -80,18 +82,18 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const { data: clientes, error: clientesError } = await supabase
       .from('cadastros')
       .select(
-        'id, nome, email, cpf, status, created_at, adesao_pago_em, mensalidade_valor, vendedor_codigo, tipo_plano'
+        'id, nome, email, cpf, status, created_at, adesao_pago_em, mensalidade_valor, vendedor_codigo, tipo_plano, asaas_subscription_id'
       )
       .eq('vendedor_id', vendedor.id)
       .order('created_at', { ascending: false })
 
     if (clientesError) {
       const details = `${clientesError.message || ''} ${clientesError.details || ''}`
-      if (/column .*vendedor_id|vendedor_codigo|mensalidade_valor|adesao_pago_em|status|tipo_plano/i.test(details)) {
+      if (/column .*vendedor_id|vendedor_codigo|mensalidade_valor|adesao_pago_em|status|tipo_plano|asaas_subscription_id/i.test(details)) {
         return NextResponse.json(
           {
             error:
-              'Banco desatualizado. Execute scripts/006_add_plan_type_pricing.sql e scripts/007_add_vendedores_module.sql no Supabase SQL Editor.',
+              'Banco desatualizado. Execute scripts/004_add_cadastro_pagamentos.sql, scripts/006_add_plan_type_pricing.sql e scripts/007_add_vendedores_module.sql no Supabase SQL Editor.',
           },
           { status: 500 }
         )
@@ -144,7 +146,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const allClientes = clientes || []
-    const comissaoResumo = buildComissaoResumo(allClientes, pagamentosComissao || [])
+    const clientesComPrimeiraMensalidade = await hydrateCadastrosWithPrimeiraMensalidadePaga(
+      allClientes
+    )
+    const comissaoResumo = buildComissaoResumo(
+      clientesComPrimeiraMensalidade,
+      pagamentosComissao || []
+    )
     const totalPendentes = allClientes.length - comissaoResumo.totalVendasPagas
     const appBaseUrl = request.nextUrl.origin.replace(/\/$/, '')
 
@@ -173,6 +181,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
       clientes: allClientes,
     })
   } catch (error) {
+    if (error instanceof AsaasIntegrationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+
     console.error('Admin vendedor detalhe error:', error)
     return NextResponse.json({ error: 'Erro ao processar requisição.' }, { status: 500 })
   }

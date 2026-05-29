@@ -11,17 +11,10 @@ export type ClienteAuth = {
   nome: string
 }
 
-export async function getClienteAuth(): Promise<ClienteAuth | null> {
+async function authFromToken(token: string): Promise<ClienteAuth | null> {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('cliente_token')?.value
-
-    if (!token) {
-      return null
-    }
-
     const { payload } = await jwtVerify(token, JWT_SECRET)
-    
+
     return {
       clienteId: payload.clienteId as string,
       cpf: payload.cpf as string,
@@ -32,12 +25,40 @@ export async function getClienteAuth(): Promise<ClienteAuth | null> {
   }
 }
 
-export async function requireClienteAuth(): Promise<ClienteAuth> {
-  const auth = await getClienteAuth()
-  
+export async function getClienteAuth(): Promise<ClienteAuth | null> {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('cliente_token')?.value
+
+    if (!token) {
+      return null
+    }
+
+    return authFromToken(token)
+  } catch {
+    return null
+  }
+}
+
+export async function getClienteAuthFromRequest(
+  request: Request
+): Promise<ClienteAuth | null> {
+  const authHeader = request.headers.get('Authorization')
+  if (authHeader?.startsWith('Bearer ')) {
+    return authFromToken(authHeader.slice(7))
+  }
+
+  return getClienteAuth()
+}
+
+export async function requireClienteAuth(request?: Request): Promise<ClienteAuth> {
+  const auth = request
+    ? await getClienteAuthFromRequest(request)
+    : await getClienteAuth()
+
   if (!auth) {
     throw new Error('Não autenticado')
   }
-  
+
   return auth
 }

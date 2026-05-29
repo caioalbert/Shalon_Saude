@@ -363,7 +363,8 @@ export default function VendedorDashboardPage() {
             <section className="space-y-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-gray-900">Histórico mensal de comissão</h3>
               <p className="text-sm text-gray-600">
-                Regra por venda: 50% da adesão + 50% da primeira mensalidade.
+                Regra por venda: 50% da adesão após 30 dias e 50% da 1ª mensalidade somente
+                quando essa mensalidade estiver paga.
               </p>
 
               {comissoesMensais.length === 0 ? (
