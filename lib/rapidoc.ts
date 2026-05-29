@@ -233,12 +233,6 @@ export async function resolveRapidocUrl(
   const beneficiaryResult = await checkRapidocBeneficiary(cliente.cpf)
 
   if (!beneficiaryResult.ok) {
-    // Se não encontrou o CPF, a regra original era mandar para o link de cadastro da Rapidoc
-    if (beneficiaryResult.reason === 'not_found') {
-      const cpfDigits = sanitizeDigits(cliente.cpf)
-      const registerUrl = `${RAPIDOC_API_BASE.replace('/api', '')}/beneficiary?cpf=${cpfDigits}&clientId=${RAPIDOC_CLIENT_ID}`
-      return { ok: true, data: { url: registerUrl } }
-    }
     return beneficiaryResult
   }
 
