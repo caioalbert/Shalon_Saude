@@ -385,10 +385,13 @@ function PaymentCard({ payment }: { payment: Payment }) {
               href={payment.invoiceUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-full px-4 py-2 text-sm font-semibold text-white"
+              className="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold text-white shadow-md transition hover:opacity-90"
               style={{ backgroundColor: clienteColors.primary }}
             >
-              Pagar
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Pagar agora
             </a>
           ) : null}
 
@@ -397,7 +400,7 @@ function PaymentCard({ payment }: { payment: Payment }) {
               href={payment.bankSlipUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-full border px-4 py-2 text-sm font-medium"
+              className="rounded-full border px-4 py-2 text-sm font-medium transition hover:bg-gray-50"
               style={{ borderColor: clienteColors.border, color: clienteColors.text }}
             >
               Ver boleto
@@ -409,7 +412,7 @@ function PaymentCard({ payment }: { payment: Payment }) {
               href={payment.invoiceUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-full border px-4 py-2 text-sm font-medium"
+              className="rounded-full border px-4 py-2 text-sm font-medium transition hover:bg-gray-50"
               style={{ borderColor: clienteColors.border, color: clienteColors.text }}
             >
               Ver fatura
