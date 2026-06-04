@@ -23,7 +23,17 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ cadastro })
+    return NextResponse.json({
+      cadastro,
+      usuario: {
+        id: auth.dependenteId || auth.clienteId,
+        cadastroId: auth.clienteId,
+        tipo: auth.tipo,
+        nome: auth.nome,
+        email: auth.email || cadastro.email || null,
+        cpf: auth.cpf,
+      },
+    })
   } catch (error) {
     if (error instanceof Error && error.message === 'Não autenticado') {
       return NextResponse.json(

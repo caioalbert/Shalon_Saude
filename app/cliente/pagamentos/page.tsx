@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Info, ReceiptText } from 'lucide-react'
+import { Info, Lock, ReceiptText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ClienteScreenHeader } from '@/components/cliente/screen-header'
 import { clienteColors, clienteCopy, clienteRadius } from '@/lib/cliente-ui'
@@ -57,9 +57,17 @@ export default function ClientePagamentos() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [infoMessage, setInfoMessage] = useState('')
+  const [usuarioTipo, setUsuarioTipo] = useState<string | null>(null)
 
   useEffect(() => {
     fetchPayments()
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/cliente/me')
+      .then((r) => r.json())
+      .then((data) => setUsuarioTipo(data.usuario?.tipo || 'titular'))
+      .catch(() => setUsuarioTipo('titular'))
   }, [])
 
   const fetchPayments = async () => {
@@ -105,6 +113,41 @@ export default function ClientePagamentos() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: clienteColors.background }}>
         <p style={{ color: clienteColors.textMuted }}>Carregando...</p>
+      </div>
+    )
+  }
+
+  if (usuarioTipo === 'dependente') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: clienteColors.background }}>
+        <div
+          className="w-full max-w-md border p-8 text-center"
+          style={{
+            backgroundColor: clienteColors.surface,
+            borderColor: clienteColors.border,
+            borderRadius: clienteRadius.lg,
+          }}
+        >
+          <Lock className="mx-auto h-12 w-12" style={{ color: clienteColors.border }} />
+          <h2 className="mt-3 text-lg font-semibold" style={{ color: clienteColors.text }}>
+            Acesso exclusivo do titular
+          </h2>
+          <p className="mt-2 text-sm" style={{ color: clienteColors.textMuted }}>
+            Esta área é restrita ao titular do plano.
+          </p>
+          <Link href="/cliente/dashboard">
+            <Button
+              className="mt-4"
+              style={{
+                backgroundColor: clienteColors.primary,
+                color: clienteColors.surface,
+                borderRadius: clienteRadius.full,
+              }}
+            >
+              Voltar ao início
+            </Button>
+          </Link>
+        </div>
       </div>
     )
   }

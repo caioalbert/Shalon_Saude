@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { HelpCircle, Lock, Pencil, Trash2, UserPlus, Users } from 'lucide-react'
@@ -52,6 +52,7 @@ export default function ClienteDependentes() {
   const [plano, setPlano] = useState<Plano | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [canManage, setCanManage] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -65,13 +66,9 @@ export default function ClienteDependentes() {
     telefone_celular: '',
     sexo: '',
   })
+  const [usuarioTipo, setUsuarioTipo] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchDependentes()
-    fetchPlano()
-  }, [])
-
-  const fetchPlano = async () => {
+  const fetchPlano = useCallback(async () => {
     try {
       const response = await fetch('/api/cliente/plano')
 
@@ -87,9 +84,9 @@ export default function ClienteDependentes() {
     } catch {
       setPlano(null)
     }
-  }
+  }, [router])
 
-  const fetchDependentes = async () => {
+  const fetchDependentes = useCallback(async () => {
     try {
       const response = await fetch('/api/cliente/dependentes')
 
@@ -106,18 +103,32 @@ export default function ClienteDependentes() {
       }
 
       setDependentes(data.dependentes || [])
+      setCanManage(data.canManage === true)
     } catch {
       setError('Erro ao conectar com o servidor')
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [router])
+
+  useEffect(() => {
+    fetchDependentes()
+    fetchPlano()
+  }, [fetchDependentes, fetchPlano])
+
+  useEffect(() => {
+    fetch('/api/cliente/me')
+      .then((r) => r.json())
+      .then((data) => setUsuarioTipo(data.usuario?.tipo || 'titular'))
+      .catch(() => setUsuarioTipo('titular'))
+  }, [])
 
   const canAdd = useMemo(() => {
+    if (!canManage) return false
     if (!plano?.permite_dependentes) return false
     if (plano.max_dependentes === null) return true
     return dependentes.length < plano.max_dependentes
-  }, [plano, dependentes.length])
+  }, [canManage, plano, dependentes.length])
 
   const handleAdd = () => {
     setEditingId(null)
@@ -224,6 +235,41 @@ export default function ClienteDependentes() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: clienteColors.background }}>
         <p style={{ color: clienteColors.textMuted }}>Carregando...</p>
+      </div>
+    )
+  }
+
+  if (usuarioTipo === 'dependente') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: clienteColors.background }}>
+        <div
+          className="w-full max-w-md border p-8 text-center"
+          style={{
+            backgroundColor: clienteColors.surface,
+            borderColor: clienteColors.border,
+            borderRadius: clienteRadius.lg,
+          }}
+        >
+          <Lock className="mx-auto h-12 w-12" style={{ color: clienteColors.border }} />
+          <h2 className="mt-3 text-lg font-semibold" style={{ color: clienteColors.text }}>
+            Acesso exclusivo do titular
+          </h2>
+          <p className="mt-2 text-sm" style={{ color: clienteColors.textMuted }}>
+            Esta área é restrita ao titular do plano.
+          </p>
+          <Link href="/cliente/dashboard">
+            <Button
+              className="mt-4"
+              style={{
+                backgroundColor: clienteColors.primary,
+                color: clienteColors.surface,
+                borderRadius: clienteRadius.full,
+              }}
+            >
+              Voltar ao início
+            </Button>
+          </Link>
+        </div>
       </div>
     )
   }
@@ -342,20 +388,24 @@ export default function ClienteDependentes() {
                   Nenhum dependente cadastrado
                 </h2>
                 <p className="mt-2 text-sm leading-6" style={{ color: clienteColors.textMuted }}>
-                  Adicione os membros da família ao seu plano.
+                  {canManage
+                    ? 'Adicione os membros da família ao seu plano.'
+                    : 'Os dependentes vinculados ao plano aparecerão aqui.'}
                 </p>
-                <Button
-                  onClick={handleAdd}
-                  className="mt-4 rounded-full px-5"
-                  style={{
-                    backgroundColor: clienteColors.primary,
-                    color: clienteColors.surface,
-                    borderRadius: clienteRadius.full,
-                  }}
-                >
-                  <UserPlus className="mr-2 h-4 w-4" />
-                  Adicionar primeiro dependente
-                </Button>
+                {canManage ? (
+                  <Button
+                    onClick={handleAdd}
+                    className="mt-4 rounded-full px-5"
+                    style={{
+                      backgroundColor: clienteColors.primary,
+                      color: clienteColors.surface,
+                      borderRadius: clienteRadius.full,
+                    }}
+                  >
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Adicionar primeiro dependente
+                  </Button>
+                ) : null}
               </div>
             ) : (
               <div className="space-y-2">
@@ -395,30 +445,32 @@ export default function ClienteDependentes() {
                       </div>
                     </div>
 
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => handleEdit(dependente)}
-                        style={{ borderColor: clienteColors.primary, color: clienteColors.primary }}
-                      >
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Editar
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => handleDelete(dependente.id)}
-                        style={{
-                          borderColor: '#FECACA',
-                          backgroundColor: '#FEF2F2',
-                          color: clienteColors.danger,
-                        }}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Remover
-                      </Button>
-                    </div>
+                    {canManage ? (
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => handleEdit(dependente)}
+                          style={{ borderColor: clienteColors.primary, color: clienteColors.primary }}
+                        >
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Editar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => handleDelete(dependente.id)}
+                          style={{
+                            borderColor: '#FECACA',
+                            backgroundColor: '#FEF2F2',
+                            color: clienteColors.danger,
+                          }}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Remover
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -447,7 +499,7 @@ export default function ClienteDependentes() {
         </div>
       ) : null}
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={canManage && isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingId ? 'Editar dependente' : 'Adicionar dependente'}</DialogTitle>

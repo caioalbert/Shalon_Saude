@@ -9,16 +9,23 @@ export type ClienteAuth = {
   clienteId: string
   cpf: string
   nome: string
+  email?: string
+  tipo: 'titular' | 'dependente'
+  dependenteId?: string
 }
 
 async function authFromToken(token: string): Promise<ClienteAuth | null> {
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET)
+    const tipo = payload.tipo === 'dependente' ? 'dependente' : 'titular'
 
     return {
       clienteId: payload.clienteId as string,
       cpf: payload.cpf as string,
       nome: payload.nome as string,
+      email: payload.email as string | undefined,
+      tipo,
+      dependenteId: tipo === 'dependente' ? (payload.dependenteId as string | undefined) : undefined,
     }
   } catch {
     return null

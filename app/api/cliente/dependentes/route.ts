@@ -22,7 +22,10 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ dependentes: dependentes || [] })
+    return NextResponse.json({
+      dependentes: dependentes || [],
+      canManage: auth.tipo === 'titular',
+    })
   } catch (error) {
     if (error instanceof Error && error.message === 'Não autenticado') {
       return NextResponse.json(
@@ -43,8 +46,15 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireClienteAuth(request)
-    const body = await request.json()
 
+    if (auth.tipo !== 'titular') {
+      return NextResponse.json(
+        { error: 'Apenas o titular pode adicionar dependentes.' },
+        { status: 403 }
+      )
+    }
+
+    const body = await request.json()
     const { nome, cpf, data_nascimento, relacao, email, telefone_celular, sexo } = body
 
     if (!nome || !cpf || !data_nascimento || !relacao) {
@@ -146,8 +156,15 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const auth = await requireClienteAuth(request)
-    const body = await request.json()
 
+    if (auth.tipo !== 'titular') {
+      return NextResponse.json(
+        { error: 'Apenas o titular pode alterar dependentes.' },
+        { status: 403 }
+      )
+    }
+
+    const body = await request.json()
     const { id, nome, cpf, data_nascimento, relacao, email, telefone_celular, sexo } = body
 
     if (!id) {
@@ -221,6 +238,13 @@ export async function DELETE(request: NextRequest) {
     const auth = await requireClienteAuth(request)
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
+
+    if (auth.tipo !== 'titular') {
+      return NextResponse.json(
+        { error: 'Apenas o titular pode remover dependentes.' },
+        { status: 403 }
+      )
+    }
 
     if (!id) {
       return NextResponse.json(

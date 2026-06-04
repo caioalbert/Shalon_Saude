@@ -39,6 +39,14 @@ type Cadastro = {
   }>
 }
 
+type UsuarioCliente = {
+  id: string
+  tipo: 'titular' | 'dependente'
+  nome: string
+  email?: string | null
+  cpf: string
+}
+
 type QuickAction = {
   title: string
   description: string
@@ -51,6 +59,7 @@ type QuickAction = {
 export default function ClienteDashboard() {
   const router = useRouter()
   const [cadastro, setCadastro] = useState<Cadastro | null>(null)
+  const [usuario, setUsuario] = useState<UsuarioCliente | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -71,6 +80,7 @@ export default function ClienteDashboard() {
       }
 
       setCadastro(data.cadastro)
+      setUsuario(data.usuario || null)
     } catch {
       setError('Erro ao conectar com o servidor')
     } finally {
@@ -92,22 +102,23 @@ export default function ClienteDashboard() {
 
   const quickActions = useMemo<QuickAction[]>(() => {
     const dependentesCount = cadastro?.dependentes.length ?? 0
+    const isTitular = usuario?.tipo !== 'dependente'
 
     return [
-      {
+      ...(isTitular ? [{
         title: clienteCopy.modules.pagamentos.title,
         description: clienteCopy.modules.pagamentos.subtitle,
         href: '/cliente/pagamentos',
         icon: CreditCard,
         iconColor: '#2196F3',
-      },
-      {
+      }] : []),
+      ...(isTitular ? [{
         title: clienteCopy.modules.dependentes.title,
         description: `${dependentesCount} cadastrado${dependentesCount !== 1 ? 's' : ''} no plano`,
         href: '/cliente/dependentes',
         icon: Users,
         iconColor: '#FF9800',
-      },
+      }] : []),
       {
         title: clienteCopy.modules.saude.title,
         description: clienteCopy.modules.saude.subtitle,
@@ -129,7 +140,7 @@ export default function ClienteDashboard() {
         iconColor: clienteColors.funeral,
       },
     ]
-  }, [cadastro?.dependentes.length])
+  }, [cadastro?.dependentes.length, usuario?.tipo])
 
   if (isLoading) {
     return (
@@ -168,7 +179,7 @@ export default function ClienteDashboard() {
     )
   }
 
-  const greeting = cadastro.nome.split(' ')[0]
+  const greeting = (usuario?.nome || cadastro.nome).split(' ')[0]
   const isActive = cadastro.status === 'ATIVO'
   const hasDebt = String(cadastro.financeiro_status || '').trim().toUpperCase() === 'EM_ATRASO'
 
@@ -188,6 +199,14 @@ export default function ClienteDashboard() {
             <p className="mt-4 text-2xl font-bold" style={{ color: clienteColors.text }}>
               Olá, {greeting} 👋
             </p>
+            {usuario?.tipo === 'dependente' && (
+              <span
+                className="mt-1 inline-block rounded-full px-3 py-1 text-xs font-semibold"
+                style={{ backgroundColor: '#DBEAFE', color: '#2563EB' }}
+              >
+                Dependente
+              </span>
+            )}
             <p className="mt-1 text-sm" style={{ color: clienteColors.textMuted }}>
               {clienteCopy.appTagline}
             </p>
@@ -227,23 +246,25 @@ export default function ClienteDashboard() {
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className={`grid ${usuario?.tipo !== 'dependente' ? 'grid-cols-2' : 'grid-cols-1'} gap-4 text-sm`}>
             <div>
               <p style={{ color: clienteColors.textMuted }}>Plano</p>
               <p className="mt-1 font-semibold" style={{ color: clienteColors.text }}>
                 {cadastro.tipo_plano}
               </p>
             </div>
-            <div>
-              <p style={{ color: clienteColors.textMuted }}>Mensalidade</p>
-              <p className="mt-1 font-semibold" style={{ color: clienteColors.text }}>
-                {formatCurrency(cadastro.mensalidade_valor)}
-              </p>
-            </div>
+            {usuario?.tipo !== 'dependente' && (
+              <div>
+                <p style={{ color: clienteColors.textMuted }}>Mensalidade</p>
+                <p className="mt-1 font-semibold" style={{ color: clienteColors.text }}>
+                  {formatCurrency(cadastro.mensalidade_valor)}
+                </p>
+              </div>
+            )}
           </div>
         </section>
 
-        {hasDebt ? (
+        {hasDebt && usuario?.tipo !== 'dependente' ? (
           <section
             className="mb-4 flex items-start gap-2 border p-4"
             style={{

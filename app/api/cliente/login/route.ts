@@ -10,6 +10,134 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'shalom-saude-secret-key-change-in-production'
 )
 
+type CadastroLoginRow = {
+  id: string
+  nome: string
+  email: string | null
+  cpf: string | null
+  status: string | null
+}
+
+type DependenteLoginRow = {
+  id: string
+  cadastro_id: string
+  nome: string
+  email: string | null
+  cpf: string | null
+}
+
+type ClienteLoginIdentity = {
+  tipo: 'titular' | 'dependente'
+  clienteId: string
+  dependenteId?: string
+  nome: string
+  email: string | null
+  cpf: string
+  cadastro: CadastroLoginRow
+}
+
+type ClienteLoginResolveResult =
+  | { ok: true; identity: ClienteLoginIdentity }
+  | { ok: false; error: string; status: 401 | 409 }
+
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
+
+const INVALID_CREDENTIALS_ERROR = 'CPF ou dígitos de confirmação incorretos.'
+
+function buildCpfCandidates(cpfClean: string) {
+  return Array.from(new Set([formatCpfForDb(cpfClean), cpfClean]))
+}
+
+async function findCadastroByCpf(
+  supabase: SupabaseServerClient,
+  cpfCandidates: string[]
+): Promise<CadastroLoginRow | null> {
+  const { data, error } = await supabase
+    .from('cadastros')
+    .select('id, nome, email, cpf, status')
+    .in('cpf', cpfCandidates)
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    throw error
+  }
+
+  return data
+}
+
+async function resolveClienteLogin(
+  supabase: SupabaseServerClient,
+  cpfClean: string
+): Promise<ClienteLoginResolveResult> {
+  const cpfCandidates = buildCpfCandidates(cpfClean)
+  const cadastro = await findCadastroByCpf(supabase, cpfCandidates)
+
+  if (cadastro) {
+    return {
+      ok: true,
+      identity: {
+        tipo: 'titular',
+        clienteId: cadastro.id,
+        nome: cadastro.nome,
+        email: cadastro.email,
+        cpf: String(cadastro.cpf || cpfClean),
+        cadastro,
+      },
+    }
+  }
+
+  const { data: dependentes, error: dependenteError } = await supabase
+    .from('dependentes')
+    .select('id, cadastro_id, nome, email, cpf')
+    .in('cpf', cpfCandidates)
+    .limit(2)
+
+  if (dependenteError) {
+    throw dependenteError
+  }
+
+  if (!dependentes || dependentes.length === 0) {
+    return { ok: false, error: INVALID_CREDENTIALS_ERROR, status: 401 }
+  }
+
+  if (dependentes.length > 1) {
+    return {
+      ok: false,
+      error: 'CPF cadastrado em mais de um dependente. Procure o suporte.',
+      status: 409,
+    }
+  }
+
+  const dependente = dependentes[0] as DependenteLoginRow
+  const { data: cadastroTitular, error: cadastroTitularError } = await supabase
+    .from('cadastros')
+    .select('id, nome, email, cpf, status')
+    .eq('id', dependente.cadastro_id)
+    .maybeSingle()
+
+  if (cadastroTitularError) {
+    throw cadastroTitularError
+  }
+
+  if (!cadastroTitular) {
+    return { ok: false, error: INVALID_CREDENTIALS_ERROR, status: 401 }
+  }
+
+  return {
+    ok: true,
+    identity: {
+      tipo: 'dependente',
+      clienteId: cadastroTitular.id,
+      dependenteId: dependente.id,
+      nome: dependente.nome,
+      email: dependente.email || cadastroTitular.email,
+      cpf: String(dependente.cpf || cpfClean),
+      cadastro: cadastroTitular,
+    },
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -44,47 +172,55 @@ export async function POST(request: NextRequest) {
     }
     if (cpfClean.slice(0, 4) !== prefixClean) {
       return NextResponse.json(
-        { error: 'CPF ou dígitos de confirmação incorretos.' },
+        { error: INVALID_CREDENTIALS_ERROR },
         { status: 401 }
       )
     }
-
-    const cpfFormatted = formatCpfForDb(cpfClean)
 
     const supabase = await createClient()
-    const { data: cadastro, error } = await supabase
-      .from('cadastros')
-      .select('id, nome, email, cpf, status')
-      .eq('cpf', cpfFormatted)
-      .single()
+    const loginResult = await resolveClienteLogin(supabase, cpfClean)
 
-    if (error || !cadastro) {
+    if (!loginResult.ok) {
       return NextResponse.json(
-        { error: 'CPF ou dígitos de confirmação incorretos.' },
-        { status: 401 }
+        { error: loginResult.error },
+        { status: loginResult.status }
       )
     }
 
-    const secondFactorOk = verifyCpfPrefix(cadastro, String(cpf_prefix))
+    const { identity } = loginResult
+    const secondFactorOk = verifyCpfPrefix(identity, String(cpf_prefix))
 
     if (!secondFactorOk) {
       return NextResponse.json(
-        { error: 'CPF ou dígitos de confirmação incorretos.' },
+        { error: INVALID_CREDENTIALS_ERROR },
         { status: 401 }
       )
     }
 
-    if (cadastro.status !== 'ATIVO') {
+    if (identity.cadastro.status !== 'ATIVO') {
       return NextResponse.json(
         { error: 'Cadastro ainda não está ativo. Aguarde a confirmação do pagamento.' },
         { status: 403 }
       )
     }
 
+    const jwtPayload: Record<string, string> = {
+      clienteId: identity.clienteId,
+      cpf: identity.cpf,
+      nome: identity.nome,
+      tipo: identity.tipo,
+    }
+
+    if (identity.email) {
+      jwtPayload.email = identity.email
+    }
+
+    if (identity.dependenteId) {
+      jwtPayload.dependenteId = identity.dependenteId
+    }
+
     const token = await new SignJWT({
-      clienteId: cadastro.id,
-      cpf: cadastro.cpf,
-      nome: cadastro.nome,
+      ...jwtPayload,
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
@@ -95,9 +231,11 @@ export async function POST(request: NextRequest) {
       success: true,
       token,
       cliente: {
-        id: cadastro.id,
-        nome: cadastro.nome,
-        email: cadastro.email,
+        id: identity.clienteId,
+        dependenteId: identity.dependenteId,
+        tipo: identity.tipo,
+        nome: identity.nome,
+        email: identity.email,
       },
     })
 
