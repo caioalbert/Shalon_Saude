@@ -110,6 +110,7 @@ function buildRanking(values: Array<string | undefined>, fallbackLabel: string):
 export default function AdminDashboard() {
   const router = useRouter()
   const [cadastros, setCadastros] = useState<Cadastro[]>([])
+  const [dependentesCount, setDependentesCount] = useState(0)
   const [financeiroResumo, setFinanceiroResumo] = useState({
     receitaMesAtual: 0,
     comissoesPagasMesAtual: 0,
@@ -122,7 +123,7 @@ export default function AdminDashboard() {
     try {
       setIsLoading(true)
       setError(null)
-      const response = await fetch('/api/admin/cadastros?includeFinance=true')
+      const response = await fetch('/api/admin/cadastros?includeFinance=true&includeDependentes=true')
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -134,6 +135,7 @@ export default function AdminDashboard() {
 
       const data = await response.json()
       setCadastros(data.cadastros || [])
+      setDependentesCount((data.dependentes || []).length)
       setFinanceiroResumo({
         receitaMesAtual: Number(data.financeiroResumo?.receitaMesAtual || 0),
         comissoesPagasMesAtual: Number(data.financeiroResumo?.comissoesPagasMesAtual || 0),
@@ -250,7 +252,7 @@ export default function AdminDashboard() {
     })
 
     return {
-      total: cadastros.length,
+      total: cadastros.length + dependentesCount,
       withDependentes,
       clientesEmDia,
       clientesEmAtraso: adesoesNaoPagas + mensalidadesAtrasadas,
@@ -261,7 +263,7 @@ export default function AdminDashboard() {
       last30Days,
       currentMonth,
     }
-  }, [cadastros])
+  }, [cadastros, dependentesCount])
 
   const estadoCivilRanking = useMemo(
     () => buildRanking(cadastros.map((item) => item.estado_civil), 'Não informado'),
