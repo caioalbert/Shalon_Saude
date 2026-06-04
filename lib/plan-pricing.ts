@@ -1,73 +1,109 @@
-import { createClient } from '@/lib/supabase/server'
+export type PlanChargeInput = {
+  valor: number
+  permiteDependentes: boolean
+  minDependentes: number
+  valorDependenteAdicional: number
+}
+
+export type PlanChargeBreakdown = {
+  total: number
+  perLifeMode: boolean
+  minimumLives: number
+  selectedLives: number
+  extraLives: number
+  baseValue: number
+  extraUnitValue: number
+  minimumAmount: number
+  extrasAmount: number
+}
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
+function toNonNegativeNumber(value: unknown, fallback = 0) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback
+  }
+  return parsed
+}
+
+function toNonNegativeInteger(value: unknown, fallback = 0) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) {
+    return fallback
+  }
+  return parsed
+}
+
+function isPerLifePricing(baseValue: number, extraUnitValue: number) {
+  return extraUnitValue > 0 && Math.abs(baseValue - extraUnitValue) < 0.0001
+}
+
+export function calculatePlanChargeBreakdown(
+  plan: PlanChargeInput,
+  dependentesCount: number
+): PlanChargeBreakdown {
+  const baseValue = roundMoney(toNonNegativeNumber(plan.valor))
+  const extraUnitValue = roundMoney(toNonNegativeNumber(plan.valorDependenteAdicional))
+  const minDependentes = plan.permiteDependentes ? toNonNegativeInteger(plan.minDependentes) : 0
+  const dependentes = plan.permiteDependentes ? toNonNegativeInteger(dependentesCount) : 0
+
+  if (!plan.permiteDependentes) {
+    return {
+      total: baseValue,
+      perLifeMode: false,
+      minimumLives: 1,
+      selectedLives: 1,
+      extraLives: 0,
+      baseValue,
+      extraUnitValue: 0,
+      minimumAmount: baseValue,
+      extrasAmount: 0,
+    }
+  }
+
+  const minimumLives = Math.max(1, minDependentes + 1)
+  const selectedLives = Math.max(1, dependentes + 1)
+  const perLifeMode = isPerLifePricing(baseValue, extraUnitValue)
+
+  if (perLifeMode) {
+    const billedLives = Math.max(selectedLives, minimumLives)
+    const extraLives = Math.max(0, billedLives - minimumLives)
+    const minimumAmount = roundMoney(baseValue * minimumLives)
+    const extrasAmount = roundMoney(extraUnitValue * extraLives)
+
+    return {
+      total: roundMoney(minimumAmount + extrasAmount),
+      perLifeMode,
+      minimumLives,
+      selectedLives: billedLives,
+      extraLives,
+      baseValue,
+      extraUnitValue,
+      minimumAmount,
+      extrasAmount,
+    }
+  }
+
+  const extraDependentes = Math.max(0, dependentes - minDependentes)
+  const extrasAmount = roundMoney(extraUnitValue * extraDependentes)
+
+  return {
+    total: roundMoney(baseValue + extrasAmount),
+    perLifeMode,
+    minimumLives,
+    selectedLives,
+    extraLives: extraDependentes,
+    baseValue,
+    extraUnitValue,
+    minimumAmount: baseValue,
+    extrasAmount,
+  }
+}
 
 const MIN_DEPENDENTES_FAMILIAR = 2
 const VALOR_POR_VIDA_EXCEDENTE = 24.90
 
-type PlanPricing = {
-  baseValue: number
-  minDependentes: number
-  valorPorVidaExcedente: number
-  totalVidas: number
-  totalValue: number
-}
-
-/**
- * Calcula o valor da assinatura baseado no plano e número de dependentes
- * 
- * Regras:
- * - Plano individual: valor fixo, sem dependentes
- * - Plano familiar: 
- *   - Mínimo de 2 dependentes (3 vidas: titular + 2 dependentes)
- *   - Cliente paga pelo mínimo mesmo que tenha menos dependentes
- *   - Se ultrapassar o mínimo, paga valor excedente por vida adicional
- */
-export async function calculateSubscriptionValue(
-  cadastroId: string,
-  dependentesCount: number
-): Promise<PlanPricing | null> {
-  const supabase = await createClient()
-
-  const { data: cadastro, error } = await supabase
-    .from('cadastros')
-    .select('tipo_plano, mensalidade_valor')
-    .eq('id', cadastroId)
-    .single()
-
-  if (error || !cadastro) {
-    return null
-  }
-
-  const isIndividual = cadastro.tipo_plano === 'INDIVIDUAL'
-  
-  if (isIndividual) {
-    return {
-      baseValue: cadastro.mensalidade_valor || 0,
-      minDependentes: 0,
-      valorPorVidaExcedente: 0,
-      totalVidas: 1,
-      totalValue: cadastro.mensalidade_valor || 0,
-    }
-  }
-
-  // Plano Familiar
-  const baseValue = cadastro.mensalidade_valor || 0
-  const totalVidas = 1 + dependentesCount // titular + dependentes
-  const vidasMinimas = 1 + MIN_DEPENDENTES_FAMILIAR // 3 vidas
-  
-  // Paga pelo mínimo de vidas, mesmo que tenha menos
-  const vidasCobradas = Math.max(totalVidas, vidasMinimas)
-  
-  // Se ultrapassar o mínimo, cobra excedente
-  const vidasExcedentes = Math.max(0, totalVidas - vidasMinimas)
-  const valorExcedente = vidasExcedentes * VALOR_POR_VIDA_EXCEDENTE
-  
-  const totalValue = baseValue + valorExcedente
-
-  return {
-    baseValue,
-    minDependentes: MIN_DEPENDENTES_FAMILIAR,
-    valorPorVidaExcedente: VALOR_POR_VIDA_EXCEDENTE,
-    totalVidas: vidasCobradas,
-    totalValue,
-  }
-}
+export { MIN_DEPENDENTES_FAMILIAR, VALOR_POR_VIDA_EXCEDENTE }
