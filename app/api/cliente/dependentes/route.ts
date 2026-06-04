@@ -66,6 +66,34 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient()
     
+    // Verificar CPF duplicado
+    const cpfClean = cpf.replace(/\D/g, '')
+    const { data: cpfExists } = await supabase
+      .from('cadastros')
+      .select('id')
+      .eq('cpf', cpfClean)
+      .maybeSingle()
+
+    if (cpfExists) {
+      return NextResponse.json(
+        { error: 'Este CPF já está cadastrado como titular.' },
+        { status: 409 }
+      )
+    }
+
+    const { data: cpfDependenteExists } = await supabase
+      .from('dependentes')
+      .select('id')
+      .eq('cpf', cpfClean)
+      .maybeSingle()
+
+    if (cpfDependenteExists) {
+      return NextResponse.json(
+        { error: 'Este CPF já está cadastrado como dependente.' },
+        { status: 409 }
+      )
+    }
+
     // Verificar se o plano permite dependentes
     const { data: cadastro } = await supabase
       .from('cadastros')
@@ -179,7 +207,7 @@ export async function PUT(request: NextRequest) {
     // Verificar se o dependente pertence ao cliente
     const { data: existing } = await supabase
       .from('dependentes')
-      .select('id')
+      .select('id, cpf')
       .eq('id', id)
       .eq('cadastro_id', auth.clienteId)
       .single()
@@ -189,6 +217,41 @@ export async function PUT(request: NextRequest) {
         { error: 'Dependente não encontrado.' },
         { status: 404 }
       )
+    }
+
+    // Verificar CPF duplicado apenas se o CPF foi alterado
+    if (cpf) {
+      const cpfClean = cpf.replace(/\D/g, '')
+      const cpfExistente = existing.cpf?.replace(/\D/g, '')
+
+      if (cpfClean !== cpfExistente) {
+        const { data: cpfCadastro } = await supabase
+          .from('cadastros')
+          .select('id')
+          .eq('cpf', cpfClean)
+          .maybeSingle()
+
+        if (cpfCadastro) {
+          return NextResponse.json(
+            { error: 'Este CPF já está cadastrado como titular.' },
+            { status: 409 }
+          )
+        }
+
+        const { data: cpfDependente } = await supabase
+          .from('dependentes')
+          .select('id')
+          .eq('cpf', cpfClean)
+          .neq('id', id)
+          .maybeSingle()
+
+        if (cpfDependente) {
+          return NextResponse.json(
+            { error: 'Este CPF já está cadastrado como dependente.' },
+            { status: 409 }
+          )
+        }
+      }
     }
 
     const { data: dependente, error } = await supabase
