@@ -114,7 +114,8 @@ export async function checkRapidocBeneficiary(
 
     const data = await res.json().catch(() => ({}))
 
-    if (res.status === 401 || res.status === 403) {
+    if (res.status === 401 || res.status === 403 || (data?.success === false && data?.message?.includes('token'))) {
+      console.error('[Rapidoc] Erro de autenticação:', { status: res.status, message: data?.message })
       return {
         ok:      false,
         reason:  'auth',
@@ -122,7 +123,7 @@ export async function checkRapidocBeneficiary(
       }
     }
 
-    if (res.status === 404 || data?.success === false) {
+    if (res.status === 404 || (data?.success === false && !data?.message?.includes('token'))) {
       return {
         ok:      false,
         reason:  'not_found',
