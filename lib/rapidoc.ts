@@ -83,6 +83,7 @@ function rapidocHeaders(): HeadersInit {
   return {
     'Authorization': `Bearer ${RAPIDOC_JWT}`,
     'clientId':       RAPIDOC_CLIENT_ID,
+    'Content-Type':   'application/vnd.rapidoc.tema-v2+json',
     'Accept':         'application/json',
   }
 }
