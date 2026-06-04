@@ -56,6 +56,8 @@ export default function ClienteDependentes() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [isUpgrading, setIsUpgrading] = useState(false)
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false)
 
   const [formData, setFormData] = useState({
     nome: '',
@@ -348,6 +350,19 @@ export default function ClienteDependentes() {
             <p className="mt-2 text-sm leading-6" style={{ color: clienteColors.textMuted }}>
               Faça upgrade para um plano familiar e adicione seus dependentes.
             </p>
+            {canManage ? (
+              <Button
+                onClick={() => setShowUpgradeDialog(true)}
+                className="mt-4 rounded-full px-6 py-3 text-base font-bold"
+                style={{
+                  backgroundColor: clienteColors.primary,
+                  color: clienteColors.surface,
+                  borderRadius: clienteRadius.full,
+                }}
+              >
+                Fazer upgrade para plano familiar
+              </Button>
+            ) : null}
           </div>
         ) : null}
 
@@ -606,6 +621,73 @@ export default function ClienteDependentes() {
               style={{ backgroundColor: clienteColors.primary, color: clienteColors.surface }}
             >
               {isSaving ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Fazer upgrade para plano familiar</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="flex items-start gap-3 rounded-lg border p-4" style={{ borderColor: clienteColors.borderMint, backgroundColor: `${clienteColors.primary}10` }}>
+              <Users className="h-5 w-5 mt-0.5 shrink-0" style={{ color: clienteColors.primary }} />
+              <div className="flex-1 text-sm">
+                <p className="font-semibold" style={{ color: clienteColors.text }}>Plano Familiar</p>
+                <p className="mt-1" style={{ color: clienteColors.textMuted }}>
+                  • Mínimo de 3 vidas (você + 2 dependentes)<br />
+                  • Adicione até 2 dependentes sem custo adicional<br />
+                  • R$ 24,90 por cada vida excedente
+                </p>
+              </div>
+            </div>
+
+            {error ? (
+              <div className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: '#FECACA', backgroundColor: '#FEF2F2', color: clienteColors.danger }}>
+                {error}
+              </div>
+            ) : null}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowUpgradeDialog(false)}
+              disabled={isUpgrading}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={async () => {
+                setIsUpgrading(true)
+                setError('')
+                try {
+                  const res = await fetch('/api/cliente/plano/upgrade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target_plan: 'FAMILIAR' }),
+                  })
+                  const data = await res.json()
+                  if (!res.ok) {
+                    setError(data.error || 'Erro ao fazer upgrade')
+                    return
+                  }
+                  setShowUpgradeDialog(false)
+                  fetchPlano()
+                  fetchDependentes()
+                } catch {
+                  setError('Erro ao conectar com o servidor')
+                } finally {
+                  setIsUpgrading(false)
+                }
+              }}
+              disabled={isUpgrading}
+              style={{ backgroundColor: clienteColors.primary, color: clienteColors.surface }}
+            >
+              {isUpgrading ? 'Processando...' : 'Confirmar upgrade'}
             </Button>
           </DialogFooter>
         </DialogContent>
