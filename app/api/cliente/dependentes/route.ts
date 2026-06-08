@@ -1,6 +1,53 @@
 import { requireClienteAuth } from '@/lib/supabase/cliente-auth'
 import { createClient } from '@/lib/supabase/server'
+import { updateAsaasSubscriptionValue } from '@/lib/asaas'
+import { MIN_DEPENDENTES_FAMILIAR, VALOR_POR_VIDA_EXCEDENTE } from '@/lib/plan-pricing'
 import { NextRequest, NextResponse } from 'next/server'
+
+async function recalculateAndUpdateSubscription(cadastroId: string) {
+  const supabase = await createClient()
+  
+  const { data: cadastro } = await supabase
+    .from('cadastros')
+    .select('tipo_plano, mensalidade_valor, asaas_subscription_id')
+    .eq('id', cadastroId)
+    .single()
+
+  if (!cadastro || cadastro.tipo_plano !== 'FAMILIAR') {
+    return // Só recalcula para plano familiar
+  }
+
+  const { count: dependentesCount } = await supabase
+    .from('dependentes')
+    .select('*', { count: 'exact', head: true })
+    .eq('cadastro_id', cadastroId)
+
+  const totalDependentes = dependentesCount || 0
+  const baseValue = cadastro.mensalidade_valor || 0
+  
+  // Calcular novo valor
+  const vidasMinimas = 1 + MIN_DEPENDENTES_FAMILIAR
+  const totalVidas = 1 + totalDependentes
+  const vidasExcedentes = Math.max(0, totalVidas - vidasMinimas)
+  const valorExcedente = vidasExcedentes * VALOR_POR_VIDA_EXCEDENTE
+  const novoValor = baseValue + valorExcedente
+
+  // Atualizar no banco
+  await supabase
+    .from('cadastros')
+    .update({ mensalidade_valor: novoValor })
+    .eq('id', cadastroId)
+
+  // Atualizar no Asaas
+  if (cadastro.asaas_subscription_id) {
+    try {
+      await updateAsaasSubscriptionValue(cadastro.asaas_subscription_id, novoValor)
+    } catch (error) {
+      console.error('Erro ao atualizar assinatura no Asaas:', error)
+    }
+  }
+}
+
 
 // GET - Listar dependentes
 export async function GET(request: NextRequest) {
@@ -162,6 +209,9 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
+
+    // Recalcular e atualizar valor da assinatura
+    await recalculateAndUpdateSubscription(auth.clienteId)
 
     return NextResponse.json({ dependente })
   } catch (error) {
@@ -330,6 +380,9 @@ export async function DELETE(request: NextRequest) {
         { status: 500 }
       )
     }
+
+    // Recalcular e atualizar valor da assinatura
+    await recalculateAndUpdateSubscription(auth.clienteId)
 
     return NextResponse.json({ success: true })
   } catch (error) {

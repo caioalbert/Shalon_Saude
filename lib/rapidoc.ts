@@ -140,9 +140,14 @@ export async function checkRapidocBeneficiary(
       }
     }
 
-    // A API retorna { success: true, uuid: "..." } ou { success: true, data: { uuid: "..." } }
+    // A API retorna { success: true, beneficiary: { uuid: "..." } }
+    // ou variações: { uuid }, { data: { uuid } }, { beneficiario: { uuid } }
     const uuid: string | null =
-      data?.uuid || data?.data?.uuid || data?.beneficiario?.uuid || null
+      data?.uuid ||
+      data?.data?.uuid ||
+      data?.beneficiario?.uuid ||
+      data?.beneficiary?.uuid ||
+      null
 
     if (!uuid) {
       return {

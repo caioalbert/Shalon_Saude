@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, CalendarDays, Clock3, ExternalLink, History, Loader2, Video, Zap } from 'lucide-react'
+import { ArrowLeft, Clock3, Loader2, Video, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ClienteScreenHeader } from '@/components/cliente/screen-header'
 import { clienteColors, clienteCopy, clienteRadius } from '@/lib/cliente-ui'
@@ -13,10 +13,11 @@ type Cadastro = {
   nome: string
 }
 
-const RAPIDOC_FALLBACK_URL =
-  process.env.NEXT_PUBLIC_RAPIDOC_FALLBACK_URL ||
-  process.env.NEXT_PUBLIC_RAPIDOC_API_BASE_URL ||
-  'https://api.rapidoc.tech/tema/api'
+type UsuarioCliente = {
+  id: string
+  tipo: 'titular' | 'dependente'
+  nome: string
+}
 
 function openExternalUrl(url: string) {
   const opened = window.open(url, '_blank', 'noopener,noreferrer')
@@ -28,6 +29,7 @@ function openExternalUrl(url: string) {
 export default function ClienteTelemedicinaPage() {
   const router = useRouter()
   const [cadastro, setCadastro] = useState<Cadastro | null>(null)
+  const [usuario, setUsuario] = useState<UsuarioCliente | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingUrl, setIsLoadingUrl] = useState(false)
   const [error, setError] = useState('')
@@ -49,6 +51,7 @@ export default function ClienteTelemedicinaPage() {
       }
 
       setCadastro(data.cadastro)
+      setUsuario(data.usuario || null)
     } catch {
       setError('Erro ao conectar com o servidor')
     } finally {
@@ -60,7 +63,7 @@ export default function ClienteTelemedicinaPage() {
     fetchCadastro()
   }, [fetchCadastro])
 
-  const handleEntrarFila = useCallback(async () => {
+  const handleAcessar = useCallback(async () => {
     setIsLoadingUrl(true)
     setError('')
 
@@ -78,7 +81,7 @@ export default function ClienteTelemedicinaPage() {
       }
 
       if (!data.url) {
-        // Agora a API retorna { url: null, warning: "...", reason: "..." }
+        // API retorna { url: null, warning: "...", reason: "..." }
         throw new Error(data.warning || 'URL de acesso à telemedicina não retornada.')
       }
 
@@ -179,7 +182,7 @@ export default function ClienteTelemedicinaPage() {
                 Atendimento por vídeo
               </p>
               <p className="mt-1 text-sm" style={{ color: clienteColors.textMuted }}>
-                {cadastro.nome}
+                {usuario?.nome || cadastro.nome}
               </p>
               <p className="mt-1 text-sm font-semibold" style={{ color: clienteColors.accent }}>
                 Telemedicina Rapidoc
@@ -211,7 +214,7 @@ export default function ClienteTelemedicinaPage() {
 
         <button
           type="button"
-          onClick={handleEntrarFila}
+          onClick={handleAcessar}
           disabled={isLoadingUrl}
           className="mb-3 flex w-full items-center gap-4 border-0 p-4 text-left text-white transition disabled:opacity-85"
           style={{ backgroundColor: clienteColors.accent, borderRadius: clienteRadius.lg }}
@@ -224,53 +227,6 @@ export default function ClienteTelemedicinaPage() {
           <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-bold">Rápido</span>
         </button>
 
-        <section className="space-y-2">
-          <a
-            href={RAPIDOC_FALLBACK_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-4 border p-4 transition hover:opacity-90"
-            style={{
-              backgroundColor: clienteColors.surface,
-              borderColor: clienteColors.border,
-              borderRadius: clienteRadius.md,
-            }}
-          >
-            <CalendarDays className="h-6 w-6" style={{ color: clienteColors.accent }} />
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold" style={{ color: clienteColors.text }}>
-                Agendar consulta
-              </span>
-              <span className="mt-0.5 block text-sm" style={{ color: clienteColors.textMuted }}>
-                Especialidades conforme seu plano
-              </span>
-            </span>
-            <ExternalLink className="h-5 w-5" style={{ color: clienteColors.textMuted }} />
-          </a>
-
-          <a
-            href={RAPIDOC_FALLBACK_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-4 border p-4 transition hover:opacity-90"
-            style={{
-              backgroundColor: clienteColors.surface,
-              borderColor: clienteColors.border,
-              borderRadius: clienteRadius.md,
-            }}
-          >
-            <History className="h-6 w-6" style={{ color: clienteColors.accent }} />
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold" style={{ color: clienteColors.text }}>
-                Histórico e receitas
-              </span>
-              <span className="mt-0.5 block text-sm" style={{ color: clienteColors.textMuted }}>
-                Consultas anteriores e atestados
-              </span>
-            </span>
-            <ExternalLink className="h-5 w-5" style={{ color: clienteColors.textMuted }} />
-          </a>
-        </section>
       </main>
     </div>
   )

@@ -18,6 +18,39 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Cadastro não encontrado.' }, { status: 404 })
     }
 
+    const beneficiario = {
+      id: cadastro.id,
+      nome: cadastro.nome,
+      email: cadastro.email,
+      cpf: cadastro.cpf,
+      telefone: cadastro.telefone,
+      data_nascimento: cadastro.data_nascimento,
+    }
+
+    if (auth.tipo === 'dependente') {
+      if (!auth.dependenteId) {
+        return NextResponse.json({ error: 'Sessão de dependente inválida.' }, { status: 401 })
+      }
+
+      const { data: dependente, error: dependenteError } = await supabase
+        .from('dependentes')
+        .select('id, nome, email, cpf, telefone_celular, data_nascimento')
+        .eq('id', auth.dependenteId)
+        .eq('cadastro_id', auth.clienteId)
+        .maybeSingle()
+
+      if (dependenteError || !dependente) {
+        return NextResponse.json({ error: 'Dependente não encontrado.' }, { status: 404 })
+      }
+
+      beneficiario.id = dependente.id
+      beneficiario.nome = dependente.nome || auth.nome || cadastro.nome
+      beneficiario.email = dependente.email || cadastro.email
+      beneficiario.cpf = dependente.cpf || auth.cpf
+      beneficiario.telefone = dependente.telefone_celular || cadastro.telefone
+      beneficiario.data_nascimento = dependente.data_nascimento
+    }
+
     if (!isRapidocAccessConfigured()) {
       return NextResponse.json({
         url:     null,
@@ -26,12 +59,12 @@ export async function GET(request: NextRequest) {
     }
 
     const result = await resolveRapidocUrl({
-      id:              String(cadastro.id),
-      nome:            String(cadastro.nome || auth.nome || ''),
-      email:           cadastro.email,
-      cpf:             cadastro.cpf,
-      telefone:        cadastro.telefone,
-      data_nascimento: cadastro.data_nascimento,
+      id:              String(beneficiario.id),
+      nome:            String(beneficiario.nome || auth.nome || ''),
+      email:           beneficiario.email,
+      cpf:             beneficiario.cpf,
+      telefone:        beneficiario.telefone,
+      data_nascimento: beneficiario.data_nascimento,
     })
 
     if (!result.ok) {

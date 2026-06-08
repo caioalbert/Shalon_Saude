@@ -1,5 +1,7 @@
 import { requireClienteAuth } from '@/lib/supabase/cliente-auth'
 import { createClient } from '@/lib/supabase/server'
+import { updateAsaasSubscriptionValue } from '@/lib/asaas'
+import { MIN_DEPENDENTES_FAMILIAR, VALOR_POR_VIDA_EXCEDENTE } from '@/lib/plan-pricing'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
@@ -28,7 +30,7 @@ export async function POST(request: NextRequest) {
     // Verificar plano atual
     const { data: cadastro, error: cadastroError } = await supabase
       .from('cadastros')
-      .select('tipo_plano, asaas_subscription_id')
+      .select('tipo_plano, asaas_subscription_id, mensalidade_valor')
       .eq('id', auth.clienteId)
       .single()
 
@@ -66,14 +68,43 @@ export async function POST(request: NextRequest) {
       .select('*', { count: 'exact', head: true })
       .eq('cadastro_id', auth.clienteId)
 
-    // Calcular novo valor (será implementado na próxima etapa)
-    // Por enquanto, apenas retornar sucesso
+    const totalDependentes = dependentesCount || 0
+
+    // Calcular novo valor
+    // Plano familiar: valor base para 3 vidas (titular + 2 dependentes)
+    // Se tiver menos que 2 dependentes, paga pelo mínimo (3 vidas)
+    // Se tiver mais que 2 dependentes, paga valor adicional por vida excedente
+    const baseValue = cadastro.mensalidade_valor || 0
+    const vidasMinimas = 1 + MIN_DEPENDENTES_FAMILIAR // 3 vidas
+    const totalVidas = 1 + totalDependentes
+    const vidasCobradas = Math.max(totalVidas, vidasMinimas)
+    const vidasExcedentes = Math.max(0, totalVidas - vidasMinimas)
+    const valorExcedente = vidasExcedentes * VALOR_POR_VIDA_EXCEDENTE
+    const novoValor = baseValue + valorExcedente
+
+    // Atualizar valor no banco
+    await supabase
+      .from('cadastros')
+      .update({ mensalidade_valor: novoValor })
+      .eq('id', auth.clienteId)
+
+    // Atualizar valor da assinatura no Asaas (se existir)
+    if (cadastro.asaas_subscription_id) {
+      try {
+        await updateAsaasSubscriptionValue(cadastro.asaas_subscription_id, novoValor)
+      } catch (error) {
+        console.error('Erro ao atualizar assinatura no Asaas:', error)
+        // Não falha o upgrade se o Asaas falhar, mas loga o erro
+      }
+    }
     
     return NextResponse.json({
       success: true,
       message: 'Upgrade realizado com sucesso.',
       new_plan: 'FAMILIAR',
-      dependentes_count: dependentesCount || 0,
+      dependentes_count: totalDependentes,
+      vidas_cobradas: vidasCobradas,
+      novo_valor: novoValor,
     })
   } catch (error) {
     if (error instanceof Error && error.message === 'Não autenticado') {

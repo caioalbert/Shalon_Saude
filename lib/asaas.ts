@@ -957,6 +957,33 @@ export async function cancelAsaasSubscription(subscriptionId: string): Promise<v
   )
 }
 
+export async function updateAsaasSubscriptionValue(
+  subscriptionId: string,
+  newValue: number
+): Promise<void> {
+  const normalizedSubscriptionId = String(subscriptionId || '').trim()
+  if (!normalizedSubscriptionId) {
+    throw new AsaasIntegrationError(
+      'Identificador da assinatura no Asaas é obrigatório.',
+      'configuration',
+      500
+    )
+  }
+
+  const value = normalizeAsaasAmount(newValue, 'ASAAS_MENSALIDADE_VALUE')
+
+  const payload = { value }
+
+  await asaasRequest(
+    `subscriptions/${encodeURIComponent(normalizedSubscriptionId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+    'Não foi possível atualizar o valor da assinatura no Asaas.'
+  )
+}
+
 export async function deleteAsaasCustomer(customerId: string): Promise<void> {
   const normalizedCustomerId = String(customerId || '').trim()
   if (!normalizedCustomerId) {
