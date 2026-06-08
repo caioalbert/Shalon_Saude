@@ -36,7 +36,7 @@ export const clienteCopy = {
     },
     telemedicina: {
       title: 'Telemedicina',
-      subtitle: 'Consultas online - Rapidoc',
+      subtitle: 'Consultas online',
     },
     funeraria: {
       title: 'Assistência funerária',

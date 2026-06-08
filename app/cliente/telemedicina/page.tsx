@@ -185,7 +185,7 @@ export default function ClienteTelemedicinaPage() {
                 {usuario?.nome || cadastro.nome}
               </p>
               <p className="mt-1 text-sm font-semibold" style={{ color: clienteColors.accent }}>
-                Telemedicina Rapidoc
+                Telemedicina
               </p>
             </div>
           </div>
