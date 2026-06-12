@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useParams } from 'next/navigation'
-import { ArrowLeft, Menu, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Menu, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 
@@ -66,6 +66,9 @@ export default function AdminInstitutoDetailPage() {
   const [isDeletingPlan, setIsDeletingPlan] = useState<string | null>(null)
   const [isAddingPlan, setIsAddingPlan] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null)
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
+  const [editPlanoForm, setEditPlanoForm] = useState<NewPlanoForm>(emptyNewPlano)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -222,6 +225,60 @@ export default function AdminInstitutoDetailPage() {
       setError(err instanceof Error ? err.message : 'Erro ao excluir plano.')
     } finally {
       setIsDeletingPlan(null)
+    }
+  }
+
+  const handleStartEdit = (plano: InstitutoPlano) => {
+    setEditingPlanId(plano.id)
+    setEditPlanoForm({
+      nome: plano.nome,
+      descricao: plano.descricao || '',
+      valor: String(plano.valor),
+      permiteDependentes: plano.permite_dependentes,
+      dependentesMinimos: String(plano.dependentes_minimos ?? 1),
+      maxDependentes: plano.max_dependentes != null ? String(plano.max_dependentes) : '',
+      valorDependenteAdicional: String(plano.valor_dependente_adicional ?? 0),
+    })
+    setError(null)
+  }
+
+  const handleSaveEditPlan = async () => {
+    const nome = editPlanoForm.nome.trim()
+    const valor = Number(editPlanoForm.valor)
+    if (!nome) { setError('Nome do plano é obrigatório.'); return }
+    if (!Number.isFinite(valor) || valor <= 0) { setError('Valor deve ser maior que zero.'); return }
+
+    try {
+      setIsSavingEdit(true)
+      setError(null)
+      setMessage(null)
+
+      const body = {
+        nome,
+        descricao: editPlanoForm.descricao.trim(),
+        valor,
+        permiteDependentes: editPlanoForm.permiteDependentes,
+        dependentesMinimos: editPlanoForm.permiteDependentes ? Number(editPlanoForm.dependentesMinimos) : 0,
+        maxDependentes: editPlanoForm.permiteDependentes && editPlanoForm.maxDependentes !== '' ? Number(editPlanoForm.maxDependentes) : null,
+        valorDependenteAdicional: editPlanoForm.permiteDependentes ? Number(editPlanoForm.valorDependenteAdicional) : 0,
+      }
+
+      const res = await fetch(`/api/admin/institutos/${institutoId}/planos/${editingPlanId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+
+      const payload = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(payload?.error || 'Erro ao salvar plano.')
+
+      setMessage('Plano atualizado com sucesso.')
+      setEditingPlanId(null)
+      await fetchData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao salvar plano.')
+    } finally {
+      setIsSavingEdit(false)
     }
   }
 
@@ -534,55 +591,110 @@ export default function AdminInstitutoDetailPage() {
               ) : (
                 <div className="space-y-3">
                   {institutoPlanos.map((plano) => (
-                    <div
-                      key={plano.id}
-                      className={`rounded-lg border p-4 flex items-start justify-between gap-4 ${plano.ativo ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50 opacity-60'}`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium text-gray-900 text-sm">{plano.nome}</span>
-                          {!plano.ativo && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-500">Inativo</span>
+                    <div key={plano.id} className={`rounded-lg border p-4 space-y-3 ${plano.ativo ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50 opacity-60'}`}>
+                      {editingPlanId === plano.id ? (
+                        /* Inline edit form */
+                        <div className="space-y-3">
+                          <p className="text-sm font-semibold text-teal-900">Editando plano</p>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <label className="block space-y-1">
+                              <span className="text-xs font-medium text-gray-700">Nome *</span>
+                              <input type="text" value={editPlanoForm.nome} onChange={(e) => setEditPlanoForm(p => ({ ...p, nome: e.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
+                            </label>
+                            <label className="block space-y-1">
+                              <span className="text-xs font-medium text-gray-700">Valor mensal (R$) *</span>
+                              <input type="number" min="0.01" step="0.01" value={editPlanoForm.valor} onChange={(e) => setEditPlanoForm(p => ({ ...p, valor: e.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
+                            </label>
+                          </div>
+                          <label className="block space-y-1">
+                            <span className="text-xs font-medium text-gray-700">Descrição (opcional)</span>
+                            <input type="text" value={editPlanoForm.descricao} onChange={(e) => setEditPlanoForm(p => ({ ...p, descricao: e.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Ex: Cobertura completa para o titular" />
+                          </label>
+                          <div className="flex items-center gap-3">
+                            <input type="checkbox" id={`edit-dep-${plano.id}`} checked={editPlanoForm.permiteDependentes} onChange={(e) => setEditPlanoForm(p => ({ ...p, permiteDependentes: e.target.checked }))} className="h-4 w-4 accent-teal-700" />
+                            <label htmlFor={`edit-dep-${plano.id}`} className="text-sm text-gray-700 cursor-pointer">Permite dependentes</label>
+                          </div>
+                          {editPlanoForm.permiteDependentes && (
+                            <div className="grid grid-cols-3 gap-3">
+                              <label className="block space-y-1">
+                                <span className="text-xs font-medium text-gray-700">Mín. dependentes</span>
+                                <input type="number" min="0" value={editPlanoForm.dependentesMinimos} onChange={(e) => setEditPlanoForm(p => ({ ...p, dependentesMinimos: e.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
+                              </label>
+                              <label className="block space-y-1">
+                                <span className="text-xs font-medium text-gray-700">Máx. dependentes</span>
+                                <input type="number" min="0" value={editPlanoForm.maxDependentes} onChange={(e) => setEditPlanoForm(p => ({ ...p, maxDependentes: e.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="Vazio = sem limite" />
+                              </label>
+                              <label className="block space-y-1">
+                                <span className="text-xs font-medium text-gray-700">Valor por dep. (R$)</span>
+                                <input type="number" min="0" step="0.01" value={editPlanoForm.valorDependenteAdicional} onChange={(e) => setEditPlanoForm(p => ({ ...p, valorDependenteAdicional: e.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
+                              </label>
+                            </div>
                           )}
+                          <div className="flex gap-2">
+                            <Button onClick={handleSaveEditPlan} disabled={isSavingEdit} size="sm">
+                              {isSavingEdit ? 'Salvando...' : 'Salvar'}
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => { setEditingPlanId(null); setError(null) }}>
+                              <X className="h-4 w-4 mr-1" />Cancelar
+                            </Button>
+                          </div>
                         </div>
-                        {plano.descricao && (
-                          <p className="text-xs text-gray-500 mt-0.5">{plano.descricao}</p>
-                        )}
-                        <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-600">
-                          <span className="font-semibold text-teal-700">
-                            R$ {Number(plano.valor).toFixed(2).replace('.', ',')}
-                          </span>
-                          {plano.permite_dependentes ? (
-                            <span>
-                              Dependentes: {plano.dependentes_minimos}–{plano.max_dependentes ?? '∞'}
-                              {Number(plano.valor_dependente_adicional) > 0 && (
-                                <> · +R$ {Number(plano.valor_dependente_adicional).toFixed(2).replace('.', ',')} por dep.</>
+                      ) : (
+                        /* Read-only view */
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-gray-900 text-sm">{plano.nome}</span>
+                              {!plano.ativo && (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-500">Inativo</span>
                               )}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400">Sem dependentes</span>
-                          )}
+                            </div>
+                            {plano.descricao && (
+                              <p className="text-xs text-gray-500 mt-0.5">{plano.descricao}</p>
+                            )}
+                            <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-600">
+                              <span className="font-semibold text-teal-700">
+                                R$ {Number(plano.valor).toFixed(2).replace('.', ',')}
+                              </span>
+                              {plano.permite_dependentes ? (
+                                <span>
+                                  Dependentes: {plano.dependentes_minimos}–{plano.max_dependentes ?? '∞'}
+                                  {Number(plano.valor_dependente_adicional) > 0 && (
+                                    <> · +R$ {Number(plano.valor_dependente_adicional).toFixed(2).replace('.', ',')} por dep.</>
+                                  )}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400">Sem dependentes</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              variant="outline" size="icon"
+                              className="h-8 w-8 text-teal-600 hover:bg-teal-50 hover:text-teal-700"
+                              onClick={() => handleStartEdit(plano)}
+                              title="Editar plano"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline" size="sm"
+                              onClick={() => handleTogglePlanActive(plano)}
+                              className="text-xs"
+                            >
+                              {plano.ativo ? 'Desativar' : 'Ativar'}
+                            </Button>
+                            <Button
+                              variant="outline" size="icon"
+                              className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-700"
+                              onClick={() => handleDeletePlan(plano.id, plano.nome)}
+                              disabled={isDeletingPlan === plano.id}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleTogglePlanActive(plano)}
-                          className="text-xs"
-                        >
-                          {plano.ativo ? 'Desativar' : 'Ativar'}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-700"
-                          onClick={() => handleDeletePlan(plano.id, plano.nome)}
-                          disabled={isDeletingPlan === plano.id}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      )}
                     </div>
                   ))}
                 </div>
