@@ -66,19 +66,25 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Instituto não encontrado.' }, { status: 404 })
     }
 
-    const { data: planoPrecos, error: planosPrecosError } = await supabase
-      .from('instituto_plano_precos')
-      .select('id, instituto_id, plano_id, valor_por_pessoa, created_at, updated_at, planos(id, nome, codigo)')
+    // Also fetch instituto's own plans
+    const { data: institutoPlanos, error: planosError } = await supabase
+      .from('instituto_planos')
+      .select('*')
       .eq('instituto_id', institutoId)
+      .order('ordem', { ascending: true })
+      .order('created_at', { ascending: true })
 
-    if (planosPrecosError) {
-      console.warn('Admin instituto GET plano_precos error:', planosPrecosError)
+    if (planosError) {
+      const d = `${planosError.message} ${planosError.details || ''}`
+      if (!/relation.*instituto_planos|does not exist|42P01/i.test(d)) {
+        console.warn('Admin instituto GET instituto_planos error:', planosError)
+      }
     }
 
     return NextResponse.json({
       success: true,
       instituto,
-      planoPrecos: planoPrecos || [],
+      planos: institutoPlanos || [],
     })
   } catch (error) {
     console.error('Admin instituto GET error:', error)
@@ -104,6 +110,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           nome?: unknown
           email?: unknown
           comissaoPercentualMensalidade?: unknown
+          comissaoPercentualAdesao?: unknown
           comissaoMensalidadesMax?: unknown
           semAdesao?: unknown
         }
@@ -142,6 +149,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       body.comissaoPercentualMensalidade !== undefined
     ) {
       updateData.comissao_percentual_mensalidade = Number(body.comissaoPercentualMensalidade)
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(body, 'comissaoPercentualAdesao') &&
+      body.comissaoPercentualAdesao !== undefined
+    ) {
+      updateData.comissao_percentual_adesao = Number(body.comissaoPercentualAdesao)
     }
 
     if (Object.prototype.hasOwnProperty.call(body, 'comissaoMensalidadesMax')) {

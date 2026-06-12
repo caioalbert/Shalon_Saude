@@ -2,6 +2,9 @@ import { BILLING_TYPE_OPTIONS, getBillingSettings } from '@/lib/billing-settings
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 
+// Force dynamic to prevent Next.js from caching this route — it depends on ?ref= param
+export const dynamic = 'force-dynamic'
+
 function formatCurrency(value: number) {
   return value.toLocaleString('pt-BR', {
     style: 'currency',
@@ -189,12 +192,8 @@ export async function GET(request: NextRequest) {
 
     const settings = await getBillingSettings()
     let planos = await loadPublicPlanOptions(settings)
-    const allowedPlanTypes = planos.map((plan) => plan.codigo)
-    const defaultPlanType = allowedPlanTypes.includes(settings.defaultPlanType)
-      ? settings.defaultPlanType
-      : (allowedPlanTypes[0] || settings.defaultPlanType)
 
-    // --- Instituto ref: override prices and flags ---
+    // --- Instituto/Vendedor ref: personalise plans and flags ---
     let tipoRef: 'instituto' | 'vendedor' | null = null
     let semAdesao = false
     let refNome: string | null = null
@@ -203,21 +202,28 @@ export async function GET(request: NextRequest) {
       try {
         const supabase = createAdminClient()
 
-        // Try vendedor first
-        const { data: vendedor } = await supabase
-          .from('vendedores')
-          .select('id, nome, ativo')
-          .eq('codigo_indicacao', ref)
-          .maybeSingle()
+        // Fast-path: INSTITUTO- prefix means it can only be an instituto
+        const isInstitutoRef = ref.startsWith('INSTITUTO-')
 
-        if (vendedor && vendedor.ativo) {
-          tipoRef = 'vendedor'
-          refNome = vendedor.nome
-        } else {
+        if (!isInstitutoRef) {
+          // Try vendedor first (codes without prefix are always vendedores)
+          const { data: vendedor } = await supabase
+            .from('vendedores')
+            .select('id, nome, ativo')
+            .eq('codigo_indicacao', ref)
+            .maybeSingle()
+
+          if (vendedor && vendedor.ativo) {
+            tipoRef = 'vendedor'
+            refNome = vendedor.nome
+          }
+        }
+
+        if (!tipoRef) {
           // Try instituto
           const { data: instituto } = await supabase
             .from('institutos')
-            .select('id, nome, ativo, sem_adesao, instituto_plano_precos(plano_id, valor_por_pessoa, planos(codigo))')
+            .select('id, nome, ativo, sem_adesao')
             .eq('codigo_indicacao', ref)
             .maybeSingle()
 
@@ -226,31 +232,49 @@ export async function GET(request: NextRequest) {
             refNome = instituto.nome
             semAdesao = instituto.sem_adesao === true
 
-            // Override plan prices with instituto-specific pricing
-            const precos = (instituto.instituto_plano_precos as any[]) || []
-            if (precos.length > 0) {
-              planos = planos.map((plano) => {
-                const override = precos.find(
-                  (pp: any) => pp.planos?.codigo === plano.codigo
-                )
-                if (override && Number(override.valor_por_pessoa) > 0) {
-                  const valorPorPessoa = Number(override.valor_por_pessoa)
-                  return {
-                    ...plano,
-                    valor: valorPorPessoa,
-                    valorDependenteAdicional: plano.permiteDependentes ? valorPorPessoa : plano.valorDependenteAdicional,
-                  }
-                }
-                return plano
-              })
+            // Fetch instituto's OWN plans (replaces global plans entirely)
+            const { data: institutoPlanos, error: planosErr } = await supabase
+              .from('instituto_planos')
+              .select('id, nome, descricao, valor, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, ordem')
+              .eq('instituto_id', instituto.id)
+              .eq('ativo', true)
+              .order('ordem', { ascending: true })
+              .order('created_at', { ascending: true })
+
+            if (planosErr) {
+              console.error('[cobranca-config] instituto_planos query error:', planosErr.message, planosErr.details)
+            } else {
+              console.log(`[cobranca-config] instituto ${instituto.id} (${ref}) — ${institutoPlanos?.length ?? 0} planos encontrados`)
+            }
+
+            if (institutoPlanos && institutoPlanos.length > 0) {
+              planos = institutoPlanos.map((p) => ({
+                codigo: p.id,
+                nome: String(p.nome || '').trim(),
+                descricao: String(p.descricao || '').trim(),
+                beneficios: [],
+                valor: Number(p.valor),
+                permiteDependentes: Boolean(p.permite_dependentes),
+                minDependentes: Number(p.dependentes_minimos) || 0,
+                maxDependentes: p.max_dependentes != null ? Number(p.max_dependentes) : null,
+                valorDependenteAdicional: Number(p.valor_dependente_adicional) || 0,
+              }))
+            } else if (planosErr && /does not exist|42P01|relation.*instituto_planos/i.test(`${planosErr.message} ${planosErr.code}`)) {
+              console.warn('[cobranca-config] instituto_planos table missing — run scripts/017_instituto_own_plans.sql')
+            } else {
+              console.warn(`[cobranca-config] instituto ${ref} has no active plans — falling back to global plans`)
             }
           }
         }
-      } catch {
-        // Se falhar na busca do ref, continua com preços padrão
+      } catch (err) {
+        console.error('[cobranca-config] ref lookup failed:', err)
       }
     }
-    // -----------------------------------------------
+    // -----------------------------------------------------------
+
+    // These must be computed AFTER the instituto override so they reflect the final plan list
+    const allowedPlanTypes = planos.map((plan) => plan.codigo)
+    const defaultPlanType = allowedPlanTypes[0] || settings.defaultPlanType
 
     const mensalidadeByPlanType = planos.reduce<Record<string, number>>((acc, plan) => {
       acc[plan.codigo] = plan.valor

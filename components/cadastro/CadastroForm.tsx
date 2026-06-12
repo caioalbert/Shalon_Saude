@@ -24,6 +24,7 @@ interface CadastroFormProps {
   onSuccess: (data: any) => void
   initialVendedorRef?: string
   initialPlanoCode?: string
+  isInstituto?: boolean
 }
 
 type BillingType = 'BOLETO' | 'CREDIT_CARD'
@@ -83,6 +84,7 @@ export function CadastroForm({
   onSuccess, 
   initialVendedorRef = '',
   initialPlanoCode = '',
+  isInstituto = false,
 }: CadastroFormProps) {
   const [step, setStep] = useState(0)
   const [validationStep, setValidationStep] = useState<number | null>(null)
@@ -749,6 +751,7 @@ export function CadastroForm({
             onSelectPlan={(codigo) => updateFormData({ tipo_plano: codigo })}
             onNext={handleNext}
             isLoading={isLoadingBillingConfig}
+            isInstituto={isInstituto}
           />
         )
       case 1:

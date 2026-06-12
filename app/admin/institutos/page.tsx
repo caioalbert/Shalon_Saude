@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Copy, Check, Menu, ExternalLink } from 'lucide-react'
+import { Copy, Check, Menu, ExternalLink, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -34,6 +34,7 @@ export default function AdminInstitutosPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [actionInstitutoId, setActionInstitutoId] = useState<string | null>(null)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -44,6 +45,7 @@ export default function AdminInstitutosPage() {
   const [senha, setSenha] = useState('')
   const [codigoIndicacao, setCodigoIndicacao] = useState('')
   const [comissaoPercentual, setComissaoPercentual] = useState('50')
+  const [comissaoPercentualAdesao, setComissaoPercentualAdesao] = useState('0')
   const [comissaoMaxInput, setComissaoMaxInput] = useState('')
   const [semAdesao, setSemAdesao] = useState(true)
 
@@ -113,6 +115,25 @@ export default function AdminInstitutosPage() {
     }
   }
 
+  const handleDeleteInstituto = async (institutoId: string, nome: string) => {
+    if (!confirm(`Tem certeza que deseja excluir o instituto "${nome}"? Esta ação não pode ser desfeita.`)) return
+    try {
+      setDeletingId(institutoId)
+      setError(null)
+      setMessage(null)
+      const res = await fetch(`/api/admin/institutos/${institutoId}`, { method: 'DELETE' })
+      const payload = await res.json().catch(() => null)
+      if (res.status === 401) { router.push('/admin/login'); return }
+      if (!res.ok) throw new Error(payload?.error || 'Erro ao excluir instituto.')
+      setMessage(`Instituto "${nome}" excluído com sucesso.`)
+      await fetchInstitutos()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao excluir instituto.')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   const handleCreate = async () => {
     try {
       setIsSaving(true)
@@ -128,8 +149,9 @@ export default function AdminInstitutosPage() {
           nome,
           email,
           senha,
-          codigoIndicacao,
+          codigoIndicacao: 'INSTITUTO-' + nome.trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
           comissaoPercentualMensalidade: Number(comissaoPercentual),
+          comissaoPercentualAdesao: Number(comissaoPercentualAdesao),
           comissaoMensalidadesMax,
           semAdesao,
         }),
@@ -153,6 +175,7 @@ export default function AdminInstitutosPage() {
       setSenha('')
       setCodigoIndicacao('')
       setComissaoPercentual('50')
+      setComissaoPercentualAdesao('0')
       setComissaoMaxInput('')
       setSemAdesao(true)
       await fetchInstitutos()
@@ -310,6 +333,15 @@ export default function AdminInstitutosPage() {
                           >
                             {instituto.ativo ? 'Desativar' : 'Ativar'}
                           </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-red-500 hover:bg-red-50 hover:text-red-700"
+                            disabled={deletingId === instituto.id}
+                            onClick={() => handleDeleteInstituto(instituto.id, instituto.nome)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -349,13 +381,18 @@ export default function AdminInstitutosPage() {
               <span className="text-sm font-medium text-gray-700">Senha *</span>
               <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
             </label>
-            <label className="block space-y-1">
-              <span className="text-sm font-medium text-gray-700">Código de Indicação *</span>
-              <input type="text" value={codigoIndicacao} onChange={(e) => setCodigoIndicacao(e.target.value)} placeholder="Ex: PARCEIRO-EXEMPLO" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono" />
-            </label>
+            <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+              <p className="text-xs text-gray-500">Link gerado automaticamente:</p>
+              <p className="font-mono text-xs text-gray-700">/cadastro?ref=INSTITUTO-{nome.trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'NOME'}</p>
+            </div>
             <label className="block space-y-1">
               <span className="text-sm font-medium text-gray-700">% Comissão sobre Mensalidade</span>
               <input type="number" min="0" max="100" step="0.5" value={comissaoPercentual} onChange={(e) => setComissaoPercentual(e.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
+            </label>
+            <label className={`block space-y-1 ${semAdesao ? 'opacity-40' : ''}`}>
+              <span className="text-sm font-medium text-gray-700">% Comissão sobre Adesão</span>
+              <input type="number" min="0" max="100" step="0.5" value={comissaoPercentualAdesao} onChange={(e) => setComissaoPercentualAdesao(e.target.value)} disabled={semAdesao} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
+              {semAdesao && <p className="text-xs text-gray-400">Desabilitado (sem adesão)</p>}
             </label>
             <label className="block space-y-1">
               <span className="text-sm font-medium text-gray-700">Nº de Mensalidades que geram comissão</span>
@@ -381,7 +418,7 @@ export default function AdminInstitutosPage() {
 
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} disabled={isSaving}>Cancelar</Button>
-            <Button onClick={handleCreate} disabled={isSaving || !nome || !email || !senha || !codigoIndicacao}>
+            <Button onClick={handleCreate} disabled={isSaving || !nome || !email || !senha}>
               {isSaving ? 'Criando...' : 'Criar Instituto'}
             </Button>
           </DialogFooter>

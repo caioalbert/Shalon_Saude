@@ -2,6 +2,10 @@ import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { CheckCircle2, XCircle } from 'lucide-react'
 
+// Module-level formatter — stable between server and client (avoids locale hydration mismatch)
+const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+const formatCurrency = (value: number) => currencyFormatter.format(value)
+
 type PlanOption = {
   codigo: string
   nome: string
@@ -20,6 +24,7 @@ interface StepPlanoProps {
   onSelectPlan: (codigo: string) => void
   onNext: () => void
   isLoading?: boolean
+  isInstituto?: boolean
 }
 
 export function StepPlano({
@@ -28,10 +33,9 @@ export function StepPlano({
   onSelectPlan,
   onNext,
   isLoading = false,
+  isInstituto = false,
 }: StepPlanoProps) {
   const selectedPlan = planos.find((p) => p.codigo === selectedPlanCode)
-  const formatCurrency = (value: number) =>
-    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   const selectedPlanPerLifeMode = Boolean(
     selectedPlan &&
     selectedPlan.permiteDependentes &&
@@ -43,10 +47,14 @@ export function StepPlano({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Escolha seu plano</h2>
-        <p className="mt-2 text-sm text-gray-600">
-          Selecione o plano que melhor atende suas necessidades
-        </p>
+        <h2 className="text-2xl font-bold text-gray-900">
+          {isInstituto ? 'Seu plano é:' : 'Escolha seu plano'}
+        </h2>
+        {!isInstituto && (
+          <p className="mt-2 text-sm text-gray-600">
+            Selecione o plano que melhor atende suas necessidades
+          </p>
+        )}
       </div>
 
       <RadioGroup value={selectedPlanCode} onValueChange={onSelectPlan}>
@@ -130,7 +138,6 @@ export function StepPlano({
                     )}
                   </div>
                 )}
-
               </label>
             )
           })}
@@ -153,7 +160,8 @@ export function StepPlano({
       )}
 
       <div className="flex justify-end">
-        <Button onClick={onNext} disabled={!selectedPlanCode || isLoading}>
+        {/* suppressHydrationWarning: disabled depends on async plan loading — SSR/client mismatch is expected */}
+        <Button onClick={onNext} disabled={!selectedPlanCode || isLoading} suppressHydrationWarning>
           {isLoading ? 'Carregando...' : 'Continuar'}
         </Button>
       </div>

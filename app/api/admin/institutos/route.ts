@@ -118,6 +118,7 @@ export async function POST(request: NextRequest) {
           senha?: string
           codigoIndicacao?: string
           comissaoPercentualMensalidade?: number
+          comissaoPercentualAdesao?: number
           comissaoMensalidadesMax?: number | null
           semAdesao?: boolean
         }
@@ -150,6 +151,11 @@ export async function POST(request: NextRequest) {
       typeof body.comissaoPercentualMensalidade === 'number'
         ? body.comissaoPercentualMensalidade
         : 50
+
+    const comissaoPercentualAdesao =
+      typeof body.comissaoPercentualAdesao === 'number'
+        ? body.comissaoPercentualAdesao
+        : 0
 
     const comissaoMensalidadesMax =
       typeof body.comissaoMensalidadesMax === 'number' ? body.comissaoMensalidadesMax : null
@@ -210,6 +216,7 @@ export async function POST(request: NextRequest) {
         ativo: true,
         auth_user_id: createdUser.id,
         comissao_percentual_mensalidade: comissaoPercentualMensalidade,
+        comissao_percentual_adesao: comissaoPercentualAdesao,
         comissao_mensalidades_max: comissaoMensalidadesMax,
         sem_adesao: semAdesao,
       })

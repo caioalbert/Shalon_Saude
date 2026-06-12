@@ -34,6 +34,7 @@ export default function CadastroPageClient({
   } | null>(null)
   const vendedorRef = initialVendedorRef.trim().toUpperCase()
   const [consultorNome, setConsultorNome] = useState<string | null>(null)
+  const [consultorTipo, setConsultorTipo] = useState<'vendedor' | 'instituto'>('vendedor')
   const [consultorStatusMessage, setConsultorStatusMessage] = useState<string | null>(null)
   const [isLoadingConsultor, setIsLoadingConsultor] = useState(Boolean(vendedorRef))
 
@@ -68,8 +69,10 @@ export default function CadastroPageClient({
         }
 
         const nome = String(payload?.vendedor?.nome || '').trim()
+        const tipo = String(payload?.tipo || 'vendedor')
         if (nome) {
           setConsultorNome(nome)
+          setConsultorTipo(tipo as 'vendedor' | 'instituto')
           return
         }
 
@@ -110,14 +113,21 @@ export default function CadastroPageClient({
     <main className="min-h-screen w-full bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 px-5 py-10">
       <div className="mx-auto w-full">
         <section className="mb-8 w-full rounded-2xl border border-white/60 bg-white/70 px-6 py-8 shadow-sm backdrop-blur sm:px-8">
-          <h1 className="text-3xl font-bold text-gray-900">Cadastro SHALOM Saúde</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {consultorTipo === 'instituto' && consultorNome
+              ? `Cadastro Instituto ${consultorNome}`
+              : 'Cadastro SHALOM Saúde'}
+          </h1>
           <p className="mt-2 text-gray-600">Preencha seus dados para adesão ao serviço</p>
           {vendedorRef && (
             <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
               <p className="text-sm font-semibold text-blue-900">
-                Consultor: {isLoadingConsultor ? 'Carregando...' : consultorNome || 'Não identificado'}
+                {consultorTipo === 'instituto' ? 'Parceiro' : 'Consultor'}:{' '}
+                {isLoadingConsultor ? 'Carregando...' : consultorNome || 'Não identificado'}
               </p>
-              <p className="text-xs text-blue-700">Código de indicação: {vendedorRef}</p>
+              {consultorTipo !== 'instituto' && (
+                <p className="text-xs text-blue-700">Código de indicação: {vendedorRef}</p>
+              )}
               {!isLoadingConsultor && !consultorNome && consultorStatusMessage && (
                 <p className="text-xs text-blue-700">{consultorStatusMessage}</p>
               )}
@@ -130,6 +140,7 @@ export default function CadastroPageClient({
             onSuccess={handleSuccess}
             initialVendedorRef={vendedorRef}
             initialPlanoCode={initialPlanoCode}
+            isInstituto={consultorTipo === 'instituto'}
           />
         </section>
       </div>

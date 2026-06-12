@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useParams } from 'next/navigation'
-import { ArrowLeft, Menu } from 'lucide-react'
+import { ArrowLeft, Menu, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 
@@ -14,22 +14,44 @@ type Instituto = {
   codigo_indicacao: string
   ativo: boolean
   comissao_percentual_mensalidade: number
+  comissao_percentual_adesao: number
   comissao_mensalidades_max: number | null
   sem_adesao: boolean
   created_at: string
 }
 
-type Plano = {
+type InstitutoPlano = {
   id: string
+  instituto_id: string
   nome: string
-  codigo: string
+  descricao: string
   valor: number
+  permite_dependentes: boolean
+  dependentes_minimos: number
+  max_dependentes: number | null
+  valor_dependente_adicional: number
+  ativo: boolean
+  ordem: number
 }
 
-type PlanoPreco = {
-  plano_id: string
-  valor_por_pessoa: number
-  planos?: { id: string; nome: string; codigo: string }
+type NewPlanoForm = {
+  nome: string
+  descricao: string
+  valor: string
+  permiteDependentes: boolean
+  dependentesMinimos: string
+  maxDependentes: string
+  valorDependenteAdicional: string
+}
+
+const emptyNewPlano: NewPlanoForm = {
+  nome: '',
+  descricao: '',
+  valor: '',
+  permiteDependentes: false,
+  dependentesMinimos: '1',
+  maxDependentes: '4',
+  valorDependenteAdicional: '0',
 }
 
 export default function AdminInstitutoDetailPage() {
@@ -38,22 +60,24 @@ export default function AdminInstitutoDetailPage() {
   const institutoId = params?.id as string
 
   const [instituto, setInstituto] = useState<Instituto | null>(null)
-  const [planos, setPlanos] = useState<Plano[]>([])
-  const [planoPrecos, setPlanoPrecos] = useState<PlanoPreco[]>([])
+  const [institutoPlanos, setInstitutoPlanos] = useState<InstitutoPlano[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSavingComissao, setIsSavingComissao] = useState(false)
-  const [isSavingPrecos, setIsSavingPrecos] = useState(false)
+  const [isDeletingPlan, setIsDeletingPlan] = useState<string | null>(null)
+  const [isAddingPlan, setIsAddingPlan] = useState(false)
+  const [showAddForm, setShowAddForm] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
   // Comissão form state
-  const [comissaoPercentual, setComissaoPercentual] = useState('50')
+  const [comissaoPercentualMensalidade, setComissaoPercentualMensalidade] = useState('50')
+  const [comissaoPercentualAdesao, setComissaoPercentualAdesao] = useState('0')
   const [comissaoModo, setComissaoModo] = useState<'primeiro' | 'custom' | 'vitalicio'>('primeiro')
   const [comissaoMaxCustom, setComissaoMaxCustom] = useState('1')
   const [semAdesao, setSemAdesao] = useState(true)
 
-  // Preços por plano
-  const [precosPorPlano, setPrecosPorPlano] = useState<Record<string, string>>({})
+  // New plan form
+  const [newPlano, setNewPlano] = useState<NewPlanoForm>(emptyNewPlano)
 
   const fetchData = useCallback(async () => {
     if (!institutoId) return
@@ -63,7 +87,7 @@ export default function AdminInstitutoDetailPage() {
 
       const [institutoRes, planosRes] = await Promise.all([
         fetch(`/api/admin/institutos/${institutoId}`, { cache: 'no-store' }),
-        fetch('/api/admin/planos', { cache: 'no-store' }),
+        fetch(`/api/admin/institutos/${institutoId}/planos`, { cache: 'no-store' }),
       ])
 
       if (institutoRes.status === 401) {
@@ -78,10 +102,10 @@ export default function AdminInstitutoDetailPage() {
 
       const inst = institutoPayload?.instituto as Instituto
       setInstituto(inst)
-      setPlanoPrecos(institutoPayload?.planoPrecos || [])
 
       // Hydrate comissão form
-      setComissaoPercentual(String(inst.comissao_percentual_mensalidade ?? 50))
+      setComissaoPercentualMensalidade(String(inst.comissao_percentual_mensalidade ?? 50))
+      setComissaoPercentualAdesao(String(inst.comissao_percentual_adesao ?? 0))
       const maxVal = inst.comissao_mensalidades_max
       if (maxVal === null) setComissaoModo('vitalicio')
       else if (maxVal === 1) setComissaoModo('primeiro')
@@ -89,18 +113,7 @@ export default function AdminInstitutoDetailPage() {
       setSemAdesao(inst.sem_adesao !== false)
 
       const planosPayload = await planosRes.json().catch(() => null)
-      const allPlanos = (Array.isArray(planosPayload?.planos) ? planosPayload.planos : []) as Plano[]
-      setPlanos(allPlanos)
-
-      // Hydrate preços por plano
-      const initialPrecos: Record<string, string> = {}
-      for (const plano of allPlanos) {
-        const found = (institutoPayload?.planoPrecos || []).find(
-          (pp: PlanoPreco) => pp.plano_id === plano.id
-        )
-        initialPrecos[plano.id] = found ? String(found.valor_por_pessoa) : ''
-      }
-      setPrecosPorPlano(initialPrecos)
+      setInstitutoPlanos(Array.isArray(planosPayload?.planos) ? planosPayload.planos : [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar dados.')
     } finally {
@@ -119,17 +132,16 @@ export default function AdminInstitutoDetailPage() {
       setMessage(null)
 
       const comissaoMensalidadesMax =
-        comissaoModo === 'vitalicio'
-          ? null
-          : comissaoModo === 'primeiro'
-          ? 1
-          : Number(comissaoMaxCustom)
+        comissaoModo === 'vitalicio' ? null
+        : comissaoModo === 'primeiro' ? 1
+        : Number(comissaoMaxCustom)
 
       const response = await fetch(`/api/admin/institutos/${institutoId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          comissaoPercentualMensalidade: Number(comissaoPercentual),
+          comissaoPercentualMensalidade: Number(comissaoPercentualMensalidade),
+          comissaoPercentualAdesao: Number(comissaoPercentualAdesao),
           comissaoMensalidadesMax,
           semAdesao,
         }),
@@ -147,31 +159,85 @@ export default function AdminInstitutoDetailPage() {
     }
   }
 
-  const handleSavePrecos = async () => {
+  const handleAddPlan = async () => {
+    const nome = newPlano.nome.trim()
+    const valor = Number(newPlano.valor)
+    if (!nome) { setError('Nome do plano é obrigatório.'); return }
+    if (!Number.isFinite(valor) || valor <= 0) { setError('Valor do plano deve ser maior que zero.'); return }
+
     try {
-      setIsSavingPrecos(true)
+      setIsAddingPlan(true)
       setError(null)
       setMessage(null)
 
-      const items = Object.entries(precosPorPlano)
-        .filter(([, val]) => val.trim() !== '' && Number(val) > 0)
-        .map(([plano_id, valor]) => ({ plano_id, valor_por_pessoa: Number(valor) }))
+      const body = {
+        nome,
+        descricao: newPlano.descricao.trim(),
+        valor,
+        permiteDependentes: newPlano.permiteDependentes,
+        dependentesMinimos: newPlano.permiteDependentes ? Number(newPlano.dependentesMinimos) : 0,
+        maxDependentes: newPlano.permiteDependentes && newPlano.maxDependentes !== '' ? Number(newPlano.maxDependentes) : null,
+        valorDependenteAdicional: newPlano.permiteDependentes ? Number(newPlano.valorDependenteAdicional) : 0,
+        ordem: institutoPlanos.length,
+      }
 
-      const response = await fetch(`/api/admin/institutos/${institutoId}/plano-precos`, {
-        method: 'PUT',
+      const res = await fetch(`/api/admin/institutos/${institutoId}/planos`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ precos: items }),
+        body: JSON.stringify(body),
       })
 
-      const payload = await response.json().catch(() => null)
-      if (!response.ok) throw new Error(payload?.error || 'Erro ao salvar preços.')
+      const payload = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(payload?.error || 'Erro ao adicionar plano.')
 
-      setMessage('Preços por plano salvos com sucesso.')
+      setMessage('Plano adicionado com sucesso.')
+      setNewPlano(emptyNewPlano)
+      setShowAddForm(false)
       await fetchData()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao salvar preços.')
+      setError(err instanceof Error ? err.message : 'Erro ao adicionar plano.')
     } finally {
-      setIsSavingPrecos(false)
+      setIsAddingPlan(false)
+    }
+  }
+
+  const handleDeletePlan = async (planId: string, planNome: string) => {
+    if (!confirm(`Tem certeza que deseja excluir o plano "${planNome}"?`)) return
+
+    try {
+      setIsDeletingPlan(planId)
+      setError(null)
+      setMessage(null)
+
+      const res = await fetch(`/api/admin/institutos/${institutoId}/planos/${planId}`, {
+        method: 'DELETE',
+      })
+
+      const payload = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(payload?.error || 'Erro ao excluir plano.')
+
+      setMessage(`Plano "${planNome}" excluído.`)
+      await fetchData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao excluir plano.')
+    } finally {
+      setIsDeletingPlan(null)
+    }
+  }
+
+  const handleTogglePlanActive = async (plan: InstitutoPlano) => {
+    try {
+      setError(null)
+      const res = await fetch(`/api/admin/institutos/${institutoId}/planos/${plan.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ativo: !plan.ativo }),
+      })
+      const payload = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(payload?.error || 'Erro ao atualizar plano.')
+      await fetchData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao atualizar plano.')
     }
   }
 
@@ -179,9 +245,7 @@ export default function AdminInstitutoDetailPage() {
     try {
       await fetch('/api/admin/logout', { method: 'POST' })
       router.push('/admin/login')
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
   }
 
   return (
@@ -266,20 +330,32 @@ export default function AdminInstitutoDetailPage() {
             {/* Configurações de Comissão */}
             <div className="rounded-lg bg-white p-6 shadow space-y-4">
               <h2 className="text-base font-semibold text-gray-900">Configuração de Comissão</h2>
-              <p className="text-xs text-gray-500">A comissão é calculada apenas sobre mensalidades (clientes de institutos não pagam adesão).</p>
 
-              <label className="block space-y-1">
-                <span className="text-sm font-medium text-gray-700">% sobre mensalidade</span>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.5"
-                  value={comissaoPercentual}
-                  onChange={(e) => setComissaoPercentual(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                />
-              </label>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <label className="block space-y-1">
+                  <span className="text-sm font-medium text-gray-700">% sobre mensalidade</span>
+                  <input
+                    type="number" min="0" max="100" step="0.5"
+                    value={comissaoPercentualMensalidade}
+                    onChange={(e) => setComissaoPercentualMensalidade(e.target.value)}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  />
+                </label>
+
+                <label className={`block space-y-1 ${semAdesao ? 'opacity-40 pointer-events-none' : ''}`}>
+                  <span className="text-sm font-medium text-gray-700">% sobre adesão</span>
+                  <input
+                    type="number" min="0" max="100" step="0.5"
+                    value={comissaoPercentualAdesao}
+                    onChange={(e) => setComissaoPercentualAdesao(e.target.value)}
+                    disabled={semAdesao}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  />
+                  {semAdesao && (
+                    <p className="text-xs text-gray-400">Desabilitado (sem adesão ativa)</p>
+                  )}
+                </label>
+              </div>
 
               <div className="space-y-2">
                 <p className="text-sm font-medium text-gray-700">Mensalidades que geram comissão</p>
@@ -291,9 +367,7 @@ export default function AdminInstitutoDetailPage() {
                   ].map((opt) => (
                     <label key={opt.value} className="flex items-center gap-3">
                       <input
-                        type="radio"
-                        name="comissaoModo"
-                        value={opt.value}
+                        type="radio" name="comissaoModo" value={opt.value}
                         checked={comissaoModo === opt.value}
                         onChange={() => setComissaoModo(opt.value as typeof comissaoModo)}
                         className="accent-teal-700"
@@ -305,8 +379,7 @@ export default function AdminInstitutoDetailPage() {
 
                 {comissaoModo === 'custom' && (
                   <input
-                    type="number"
-                    min="1"
+                    type="number" min="1"
                     value={comissaoMaxCustom}
                     onChange={(e) => setComissaoMaxCustom(e.target.value)}
                     className="w-32 rounded-md border border-gray-300 px-3 py-2 text-sm"
@@ -317,8 +390,7 @@ export default function AdminInstitutoDetailPage() {
 
               <div className="flex items-center gap-3 rounded-lg border border-gray-200 p-3">
                 <input
-                  type="checkbox"
-                  id="semAdesaoDetail"
+                  type="checkbox" id="semAdesaoDetail"
                   checked={semAdesao}
                   onChange={(e) => setSemAdesao(e.target.checked)}
                   className="h-4 w-4 accent-teal-700"
@@ -332,44 +404,190 @@ export default function AdminInstitutoDetailPage() {
               </div>
 
               <Button onClick={handleSaveComissao} disabled={isSavingComissao}>
-                {isSavingComissao ? 'Salvando...' : 'Salvar Comissão e Adesão'}
+                {isSavingComissao ? 'Salvando...' : 'Salvar Configurações'}
               </Button>
             </div>
 
-            {/* Preços por Plano */}
-            {planos.length > 0 && (
-              <div className="rounded-lg bg-white p-6 shadow space-y-4">
-                <h2 className="text-base font-semibold text-gray-900">Preços por Plano</h2>
-                <p className="text-xs text-gray-500">
-                  Configure o valor por pessoa para cada plano neste instituto. Deixe em branco para usar o preço padrão do plano.
-                </p>
-
-                <div className="space-y-3">
-                  {planos.map((plano) => (
-                    <label key={plano.id} className="flex items-center gap-4">
-                      <span className="w-40 text-sm font-medium text-gray-700 shrink-0">{plano.nome}</span>
-                      <div className="flex items-center gap-2 flex-1">
-                        <span className="text-sm text-gray-500">R$</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={precosPorPlano[plano.id] ?? ''}
-                          onChange={(e) => setPrecosPorPlano((prev) => ({ ...prev, [plano.id]: e.target.value }))}
-                          placeholder={`Padrão: ${plano.valor?.toFixed(2) ?? '—'}`}
-                          className="w-28 rounded-md border border-gray-300 px-3 py-2 text-sm"
-                        />
-                        <span className="text-xs text-gray-400">por pessoa</span>
-                      </div>
-                    </label>
-                  ))}
+            {/* Planos do Instituto */}
+            <div className="rounded-lg bg-white p-6 shadow space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900">Planos do Instituto</h2>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Estes planos são exclusivos deste parceiro e serão exibidos no link de venda.
+                  </p>
                 </div>
-
-                <Button onClick={handleSavePrecos} disabled={isSavingPrecos}>
-                  {isSavingPrecos ? 'Salvando...' : 'Salvar Preços'}
+                <Button
+                  size="sm"
+                  onClick={() => { setShowAddForm(!showAddForm); setError(null) }}
+                  className="gap-1.5"
+                >
+                  <Plus className="h-4 w-4" />
+                  Adicionar Plano
                 </Button>
               </div>
-            )}
+
+              {/* Form para novo plano */}
+              {showAddForm && (
+                <div className="rounded-lg border border-teal-200 bg-teal-50 p-4 space-y-3">
+                  <p className="text-sm font-semibold text-teal-900">Novo Plano</p>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label className="block space-y-1">
+                      <span className="text-xs font-medium text-gray-700">Nome do plano *</span>
+                      <input
+                        type="text"
+                        value={newPlano.nome}
+                        onChange={(e) => setNewPlano(p => ({ ...p, nome: e.target.value }))}
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                        placeholder="Ex: Plano Básico"
+                      />
+                    </label>
+
+                    <label className="block space-y-1">
+                      <span className="text-xs font-medium text-gray-700">Valor mensal (R$) *</span>
+                      <input
+                        type="number" min="0.01" step="0.01"
+                        value={newPlano.valor}
+                        onChange={(e) => setNewPlano(p => ({ ...p, valor: e.target.value }))}
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                        placeholder="Ex: 39.90"
+                      />
+                    </label>
+                  </div>
+
+                  <label className="block space-y-1">
+                    <span className="text-xs font-medium text-gray-700">Descrição (opcional)</span>
+                    <input
+                      type="text"
+                      value={newPlano.descricao}
+                      onChange={(e) => setNewPlano(p => ({ ...p, descricao: e.target.value }))}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                      placeholder="Ex: Cobertura completa para o titular"
+                    />
+                  </label>
+
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox" id="novoPlanoDependentes"
+                      checked={newPlano.permiteDependentes}
+                      onChange={(e) => setNewPlano(p => ({ ...p, permiteDependentes: e.target.checked }))}
+                      className="h-4 w-4 accent-teal-700"
+                    />
+                    <label htmlFor="novoPlanoDependentes" className="text-sm text-gray-700 cursor-pointer">
+                      Permite dependentes
+                    </label>
+                  </div>
+
+                  {newPlano.permiteDependentes && (
+                    <div className="grid grid-cols-3 gap-3">
+                      <label className="block space-y-1">
+                        <span className="text-xs font-medium text-gray-700">Mín. dependentes</span>
+                        <input
+                          type="number" min="0"
+                          value={newPlano.dependentesMinimos}
+                          onChange={(e) => setNewPlano(p => ({ ...p, dependentesMinimos: e.target.value }))}
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="block space-y-1">
+                        <span className="text-xs font-medium text-gray-700">Máx. dependentes</span>
+                        <input
+                          type="number" min="0"
+                          value={newPlano.maxDependentes}
+                          onChange={(e) => setNewPlano(p => ({ ...p, maxDependentes: e.target.value }))}
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                          placeholder="Vazio = sem limite"
+                        />
+                      </label>
+                      <label className="block space-y-1">
+                        <span className="text-xs font-medium text-gray-700">Valor por dep. adicional (R$)</span>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={newPlano.valorDependenteAdicional}
+                          onChange={(e) => setNewPlano(p => ({ ...p, valorDependenteAdicional: e.target.value }))}
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                        />
+                      </label>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Button onClick={handleAddPlan} disabled={isAddingPlan} size="sm">
+                      {isAddingPlan ? 'Salvando...' : 'Salvar Plano'}
+                    </Button>
+                    <Button
+                      variant="outline" size="sm"
+                      onClick={() => { setShowAddForm(false); setNewPlano(emptyNewPlano) }}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Lista de planos existentes */}
+              {institutoPlanos.length === 0 && !showAddForm ? (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  Nenhum plano cadastrado. Adicione pelo menos um plano para que o link de venda funcione.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {institutoPlanos.map((plano) => (
+                    <div
+                      key={plano.id}
+                      className={`rounded-lg border p-4 flex items-start justify-between gap-4 ${plano.ativo ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50 opacity-60'}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-gray-900 text-sm">{plano.nome}</span>
+                          {!plano.ativo && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-500">Inativo</span>
+                          )}
+                        </div>
+                        {plano.descricao && (
+                          <p className="text-xs text-gray-500 mt-0.5">{plano.descricao}</p>
+                        )}
+                        <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-600">
+                          <span className="font-semibold text-teal-700">
+                            R$ {Number(plano.valor).toFixed(2).replace('.', ',')}
+                          </span>
+                          {plano.permite_dependentes ? (
+                            <span>
+                              Dependentes: {plano.dependentes_minimos}–{plano.max_dependentes ?? '∞'}
+                              {Number(plano.valor_dependente_adicional) > 0 && (
+                                <> · +R$ {Number(plano.valor_dependente_adicional).toFixed(2).replace('.', ',')} por dep.</>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">Sem dependentes</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleTogglePlanActive(plano)}
+                          className="text-xs"
+                        >
+                          {plano.ativo ? 'Desativar' : 'Ativar'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-700"
+                          onClick={() => handleDeletePlan(plano.id, plano.nome)}
+                          disabled={isDeletingPlan === plano.id}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>

@@ -656,50 +656,49 @@ export async function POST(request: NextRequest) {
     const planOptions = await loadCadastroPlanOptions(billingSettings)
     const adesaoDueDate = toIsoDate(new Date())
 
-    // If via instituto, override plan prices with instituto-specific pricing
+    // If via instituto, use instituto's own plans (instituto_planos) instead of global plans
     if (institutoId) {
       try {
         const supabaseAdmin = createAdminClient()
-        const { data: precos } = await supabaseAdmin
-          .from('instituto_plano_precos')
-          .select('plano_id, valor_por_pessoa, planos!inner(codigo)')
+        const { data: institutoPlanos, error: plErr } = await supabaseAdmin
+          .from('instituto_planos')
+          .select('id, nome, descricao, valor, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional')
           .eq('instituto_id', institutoId)
+          .eq('ativo', true)
 
-        if (precos && precos.length > 0) {
-          // Override prices for plans that have instituto-specific pricing
-          for (const preco of precos) {
-            const planoCodigo = (preco.planos as any)?.codigo
-            const planIdx = planOptions.findIndex(p => p.codigo === planoCodigo)
-            if (planIdx >= 0) {
-              const valorPorPessoa = Number(preco.valor_por_pessoa)
-              if (Number.isFinite(valorPorPessoa) && valorPorPessoa > 0) {
-                planOptions[planIdx] = {
-                  ...planOptions[planIdx],
-                  valor: valorPorPessoa,
-                  valorDependenteAdicional: valorPorPessoa, // per-person pricing
-                }
-              }
-            }
+        if (plErr) {
+          const details = `${plErr.message} ${plErr.details || ''}`
+          if (!/relation.*instituto_planos|does not exist|42P01/i.test(details)) throw plErr
+        }
+
+        if (institutoPlanos && institutoPlanos.length > 0) {
+          // Replace global planOptions with instituto-specific ones. codigo = UUID of the plan.
+          planOptions.length = 0
+          for (const p of institutoPlanos) {
+            planOptions.push({
+              codigo: p.id,
+              nome: String(p.nome || '').trim(),
+              valor: Number(p.valor),
+              permiteDependentes: Boolean(p.permite_dependentes),
+              minDependentes: Number(p.dependentes_minimos) || 0,
+              maxDependentes: p.max_dependentes != null ? Number(p.max_dependentes) : null,
+              valorDependenteAdicional: Number(p.valor_dependente_adicional) || 0,
+            })
           }
         }
       } catch (err) {
-        // If table doesn't exist, just use default pricing
         const details = err instanceof Error ? err.message : String(err)
-        if (!/relation .*instituto_plano_precos|does not exist|42P01/i.test(details)) {
-          throw err
-        }
+        if (!/relation.*instituto_planos|does not exist|42P01/i.test(details)) throw err
       }
     }
+
     const tipoPlano = (() => {
       if (planOptions.length === 0) {
         throw new Error('Nenhum plano ativo disponível no momento.')
       }
 
       if (!tipoPlanoRequested) {
-        const defaultPlanFromSettings = planOptions.find(
-          (plan) => plan.codigo === billingSettings.defaultPlanType
-        )
-        return defaultPlanFromSettings?.codigo || planOptions[0].codigo
+        return planOptions[0].codigo
       }
 
       const selected = planOptions.find((plan) => plan.codigo === tipoPlanoRequested)
