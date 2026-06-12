@@ -24,6 +24,9 @@ export interface Cadastro {
   asaas_subscription_id?: string
   vendedor_id?: string
   vendedor_codigo?: string
+  instituto_id?: string
+  instituto_codigo?: string
+  sem_adesao?: boolean
   tipo_plano?: 'INDIVIDUAL' | 'FAMILIAR' | string
   mensalidade_valor?: number
   mensalidade_billing_type?: 'PIX' | 'BOLETO' | 'CREDIT_CARD' | string
@@ -96,6 +99,28 @@ export interface Vendedor {
   codigo_indicacao: string
   ativo: boolean
   auth_user_id?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Instituto {
+  id: string
+  nome: string
+  email: string
+  codigo_indicacao: string
+  ativo: boolean
+  comissao_percentual_mensalidade: number
+  comissao_mensalidades_max: number | null // null = vitalício (all monthly payments)
+  auth_user_id?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface InstitutoPlanoPreco {
+  id: string
+  instituto_id: string
+  plano_id: string
+  valor_por_pessoa: number
   created_at: string
   updated_at: string
 }

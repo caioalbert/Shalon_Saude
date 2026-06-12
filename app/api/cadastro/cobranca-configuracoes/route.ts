@@ -1,6 +1,6 @@
 import { BILLING_TYPE_OPTIONS, getBillingSettings } from '@/lib/billing-settings'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 function formatCurrency(value: number) {
   return value.toLocaleString('pt-BR', {
@@ -183,14 +183,74 @@ async function loadPublicPlanOptions(settings: Awaited<ReturnType<typeof getBill
   return mapLegacyPlanOptions(settings)
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const ref = String(request.nextUrl.searchParams.get('ref') || '').trim().toUpperCase()
+
     const settings = await getBillingSettings()
-    const planos = await loadPublicPlanOptions(settings)
+    let planos = await loadPublicPlanOptions(settings)
     const allowedPlanTypes = planos.map((plan) => plan.codigo)
     const defaultPlanType = allowedPlanTypes.includes(settings.defaultPlanType)
       ? settings.defaultPlanType
       : (allowedPlanTypes[0] || settings.defaultPlanType)
+
+    // --- Instituto ref: override prices and flags ---
+    let tipoRef: 'instituto' | 'vendedor' | null = null
+    let semAdesao = false
+    let refNome: string | null = null
+
+    if (ref) {
+      try {
+        const supabase = createAdminClient()
+
+        // Try vendedor first
+        const { data: vendedor } = await supabase
+          .from('vendedores')
+          .select('id, nome, ativo')
+          .eq('codigo_indicacao', ref)
+          .maybeSingle()
+
+        if (vendedor && vendedor.ativo) {
+          tipoRef = 'vendedor'
+          refNome = vendedor.nome
+        } else {
+          // Try instituto
+          const { data: instituto } = await supabase
+            .from('institutos')
+            .select('id, nome, ativo, sem_adesao, instituto_plano_precos(plano_id, valor_por_pessoa, planos(codigo))')
+            .eq('codigo_indicacao', ref)
+            .maybeSingle()
+
+          if (instituto && instituto.ativo) {
+            tipoRef = 'instituto'
+            refNome = instituto.nome
+            semAdesao = instituto.sem_adesao === true
+
+            // Override plan prices with instituto-specific pricing
+            const precos = (instituto.instituto_plano_precos as any[]) || []
+            if (precos.length > 0) {
+              planos = planos.map((plano) => {
+                const override = precos.find(
+                  (pp: any) => pp.planos?.codigo === plano.codigo
+                )
+                if (override && Number(override.valor_por_pessoa) > 0) {
+                  const valorPorPessoa = Number(override.valor_por_pessoa)
+                  return {
+                    ...plano,
+                    valor: valorPorPessoa,
+                    valorDependenteAdicional: plano.permiteDependentes ? valorPorPessoa : plano.valorDependenteAdicional,
+                  }
+                }
+                return plano
+              })
+            }
+          }
+        }
+      } catch {
+        // Se falhar na busca do ref, continua com preços padrão
+      }
+    }
+    // -----------------------------------------------
 
     const mensalidadeByPlanType = planos.reduce<Record<string, number>>((acc, plan) => {
       acc[plan.codigo] = plan.valor
@@ -234,6 +294,10 @@ export async function GET() {
       allowedBillingTypes: BILLING_TYPE_OPTIONS,
       allowedPlanTypes,
       source: settings.source,
+      // Instituto/vendedor info
+      tipoRef,
+      refNome,
+      semAdesao,
     })
   } catch (error) {
     const details = error instanceof Error ? error.message : String(error)
@@ -251,3 +315,4 @@ export async function GET() {
     return NextResponse.json({ error: 'Erro ao carregar configurações de cobrança.' }, { status: 500 })
   }
 }
+

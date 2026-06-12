@@ -562,7 +562,7 @@ export default function AdminPlanosPage() {
             </label>
 
             <label>
-              <span className="mb-1 block text-sm font-medium text-gray-700">Valor (R$)</span>
+              <span className="mb-1 block text-sm font-medium text-gray-700">Valor por pessoa (R$)</span>
               <input
                 type="number"
                 min={MIN_CHARGE_VALUE}
@@ -574,6 +574,9 @@ export default function AdminPlanosPage() {
                 disabled={isCreating}
                 required
               />
+              {novoPlanoValor && Number(novoPlanoValor) > 0 && (
+                <p className="mt-1 text-xs text-gray-500">R$ {Number(novoPlanoValor).toFixed(2).replace('.', ',')}</p>
+              )}
             </label>
 
             <div className="flex items-end">
@@ -592,7 +595,7 @@ export default function AdminPlanosPage() {
                 O mínimo e máximo de dependentes podem ser configurados em qualquer plano. Para visualizar em pessoas, some 1 (titular + dependentes).
               </p>
               <p className="mt-1 text-xs text-gray-600">
-                Regra por vida: informe o valor por vida no campo "Valor" e repita o mesmo número em "Adicional por Excedente (R$)".
+                Valor por pessoa: informe o valor cobrado por cada pessoa. O valor total do plano = valor por pessoa × mínimo de pessoas. Excedentes pagam o mesmo valor por pessoa adicional.
               </p>
               <p className="mt-1 text-xs text-gray-600">
                 Benefícios: informe um item por linha, começando com <span className="font-mono">+</span> para incluído
@@ -629,7 +632,7 @@ export default function AdminPlanosPage() {
                     <th className="py-2 pr-4">Nome</th>
                     <th className="py-2 pr-4">Descrição</th>
                     <th className="py-2 pr-4">Benefícios</th>
-                    <th className="py-2 pr-4">Valor (R$)</th>
+                    <th className="py-2 pr-4">Valor por pessoa (R$)</th>
                     <th className="py-2 pr-4">Permite Dependentes</th>
                     <th className="py-2 pr-4">Mínimo</th>
                     <th className="py-2 pr-4">Máximo</th>
@@ -693,10 +696,29 @@ export default function AdminPlanosPage() {
                             min={MIN_CHARGE_VALUE}
                             step="0.01"
                             value={editable.valor}
-                            onChange={(event) => updateEditablePlan(plano.id, { valor: event.target.value })}
+                            onChange={(event) => {
+                              const newValor = event.target.value
+                              const updates: Partial<EditablePlan> = { valor: newValor }
+                              // Auto-sync valor_dependente_adicional when in per-person mode
+                              if (editable.permite_dependentes) {
+                                updates.valor_dependente_adicional = newValor
+                              }
+                              updateEditablePlan(plano.id, updates)
+                            }}
                             className="w-32 rounded-md border border-gray-300 px-2 py-1.5"
                             disabled={isSavingThisPlan}
                           />
+                          {editable.permite_dependentes ? (
+                            <p className="mt-1 text-xs text-gray-500">
+                              Total: R$ {(
+                                Number(editable.valor) * (Number(editable.dependentes_minimos) + 1)
+                              ).toFixed(2).replace('.', ',')}
+                            </p>
+                          ) : (
+                            <p className="mt-1 text-xs text-gray-500">
+                              R$ {Number(editable.valor).toFixed(2).replace('.', ',')}
+                            </p>
+                          )}
                         </td>
                         <td className="py-2 pr-4">
                           <label className="inline-flex items-center gap-2 text-sm text-gray-700">
@@ -711,6 +733,10 @@ export default function AdminPlanosPage() {
                                 // Auto-ajustar mínimo para 1 quando marcar
                                 if (checked && Number(editable.dependentes_minimos) < 1) {
                                   updates.dependentes_minimos = '1'
+                                }
+                                // Auto-sync valor_dependente_adicional para modo por pessoa
+                                if (checked) {
+                                  updates.valor_dependente_adicional = editable.valor
                                 }
                                 updateEditablePlan(plano.id, updates)
                               }}

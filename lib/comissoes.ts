@@ -56,22 +56,36 @@ export function normalizeCurrencyValue(value: unknown) {
   return Number.isFinite(amount) ? amount : 0
 }
 
+export type ComissaoConfig = {
+  percentualAdesao: number // 0–100, default 50
+  percentualMensalidade: number // 0–100, default 50
+  mensalidadesMax: number | null // null = vitalício; 1 = only first; N = first N
+}
+
+export const DEFAULT_COMISSAO_CONFIG: ComissaoConfig = {
+  percentualAdesao: 50,
+  percentualMensalidade: 50,
+  mensalidadesMax: 1,
+}
+
 export function calculateCadastroComissaoValue(
-  cadastro: Pick<CadastroComissaoBase, 'adesao_valor' | 'mensalidade_valor'>
+  cadastro: Pick<CadastroComissaoBase, 'adesao_valor' | 'mensalidade_valor'>,
+  config: ComissaoConfig = DEFAULT_COMISSAO_CONFIG
 ) {
-  const breakdown = calculateCadastroComissaoBreakdown(cadastro)
+  const breakdown = calculateCadastroComissaoBreakdown(cadastro, config)
   return breakdown.total
 }
 
 export function calculateCadastroComissaoBreakdown(
-  cadastro: Pick<CadastroComissaoBase, 'adesao_valor' | 'mensalidade_valor'>
+  cadastro: Pick<CadastroComissaoBase, 'adesao_valor' | 'mensalidade_valor'>,
+  config: ComissaoConfig = DEFAULT_COMISSAO_CONFIG
 ) {
   const mensalidadeValor = normalizeCurrencyValue(cadastro.mensalidade_valor)
   const adesaoValorInformado = normalizeCurrencyValue(cadastro.adesao_valor)
   const adesaoValor = adesaoValorInformado > 0 ? adesaoValorInformado : mensalidadeValor
 
-  const valorAdesao = roundCurrency(adesaoValor * 0.5)
-  const valorMensalidadeSubsequente = roundCurrency(mensalidadeValor * 0.5)
+  const valorAdesao = roundCurrency(adesaoValor * (config.percentualAdesao / 100))
+  const valorMensalidadeSubsequente = roundCurrency(mensalidadeValor * (config.percentualMensalidade / 100))
 
   return {
     valorAdesao,
@@ -143,7 +157,8 @@ function addDays(date: Date, days: number) {
 export function buildComissaoResumo(
   cadastros: CadastroComissaoBase[],
   pagamentos: PagamentoComissaoBase[],
-  referenceDate: Date = new Date()
+  referenceDate: Date = new Date(),
+  config: ComissaoConfig = DEFAULT_COMISSAO_CONFIG
 ): ComissaoResumo {
   const competenciaByMonth = new Map<
     string,
@@ -165,7 +180,7 @@ export function buildComissaoResumo(
 
     const adesaoCompetenciaDate = addDays(paidDate, 30)
     const monthReferenceVenda = toMonthReferenceUTC(adesaoCompetenciaDate)
-    const breakdown = calculateCadastroComissaoBreakdown(cadastro)
+    const breakdown = calculateCadastroComissaoBreakdown(cadastro, config)
     const vendaMonth = competenciaByMonth.get(monthReferenceVenda) || {
       quantidadeVendas: 0,
       quantidadeMensalidadesSubsequentes: 0,
@@ -291,4 +306,26 @@ export function buildComissaoResumo(
     comissaoTotalDevida: roundCurrency(comissaoTotalDevida),
     comissoesMensais,
   }
+}
+
+/**
+ * Builds a commission summary for an instituto.
+ * Instituto clients have sem_adesao=true so there is no adesão commission.
+ * This wraps buildComissaoResumo with percentualAdesao forced to 0.
+ */
+export function buildInstitutoComissaoResumo(
+  cadastros: CadastroComissaoBase[],
+  pagamentos: PagamentoComissaoBase[],
+  referenceDate: Date = new Date(),
+  config: Pick<ComissaoConfig, 'percentualMensalidade' | 'mensalidadesMax'> = {
+    percentualMensalidade: DEFAULT_COMISSAO_CONFIG.percentualMensalidade,
+    mensalidadesMax: DEFAULT_COMISSAO_CONFIG.mensalidadesMax,
+  }
+): ComissaoResumo {
+  // TODO: vitalicio mode requires mensalidades_pagas array from Asaas subscription payments
+  return buildComissaoResumo(cadastros, pagamentos, referenceDate, {
+    percentualAdesao: 0,
+    percentualMensalidade: config.percentualMensalidade,
+    mensalidadesMax: config.mensalidadesMax,
+  })
 }

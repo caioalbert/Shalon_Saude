@@ -1,7 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { AsaasIntegrationError } from '@/lib/asaas'
-import { buildComissaoResumo } from '@/lib/comissoes'
+import { buildComissaoResumo, type ComissaoConfig, DEFAULT_COMISSAO_CONFIG } from '@/lib/comissoes'
 import { hydrateCadastrosWithPrimeiraMensalidadePaga } from '@/lib/comissoes-asaas'
+import { getBillingSettings } from '@/lib/billing-settings'
 import { requireSellerAuth } from '@/lib/supabase/seller-auth'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -119,9 +120,25 @@ export async function GET(request: NextRequest) {
     const cadastrosComPrimeiraMensalidade = await hydrateCadastrosWithPrimeiraMensalidadePaga(
       allCadastros
     )
+
+    // Buscar configurações de comissão do admin
+    let comissaoConfig: ComissaoConfig = DEFAULT_COMISSAO_CONFIG
+    try {
+      const billingSettings = await getBillingSettings()
+      comissaoConfig = {
+        percentualAdesao: billingSettings.comissaoPercentualAdesao,
+        percentualMensalidade: billingSettings.comissaoPercentualMensalidade,
+        mensalidadesMax: billingSettings.comissaoMensalidadesMax,
+      }
+    } catch {
+      // Se falhar ao buscar configurações, usa o padrão (50/50/1)
+    }
+
     const comissaoResumo = buildComissaoResumo(
       cadastrosComPrimeiraMensalidade,
-      pagamentosComissao || []
+      pagamentosComissao || [],
+      new Date(),
+      comissaoConfig
     )
     const totalPendentes = allCadastros.length - comissaoResumo.totalVendasPagas
     const appBaseUrl = request.nextUrl.origin.replace(/\/$/, '')

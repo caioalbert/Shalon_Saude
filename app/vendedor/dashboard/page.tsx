@@ -7,6 +7,7 @@ import { Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { calculateCadastroComissaoValue } from '@/lib/comissoes'
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { bustClientCache, useCachedFetch } from '@/lib/hooks/use-cached-fetch'
 
 type CadastroVendedor = {
   id: string
@@ -58,48 +59,35 @@ type ResumoPayload = {
 
 export default function VendedorDashboardPage() {
   const router = useRouter()
-  const [data, setData] = useState<ResumoPayload | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
   const [isSavingPerfil, setIsSavingPerfil] = useState(false)
   const [vendedorNome, setVendedorNome] = useState('')
   const [vendedorEmail, setVendedorEmail] = useState('')
   const [vendedorCodigoIndicacao, setVendedorCodigoIndicacao] = useState('')
   const [vendedorSenha, setVendedorSenha] = useState('')
 
-  const fetchResumo = useCallback(async () => {
-    try {
-      setIsLoading(true)
-      setError(null)
+  const {
+    data,
+    isLoading,
+    isValidating,
+    error,
+    revalidate: revalidateResumo,
+  } = useCachedFetch<ResumoPayload>('/api/vendedor/resumo', {
+    ttl: 45,
+    revalidateOnFocus: true,
+  })
 
-      const response = await fetch('/api/vendedor/resumo', { cache: 'no-store' })
-      const payload = await response.json().catch(() => null)
-
-      if (response.status === 401) {
-        router.push('/vendedor/login')
-        return
-      }
-
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Erro ao carregar painel do vendedor.')
-      }
-
-      setData(payload)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar painel do vendedor.')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [router])
-
+  // Redirect on 401 is handled via error message detection
   useEffect(() => {
-    fetchResumo()
-  }, [fetchResumo])
+    if (error && /401|não autenticado|unauthorized/i.test(error)) {
+      router.push('/vendedor/login')
+    }
+  }, [error, router])
 
+  // Hydrate perfil form whenever data loads
   useEffect(() => {
     if (!data?.vendedor) return
-
     setVendedorNome(data.vendedor.nome || '')
     setVendedorEmail(data.vendedor.email || '')
     setVendedorCodigoIndicacao(data.vendedor.codigoIndicacao || '')
@@ -121,7 +109,7 @@ export default function VendedorDashboardPage() {
       await navigator.clipboard.writeText(data.vendedor.linkVenda)
       setMessage('Link de venda copiado com sucesso.')
     } catch {
-      setError('Não foi possível copiar o link automaticamente.')
+      setMessage('Não foi possível copiar o link automaticamente.')
     }
   }
 
@@ -134,13 +122,13 @@ export default function VendedorDashboardPage() {
     const senha = vendedorSenha.trim()
 
     if (!nome || !email || !codigoIndicacao) {
-      setError('Nome, email e código de indicação são obrigatórios.')
+      setFormError('Nome, email e código de indicação são obrigatórios.')
       return
     }
 
     try {
       setIsSavingPerfil(true)
-      setError(null)
+      setFormError(null)
       setMessage(null)
 
       const response = await fetch('/api/vendedor/perfil', {
@@ -167,9 +155,10 @@ export default function VendedorDashboardPage() {
 
       setMessage(payload?.message || 'Seu cadastro foi atualizado com sucesso.')
       setVendedorSenha('')
-      await fetchResumo()
+      bustClientCache('/api/vendedor/resumo')
+      revalidateResumo()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar seu cadastro.')
+      setFormError(err instanceof Error ? err.message : 'Erro ao atualizar seu cadastro.')
     } finally {
       setIsSavingPerfil(false)
     }
@@ -192,7 +181,7 @@ export default function VendedorDashboardPage() {
             <p className="text-xs text-gray-600 sm:text-sm">Acompanhe suas vendas por link de indicação</p>
           </div>
           <div className="hidden items-center gap-2 lg:flex">
-            <Button onClick={fetchResumo} variant="outline">Atualizar</Button>
+            <Button onClick={revalidateResumo} variant="outline">Atualizar</Button>
             <Button onClick={handleLogout} variant="outline">Sair</Button>
           </div>
 
@@ -209,7 +198,7 @@ export default function VendedorDashboardPage() {
                 </SheetHeader>
                 <div className="flex flex-col gap-2 px-4 pb-4">
                   <SheetClose asChild>
-                    <Button onClick={fetchResumo} variant="outline" className="w-full justify-start">
+                    <Button onClick={revalidateResumo} variant="outline" className="w-full justify-start">
                       Atualizar
                     </Button>
                   </SheetClose>
@@ -226,9 +215,9 @@ export default function VendedorDashboardPage() {
       </header>
 
       <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-        {error && (
+        {(error || formError) && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-            <p className="text-sm text-red-700">{error}</p>
+            <p className="text-sm text-red-700">{formError || error}</p>
           </div>
         )}
 

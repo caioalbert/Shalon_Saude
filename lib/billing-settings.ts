@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { invalidateCache, serverCache } from '@/lib/server-cache'
 
 export const BILLING_TYPE_OPTIONS = ['BOLETO', 'CREDIT_CARD'] as const
 export type BillingTypeOption = (typeof BILLING_TYPE_OPTIONS)[number]
@@ -17,6 +18,9 @@ type BillingSettingsRow = {
   default_mensalidade_billing_type: string
   default_plan_type?: string | null
   updated_at: string
+  comissao_percentual_adesao?: number | null
+  comissao_percentual_mensalidade?: number | null
+  comissao_mensalidades_max?: number | null
 }
 
 export type BillingSettings = {
@@ -33,6 +37,10 @@ export type BillingSettings = {
   defaultPlanType: string
   updatedAt?: string
   source: 'database' | 'env'
+  // Configurações de comissão
+  comissaoPercentualAdesao: number // default 50
+  comissaoPercentualMensalidade: number // default 50
+  comissaoMensalidadesMax: number | null // null = vitalício, default 1
 }
 
 type UpdateBillingSettingsInput = {
@@ -42,6 +50,9 @@ type UpdateBillingSettingsInput = {
   mensalidadeBillingTypes: string[]
   defaultMensalidadeBillingType: string
   defaultPlanType: string
+  comissaoPercentualAdesao?: number | null
+  comissaoPercentualMensalidade?: number | null
+  comissaoMensalidadesMax?: number | null
 }
 
 function toUpperTrim(value: string | null | undefined) {
@@ -128,6 +139,9 @@ function buildBillingSettings(params: {
   defaultPlanValue?: number
   source: 'database' | 'env'
   updatedAt?: string
+  comissaoPercentualAdesao?: number | null
+  comissaoPercentualMensalidade?: number | null
+  comissaoMensalidadesMax?: number | null
 }): BillingSettings {
   const valorByPlanType: Record<PlanTypeOption, number> = {
     INDIVIDUAL: params.mensalidadeIndividualValue,
@@ -153,6 +167,9 @@ function buildBillingSettings(params: {
     defaultPlanType: normalizedDefaultPlanType,
     updatedAt: params.updatedAt,
     source: params.source,
+    comissaoPercentualAdesao: params.comissaoPercentualAdesao ?? 50,
+    comissaoPercentualMensalidade: params.comissaoPercentualMensalidade ?? 50,
+    comissaoMensalidadesMax: params.comissaoMensalidadesMax !== undefined ? params.comissaoMensalidadesMax : 1,
   }
 }
 
@@ -227,6 +244,11 @@ function normalizeSettingsRow(row: BillingSettingsRow): BillingSettings {
     defaultPlanValue,
     updatedAt: row.updated_at,
     source: 'database',
+    comissaoPercentualAdesao: row.comissao_percentual_adesao ?? 50,
+    comissaoPercentualMensalidade: row.comissao_percentual_mensalidade ?? 50,
+    comissaoMensalidadesMax: row.comissao_mensalidades_max !== undefined && row.comissao_mensalidades_max !== null
+      ? row.comissao_mensalidades_max
+      : 1,
   })
 }
 
@@ -235,7 +257,7 @@ async function fetchBillingSettingsRow() {
   return supabase
     .from('cobranca_configuracoes')
     .select(
-      'id, adesao_value, mensalidade_value, mensalidade_individual_value, mensalidade_familiar_value, mensalidade_billing_types, default_mensalidade_billing_type, default_plan_type, updated_at'
+      'id, adesao_value, mensalidade_value, mensalidade_individual_value, mensalidade_familiar_value, mensalidade_billing_types, default_mensalidade_billing_type, default_plan_type, updated_at, comissao_percentual_adesao, comissao_percentual_mensalidade, comissao_mensalidades_max'
     )
     .eq('id', true)
     .maybeSingle()
@@ -317,30 +339,32 @@ async function syncPlanCatalogBaseValues(input: {
 }
 
 export async function getBillingSettings(): Promise<BillingSettings> {
-  try {
-    const { data, error } = await fetchBillingSettingsRow()
-    if (error) {
-      const details = `${error.message || ''} ${error.details || ''}`
+  return serverCache('billing-settings', 120, async () => {
+    try {
+      const { data, error } = await fetchBillingSettingsRow()
+      if (error) {
+        const details = `${error.message || ''} ${error.details || ''}`
+        if (/relation .*cobranca_configuracoes|does not exist|42P01/i.test(details)) {
+          return readEnvFallbackSettings()
+        }
+
+        throw error
+      }
+
+      if (!data) {
+        return readEnvFallbackSettings()
+      }
+
+      return normalizeSettingsRow(data as BillingSettingsRow)
+    } catch (error) {
+      const details = error instanceof Error ? error.message : String(error)
       if (/relation .*cobranca_configuracoes|does not exist|42P01/i.test(details)) {
         return readEnvFallbackSettings()
       }
 
       throw error
     }
-
-    if (!data) {
-      return readEnvFallbackSettings()
-    }
-
-    return normalizeSettingsRow(data as BillingSettingsRow)
-  } catch (error) {
-    const details = error instanceof Error ? error.message : String(error)
-    if (/relation .*cobranca_configuracoes|does not exist|42P01/i.test(details)) {
-      return readEnvFallbackSettings()
-    }
-
-    throw error
-  }
+  })
 }
 
 async function resolveDefaultPlanValue(params: {
@@ -438,11 +462,16 @@ export async function updateBillingSettings(input: UpdateBillingSettingsInput): 
         default_mensalidade_billing_type: defaultMensalidadeBillingType,
         default_plan_type: defaultPlanType,
         updated_at: new Date().toISOString(),
+        comissao_percentual_adesao: input.comissaoPercentualAdesao ?? undefined,
+        comissao_percentual_mensalidade: input.comissaoPercentualMensalidade ?? undefined,
+        comissao_mensalidades_max: input.comissaoMensalidadesMax !== undefined
+          ? input.comissaoMensalidadesMax
+          : undefined,
       },
       { onConflict: 'id' }
     )
     .select(
-      'id, adesao_value, mensalidade_value, mensalidade_individual_value, mensalidade_familiar_value, mensalidade_billing_types, default_mensalidade_billing_type, default_plan_type, updated_at'
+      'id, adesao_value, mensalidade_value, mensalidade_individual_value, mensalidade_familiar_value, mensalidade_billing_types, default_mensalidade_billing_type, default_plan_type, updated_at, comissao_percentual_adesao, comissao_percentual_mensalidade, comissao_mensalidades_max'
     )
     .single()
 
@@ -454,6 +483,10 @@ export async function updateBillingSettings(input: UpdateBillingSettingsInput): 
     individualValue: mensalidadeIndividualValue,
     familiarValue: mensalidadeFamiliarValue,
   })
+
+  // Invalidate server cache so next request fetches fresh data
+  invalidateCache('billing-settings')
+  invalidateCache('public-planos')
 
   return normalizeSettingsRow(data as BillingSettingsRow)
 }

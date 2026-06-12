@@ -92,7 +92,7 @@ export function CadastroForm({
   const [aceiteTermos, setAceiteTermos] = useState(false)
   const [aceitePrivacidade, setAceitePrivacidade] = useState(false)
   const [billingConfig, setBillingConfig] = useState<PublicBillingConfig | null>(null)
-  const [isLoadingBillingConfig, setIsLoadingBillingConfig] = useState(true)
+  const [isLoadingBillingConfig, setIsLoadingBillingConfig] = useState(false)
   const [formData, setFormData] = useState<Partial<CadastroFormData>>({
     dependentes: [],
     tem_dependentes: false,
@@ -110,11 +110,12 @@ export function CadastroForm({
 
   useEffect(() => {
     let active = true
+    setIsLoadingBillingConfig(true)
 
     const fetchBillingConfig = async () => {
       try {
-        setIsLoadingBillingConfig(true)
-        const response = await fetch('/api/cadastro/cobranca-configuracoes', {
+        const refParam = vendedorRef ? `?ref=${encodeURIComponent(vendedorRef)}` : ''
+        const response = await fetch(`/api/cadastro/cobranca-configuracoes${refParam}`, {
           cache: 'no-store',
         })
         const payload = await response.json().catch(() => null)
@@ -351,7 +352,7 @@ export function CadastroForm({
     return () => {
       active = false
     }
-  }, [])
+  }, [vendedorRef])
 
   const checkCpfAlreadyRegistered = async (cpf: string) => {
     const response = await fetch(`/api/cadastro/verificar-cpf?cpf=${encodeURIComponent(cpf)}`)

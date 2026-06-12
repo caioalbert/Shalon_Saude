@@ -14,6 +14,12 @@ const SETTINGS_ITEMS = [
     actionLabel: 'Gerenciar Planos',
   },
   {
+    title: 'Institutos/Parceiros',
+    description: 'Cadastre institutos e parceiros com links de venda e comissões configuráveis.',
+    href: '/admin/institutos',
+    actionLabel: 'Gerenciar Institutos',
+  },
+  {
     title: 'Termo de Adesão',
     description: 'Atualize o template usado na geração do PDF enviado aos clientes.',
     href: '/admin/termo-template',
@@ -21,7 +27,7 @@ const SETTINGS_ITEMS = [
   },
   {
     title: 'Configurações de Cobrança',
-    description: 'Defina formas de cobrança da mensalidade e opção padrão.',
+    description: 'Defina formas de cobrança da mensalidade, opção padrão e percentuais de comissão.',
     href: '/admin/cobranca-configuracoes',
     actionLabel: 'Gerenciar Cobrança',
   },

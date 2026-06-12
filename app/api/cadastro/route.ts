@@ -487,6 +487,9 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient()
     let vendedorId: string | null = null
     let vendedorCodigo: string | null = null
+    let institutoId: string | null = null
+    let institutoCodigo: string | null = null
+    let semAdesao = false
 
     if (vendedorRefValue) {
       let supabaseAdmin
@@ -503,6 +506,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
+      // First try to find in vendedores
       const { data: vendedor, error: vendedorError } = await supabaseAdmin
         .from('vendedores')
         .select('id, codigo_indicacao, ativo')
@@ -539,15 +543,45 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      if (!vendedor || vendedor.ativo !== true) {
+      if (vendedor && vendedor.ativo === true) {
+        vendedorId = vendedor.id
+        vendedorCodigo = vendedor.codigo_indicacao
+      } else if (!vendedor) {
+        // Not found in vendedores, try institutos
+        const { data: instituto, error: institutoError } = await supabaseAdmin
+          .from('institutos')
+          .select('id, codigo_indicacao, ativo, sem_adesao')
+          .eq('codigo_indicacao', vendedorRefValue)
+          .maybeSingle()
+
+        if (institutoError) {
+          const details = `${institutoError.message || ''} ${institutoError.details || ''}`
+          // If institutos table doesn't exist yet, just ignore (no instituto found)
+          if (!/relation .*institutos|does not exist|42P01/i.test(details)) {
+            console.error('Instituto lookup error:', institutoError)
+            return NextResponse.json(
+              { error: 'Erro ao validar link de parceiro.' },
+              { status: 500 }
+            )
+          }
+        } else if (instituto && instituto.ativo === true) {
+          institutoId = instituto.id
+          institutoCodigo = instituto.codigo_indicacao
+          semAdesao = instituto.sem_adesao !== false // use configured value, default true
+        } else {
+          // Found in neither table OR found but inactive
+          return NextResponse.json(
+            { error: 'Link de indicação inválido ou inativo.' },
+            { status: 400 }
+          )
+        }
+      } else {
+        // Vendedor found but inactive
         return NextResponse.json(
           { error: 'Link de vendedor inválido ou inativo.' },
           { status: 400 }
         )
       }
-
-      vendedorId = vendedor.id
-      vendedorCodigo = vendedor.codigo_indicacao
     }
 
     // Evita criar cliente no Asaas para CPF já cadastrado no sistema.
@@ -621,6 +655,41 @@ export async function POST(request: NextRequest) {
     const billingSettings = await getBillingSettings()
     const planOptions = await loadCadastroPlanOptions(billingSettings)
     const adesaoDueDate = toIsoDate(new Date())
+
+    // If via instituto, override plan prices with instituto-specific pricing
+    if (institutoId) {
+      try {
+        const supabaseAdmin = createAdminClient()
+        const { data: precos } = await supabaseAdmin
+          .from('instituto_plano_precos')
+          .select('plano_id, valor_por_pessoa, planos!inner(codigo)')
+          .eq('instituto_id', institutoId)
+
+        if (precos && precos.length > 0) {
+          // Override prices for plans that have instituto-specific pricing
+          for (const preco of precos) {
+            const planoCodigo = (preco.planos as any)?.codigo
+            const planIdx = planOptions.findIndex(p => p.codigo === planoCodigo)
+            if (planIdx >= 0) {
+              const valorPorPessoa = Number(preco.valor_por_pessoa)
+              if (Number.isFinite(valorPorPessoa) && valorPorPessoa > 0) {
+                planOptions[planIdx] = {
+                  ...planOptions[planIdx],
+                  valor: valorPorPessoa,
+                  valorDependenteAdicional: valorPorPessoa, // per-person pricing
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        // If table doesn't exist, just use default pricing
+        const details = err instanceof Error ? err.message : String(err)
+        if (!/relation .*instituto_plano_precos|does not exist|42P01/i.test(details)) {
+          throw err
+        }
+      }
+    }
     const tipoPlano = (() => {
       if (planOptions.length === 0) {
         throw new Error('Nenhum plano ativo disponível no momento.')
@@ -785,14 +854,9 @@ export async function POST(request: NextRequest) {
     const mensalidadeValor = calculatePlanChargeValue(selectedPlan, dependentes.length)
     const adesaoValue = mensalidadeValor
 
-    if (adesaoValue < MIN_ASAAS_CHARGE_VALUE) {
-      return NextResponse.json(
-        {
-          error: `Configuração de cobrança inválida. O valor mínimo permitido pelo Asaas é R$ ${MIN_ASAAS_CHARGE_VALUE.toFixed(2).replace('.', ',')}.`,
-        },
-        { status: 400 }
-      )
-    }
+    const asaasMensalidadeDueDate = semAdesao
+      ? toIsoDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)) // +30 days for instituto clients
+      : toIsoDate(new Date()) // today for normal clients
 
     let asaasCustomerId: string | null = null
     let asaasPaymentId: string | null = null
@@ -814,17 +878,24 @@ export async function POST(request: NextRequest) {
       })
       asaasCustomerId = asaasCustomer.id
 
-      const payment = await createAsaasPayment({
-        customer: asaasCustomerId,
-        value: adesaoValue,
-        dueDate: adesaoDueDate,
-        billingType: adesaoBillingType,
-        description: 'Taxa de adesão SHALOM Saúde',
-        externalReference: cadastroId,
-      })
-      asaasPaymentId = payment.id
-      asaasPaymentInvoiceUrl = payment.invoiceUrl || null
-      asaasPaymentBankSlipUrl = payment.bankSlipUrl || null
+      if (!semAdesao) {
+        // Normal flow: create adhesion payment
+        if (adesaoValue < MIN_ASAAS_CHARGE_VALUE) {
+          throw new Error(`Configuração de cobrança inválida. O valor mínimo permitido pelo Asaas é R$ ${MIN_ASAAS_CHARGE_VALUE.toFixed(2).replace('.', ',')}.`)
+        }
+        const payment = await createAsaasPayment({
+          customer: asaasCustomerId,
+          value: adesaoValue,
+          dueDate: adesaoDueDate,
+          billingType: adesaoBillingType,
+          description: 'Taxa de adesão SHALOM Saúde',
+          externalReference: cadastroId,
+        })
+        asaasPaymentId = payment.id
+        asaasPaymentInvoiceUrl = payment.invoiceUrl || null
+        asaasPaymentBankSlipUrl = payment.bankSlipUrl || null
+      }
+      // For instituto clients (semAdesao=true): no adhesion payment, subscription will be created after admin activates
     } catch (error) {
       await cleanupFailedAsaasRegistration({ asaasCustomerId, asaasPaymentId })
 
@@ -832,9 +903,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: error.status })
       }
 
+      const msg = error instanceof Error ? error.message : 'Não foi possível registrar o cliente no Asaas.'
       console.error('Asaas create customer error:', error)
       return NextResponse.json(
-        { error: 'Não foi possível registrar o cliente no Asaas.' },
+        { error: msg },
         { status: 502 }
       )
     }
@@ -868,6 +940,9 @@ export async function POST(request: NextRequest) {
           asaas_payment_id: asaasPaymentId,
           vendedor_id: vendedorId,
           vendedor_codigo: vendedorCodigo,
+          instituto_id: institutoId,
+          instituto_codigo: institutoCodigo,
+          sem_adesao: semAdesao,
           tipo_plano: tipoPlano,
           mensalidade_valor: mensalidadeValor,
           mensalidade_billing_type: mensalidadeBillingType,
@@ -895,14 +970,14 @@ export async function POST(request: NextRequest) {
       }
 
       if (
-        /column .*sexo|sexo .*column|telefone_celular|estado_civil|nome_conjuge|escolaridade|rg|asaas_customer_id|asaas_payment_id|asaas_subscription_id|status|adesao_pago_em|mensalidade_billing_type|tipo_plano|mensalidade_valor|vendedor_id|vendedor_codigo/i.test(
+        /column .*sexo|sexo .*column|telefone_celular|estado_civil|nome_conjuge|escolaridade|rg|asaas_customer_id|asaas_payment_id|asaas_subscription_id|status|adesao_pago_em|mensalidade_billing_type|tipo_plano|mensalidade_valor|vendedor_id|vendedor_codigo|instituto_id|instituto_codigo|sem_adesao/i.test(
           details
         )
       ) {
         return NextResponse.json(
           {
             error:
-              'Banco desatualizado. Execute scripts/001_create_tables.sql, scripts/004_add_cadastro_pagamentos.sql, scripts/005_add_billing_settings_admin.sql, scripts/006_add_plan_type_pricing.sql e scripts/007_add_vendedores_module.sql no Supabase SQL Editor.',
+              'Banco desatualizado. Execute scripts/001_create_tables.sql, scripts/004_add_cadastro_pagamentos.sql, scripts/005_add_billing_settings_admin.sql, scripts/006_add_plan_type_pricing.sql, scripts/007_add_vendedores_module.sql e scripts/015_add_institutos_module.sql no Supabase SQL Editor.',
           },
           { status: 500 }
         )
@@ -987,17 +1062,19 @@ export async function POST(request: NextRequest) {
       nome: cadastroData.nome,
       email: cadastroData.email,
       status: cadastroData.status || 'PENDENTE_PAGAMENTO',
-      pagamento: {
-        id: asaasPaymentId!,
-        valor: adesaoValue,
-        vencimento: adesaoDueDate,
+      pagamento: asaasPaymentId ? {
+        id: asaasPaymentId,
+        valor: semAdesao ? mensalidadeValor : adesaoValue,
+        vencimento: semAdesao ? asaasMensalidadeDueDate : adesaoDueDate,
         billingType: adesaoBillingType,
         invoiceUrl: asaasPaymentInvoiceUrl,
         bankSlipUrl: asaasPaymentBankSlipUrl,
-      },
+      } : null,
       tipoPlanoEscolhido: tipoPlano,
       mensalidadeValor,
       mensalidadeBillingTypeEscolhida: mensalidadeBillingType,
+      tipoReferencia: institutoId ? 'instituto' : (vendedorId ? 'vendedor' : null),
+      semAdesao,
       termoPdfPath,
       termoGerado: Boolean(termoPdfPath),
     })

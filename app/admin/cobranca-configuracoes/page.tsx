@@ -54,6 +54,16 @@ export default function AdminCobrancaConfiguracoesPage() {
   const [mensalidadeBillingTypes, setMensalidadeBillingTypes] = useState<BillingType[]>(['BOLETO', 'CREDIT_CARD'])
   const [defaultMensalidadeBillingType, setDefaultMensalidadeBillingType] = useState<BillingType>('BOLETO')
   const [source, setSource] = useState<string | null>(null)
+  // Commission state
+  const [comissaoPercentualAdesao, setComissaoPercentualAdesao] = useState('')
+  const [comissaoPercentualMensalidade, setComissaoPercentualMensalidade] = useState('')
+  // 'primeiro' = apenas 1ª, 'custom' = número, 'vitalicio' = null
+  type ComissaoModo = 'primeiro' | 'custom' | 'vitalicio'
+  const [comissaoModo, setComissaoModo] = useState<ComissaoModo>('vitalicio')
+  const [comissaoMensalidadesMaxCustom, setComissaoMensalidadesMaxCustom] = useState('12')
+  const [isSavingComissao, setIsSavingComissao] = useState(false)
+  const [comissaoMessage, setComissaoMessage] = useState<string | null>(null)
+  const [comissaoError, setComissaoError] = useState<string | null>(null)
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -95,6 +105,21 @@ export default function AdminCobrancaConfiguracoesPage() {
           : effectiveTypes[0]
       )
       setSource(data?.settings?.source || null)
+
+      // Load commission values
+      const pctAdesao = data?.settings?.comissaoPercentualAdesao
+      const pctMensalidade = data?.settings?.comissaoPercentualMensalidade
+      const maxMensalidades = data?.settings?.comissaoMensalidadesMax
+      setComissaoPercentualAdesao(pctAdesao !== undefined && pctAdesao !== null ? String(pctAdesao) : '0')
+      setComissaoPercentualMensalidade(pctMensalidade !== undefined && pctMensalidade !== null ? String(pctMensalidade) : '0')
+      if (maxMensalidades === null || maxMensalidades === undefined) {
+        setComissaoModo('vitalicio')
+      } else if (Number(maxMensalidades) === 1) {
+        setComissaoModo('primeiro')
+      } else {
+        setComissaoModo('custom')
+        setComissaoMensalidadesMaxCustom(String(maxMensalidades))
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar configurações de cobrança.')
     } finally {
@@ -208,6 +233,64 @@ export default function AdminCobrancaConfiguracoesPage() {
       setError(err instanceof Error ? err.message : 'Erro ao salvar configurações de cobrança.')
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleSaveComissao = async () => {
+    try {
+      setIsSavingComissao(true)
+      setComissaoError(null)
+      setComissaoMessage(null)
+
+      const pctAdesao = Number(comissaoPercentualAdesao)
+      const pctMensalidade = Number(comissaoPercentualMensalidade)
+
+      if (!Number.isFinite(pctAdesao) || pctAdesao < 0 || pctAdesao > 100) {
+        throw new Error('% sobre adesão deve ser entre 0 e 100.')
+      }
+      if (!Number.isFinite(pctMensalidade) || pctMensalidade < 0 || pctMensalidade > 100) {
+        throw new Error('% sobre mensalidade deve ser entre 0 e 100.')
+      }
+
+      let comissaoMensalidadesMax: number | null
+      if (comissaoModo === 'vitalicio') {
+        comissaoMensalidadesMax = null
+      } else if (comissaoModo === 'primeiro') {
+        comissaoMensalidadesMax = 1
+      } else {
+        const customVal = Number(comissaoMensalidadesMaxCustom)
+        if (!Number.isFinite(customVal) || customVal < 1 || !Number.isInteger(customVal)) {
+          throw new Error('Informe um número inteiro maior ou igual a 1.')
+        }
+        comissaoMensalidadesMax = customVal
+      }
+
+      const response = await fetch('/api/admin/cobranca-configuracoes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          comissaoPercentualAdesao: pctAdesao,
+          comissaoPercentualMensalidade: pctMensalidade,
+          comissaoMensalidadesMax,
+        }),
+      })
+
+      const data = await response.json().catch(() => null)
+
+      if (response.status === 401) {
+        router.push('/admin/login')
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erro ao salvar configurações de comissão.')
+      }
+
+      setComissaoMessage(data?.message || 'Configurações de comissão salvas com sucesso.')
+    } catch (err) {
+      setComissaoError(err instanceof Error ? err.message : 'Erro ao salvar configurações de comissão.')
+    } finally {
+      setIsSavingComissao(false)
     }
   }
 
@@ -342,6 +425,107 @@ export default function AdminCobrancaConfiguracoesPage() {
                 <Button onClick={handleSave} disabled={isSaving || isLoading}>
                   {isSaving ? 'Salvando...' : 'Salvar Configurações'}
                 </Button>
+              </div>
+
+              {/* ── Seção: Configuração de Comissões dos Vendedores ── */}
+              <div className="space-y-4 rounded-lg border border-gray-200 p-4">
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">Configuração de Comissões dos Vendedores</p>
+                  <p className="text-xs text-gray-500 mt-1">Defina os percentuais e a vigência das comissões pagas aos vendedores.</p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-gray-700">% de comissão sobre adesão</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        id="comissao-pct-adesao"
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.5}
+                        value={comissaoPercentualAdesao}
+                        onChange={(e) => setComissaoPercentualAdesao(e.target.value)}
+                        className="w-28 rounded-md border border-gray-300 px-3 py-2 text-sm"
+                        disabled={isSavingComissao}
+                      />
+                      <span className="text-sm text-gray-600">%</span>
+                    </div>
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-gray-700">% de comissão sobre mensalidade</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        id="comissao-pct-mensalidade"
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.5}
+                        value={comissaoPercentualMensalidade}
+                        onChange={(e) => setComissaoPercentualMensalidade(e.target.value)}
+                        className="w-28 rounded-md border border-gray-300 px-3 py-2 text-sm"
+                        disabled={isSavingComissao}
+                      />
+                      <span className="text-sm text-gray-600">%</span>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700">Mensalidades que geram comissão</p>
+                  <RadioGroup
+                    value={comissaoModo}
+                    onValueChange={(v) => setComissaoModo(v as 'primeiro' | 'custom' | 'vitalicio')}
+                    className="space-y-2"
+                  >
+                    <label className="flex items-center gap-3">
+                      <RadioGroupItem value="primeiro" id="comissao-modo-primeiro" disabled={isSavingComissao} />
+                      <span className="text-sm text-gray-800">Apenas a 1ª mensalidade</span>
+                    </label>
+                    <label className="flex items-center gap-3">
+                      <RadioGroupItem value="custom" id="comissao-modo-custom" disabled={isSavingComissao} />
+                      <span className="text-sm text-gray-800">Número customizado de mensalidades</span>
+                    </label>
+                    {comissaoModo === 'custom' && (
+                      <div className="ml-7 flex items-center gap-2">
+                        <input
+                          id="comissao-mensalidades-max-custom"
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={comissaoMensalidadesMaxCustom}
+                          onChange={(e) => setComissaoMensalidadesMaxCustom(e.target.value)}
+                          className="w-24 rounded-md border border-gray-300 px-3 py-2 text-sm"
+                          disabled={isSavingComissao}
+                        />
+                        <span className="text-sm text-gray-600">mensalidade(s)</span>
+                      </div>
+                    )}
+                    <label className="flex items-center gap-3">
+                      <RadioGroupItem value="vitalicio" id="comissao-modo-vitalicio" disabled={isSavingComissao} />
+                      <span className="text-sm text-gray-800">Vitalício (todas as mensalidades)</span>
+                    </label>
+                  </RadioGroup>
+                </div>
+
+                {comissaoError && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                    <p className="text-sm text-red-700">{comissaoError}</p>
+                  </div>
+                )}
+
+                {comissaoMessage && (
+                  <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                    <p className="text-sm text-green-700">{comissaoMessage}</p>
+                  </div>
+                )}
+
+                <div className="flex justify-end">
+                  <Button onClick={handleSaveComissao} disabled={isSavingComissao || isLoading}>
+                    {isSavingComissao ? 'Salvando...' : 'Salvar Configurações de Comissão'}
+                  </Button>
+                </div>
               </div>
             </>
           )}

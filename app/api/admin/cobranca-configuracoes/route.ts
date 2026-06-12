@@ -19,6 +19,10 @@ function mapDatabaseErrorMessage(error: unknown) {
     return 'Banco desatualizado. Execute scripts/006_add_plan_type_pricing.sql no Supabase SQL Editor.'
   }
 
+  if (/comissao_percentual_adesao|comissao_percentual_mensalidade|comissao_mensalidades_max/i.test(details)) {
+    return 'Banco desatualizado. Execute scripts/014_add_comissao_config.sql no Supabase SQL Editor.'
+  }
+
   if (/fetch failed|enotfound|getaddrinfo|network/i.test(details)) {
     return 'Falha ao conectar no Supabase. Verifique NEXT_PUBLIC_SUPABASE_URL e as chaves no arquivo .env/.env.local.'
   }
@@ -90,6 +94,9 @@ export async function GET(request: NextRequest) {
         defaultPlanType,
         source: settings.source,
         updatedAt: settings.updatedAt || null,
+        comissaoPercentualAdesao: settings.comissaoPercentualAdesao,
+        comissaoPercentualMensalidade: settings.comissaoPercentualMensalidade,
+        comissaoMensalidadesMax: settings.comissaoMensalidadesMax,
       },
       allowedBillingTypes: BILLING_TYPE_OPTIONS,
       allowedPlanTypes,
@@ -121,6 +128,9 @@ export async function PUT(request: NextRequest) {
           mensalidadeBillingTypes?: string[]
           defaultMensalidadeBillingType?: string
           defaultPlanType?: string
+          comissaoPercentualAdesao?: number | string
+          comissaoPercentualMensalidade?: number | string
+          comissaoMensalidadesMax?: number | string | null
         }
       | null
 
@@ -162,6 +172,21 @@ export async function PUT(request: NextRequest) {
       )
     }
 
+    // Parse commission config
+    const comissaoPercentualAdesao = body.comissaoPercentualAdesao !== undefined
+      ? Math.min(100, Math.max(0, Number(body.comissaoPercentualAdesao)))
+      : currentSettings.comissaoPercentualAdesao
+
+    const comissaoPercentualMensalidade = body.comissaoPercentualMensalidade !== undefined
+      ? Math.min(100, Math.max(0, Number(body.comissaoPercentualMensalidade)))
+      : currentSettings.comissaoPercentualMensalidade
+
+    // null = vitalicio, number = max months
+    const comissaoMensalidadesMaxRaw = body.comissaoMensalidadesMax
+    const comissaoMensalidadesMax = comissaoMensalidadesMaxRaw === null || comissaoMensalidadesMaxRaw === ''
+      ? null
+      : Number(comissaoMensalidadesMaxRaw) >= 1 ? Number(comissaoMensalidadesMaxRaw) : currentSettings.comissaoMensalidadesMax
+
     const updated = await updateBillingSettings({
       mensalidadeIndividualValue,
       mensalidadeFamiliarValue,
@@ -172,6 +197,9 @@ export async function PUT(request: NextRequest) {
         body.defaultMensalidadeBillingType || currentSettings.defaultMensalidadeBillingType
       ),
       defaultPlanType: String(body.defaultPlanType || currentSettings.defaultPlanType),
+      comissaoPercentualAdesao,
+      comissaoPercentualMensalidade,
+      comissaoMensalidadesMax,
     })
     const allowedPlanTypes = await loadPlanCodesForDefaultSelection()
     const defaultPlanType = allowedPlanTypes.includes(updated.defaultPlanType)
@@ -193,6 +221,9 @@ export async function PUT(request: NextRequest) {
         defaultPlanType,
         source: updated.source,
         updatedAt: updated.updatedAt || null,
+        comissaoPercentualAdesao: updated.comissaoPercentualAdesao,
+        comissaoPercentualMensalidade: updated.comissaoPercentualMensalidade,
+        comissaoMensalidadesMax: updated.comissaoMensalidadesMax,
       },
       allowedBillingTypes: BILLING_TYPE_OPTIONS,
       allowedPlanTypes,
