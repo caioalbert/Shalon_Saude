@@ -49,6 +49,24 @@ type PublicBillingConfig = {
   defaultMensalidadeBillingType: BillingType
 }
 
+function normalizePlanIdentifier(value: unknown) {
+  const trimmed = String(value || '').trim()
+  const upper = trimmed.toUpperCase()
+
+  return upper === 'INDIVIDUAL' || upper === 'FAMILIAR' ? upper : trimmed
+}
+
+function findPlanOptionByCode(planos: PlanOption[], planCode: string | null | undefined) {
+  const normalizedCode = normalizePlanIdentifier(planCode)
+  if (!normalizedCode) return null
+
+  return (
+    planos.find((plan) => plan.codigo === normalizedCode) ||
+    planos.find((plan) => plan.codigo.toLowerCase() === normalizedCode.toLowerCase()) ||
+    null
+  )
+}
+
 const CPF_CHECK_FALLBACK_ERROR = 'Não foi possível validar o CPF no momento. Tente novamente.'
 
 function sanitizeApiErrorMessage(value: unknown) {
@@ -98,7 +116,7 @@ export function CadastroForm({
   const [formData, setFormData] = useState<Partial<CadastroFormData>>({
     dependentes: [],
     tem_dependentes: false,
-    tipo_plano: initialPlanoCode.trim().toUpperCase(),
+    tipo_plano: normalizePlanIdentifier(initialPlanoCode),
     mensalidade_billing_type: 'BOLETO',
   })
   const vendedorRef = initialVendedorRef.trim().toUpperCase()
@@ -185,7 +203,7 @@ export function CadastroForm({
               rawPlan && typeof rawPlan === 'object'
                 ? (rawPlan as Record<string, unknown>)
                 : {}
-            const codigo = toUpperTrim(plan.codigo)
+            const codigo = normalizePlanIdentifier(plan.codigo)
             const nome = String(plan.nome || '').trim()
             const descricao = String(plan.descricao || '').trim()
             const beneficios = Array.isArray(plan.beneficios)
@@ -289,7 +307,7 @@ export function CadastroForm({
         }, {})
 
         const allowedPlanTypes = planos.map((plan) => plan.codigo)
-        const defaultPlanTypeRequested = toUpperTrim(payloadObj.defaultPlanType)
+        const defaultPlanTypeRequested = normalizePlanIdentifier(payloadObj.defaultPlanType)
         const defaultPlanType = allowedPlanTypes.includes(defaultPlanTypeRequested)
           ? defaultPlanTypeRequested
           : allowedPlanTypes[0]
@@ -326,10 +344,7 @@ export function CadastroForm({
         setBillingConfig(config)
         setFormData((prev) => ({
           ...prev,
-          tipo_plano:
-            prev.tipo_plano && allowedPlanTypes.includes(prev.tipo_plano)
-              ? prev.tipo_plano
-              : config.defaultPlanType,
+          tipo_plano: findPlanOptionByCode(planos, prev.tipo_plano)?.codigo || config.defaultPlanType,
           mensalidade_billing_type:
             prev.mensalidade_billing_type === 'CREDIT_CARD'
               ? 'CREDIT_CARD'
@@ -447,7 +462,7 @@ export function CadastroForm({
       return null
     }
 
-    return billingConfig.planos.find((plan) => plan.codigo === planCode) || null
+    return findPlanOptionByCode(billingConfig.planos, planCode)
   }
 
   const getStepValidationError = (currentStep: number) => {
@@ -820,6 +835,12 @@ export function CadastroForm({
         </div>
       </div>
 
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4" role="alert">
+          <p className="text-sm font-medium text-red-700">{error}</p>
+        </div>
+      )}
+
       {/* Step Content */}
       <div className="min-h-96">
         {renderStep()}
@@ -828,12 +849,6 @@ export function CadastroForm({
       {/* Navigation Buttons */}
       {step !== 0 && (
         <div className="pt-6 border-t border-gray-200 space-y-4">
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg" role="alert">
-              <p className="text-red-700 text-sm font-medium">{error}</p>
-            </div>
-          )}
-
           <div className="flex justify-between">
             <Button
               onClick={handlePrev}

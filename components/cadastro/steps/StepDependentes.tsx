@@ -51,6 +51,24 @@ const FALLBACK_PLAN_OPTIONS: PlanOption[] = [
   },
 ]
 
+function normalizePlanIdentifier(value: unknown) {
+  const trimmed = String(value || '').trim()
+  const upper = trimmed.toUpperCase()
+
+  return upper === 'INDIVIDUAL' || upper === 'FAMILIAR' ? upper : trimmed
+}
+
+function findPlanOptionByCode(planOptions: PlanOption[], planCode: string | null | undefined) {
+  const normalizedCode = normalizePlanIdentifier(planCode)
+  if (!normalizedCode) return null
+
+  return (
+    planOptions.find((plan) => plan.codigo === normalizedCode) ||
+    planOptions.find((plan) => plan.codigo.toLowerCase() === normalizedCode.toLowerCase()) ||
+    null
+  )
+}
+
 function normalizePlanOptions(planOptions?: PlanOption[] | null) {
   if (!Array.isArray(planOptions) || planOptions.length === 0) {
     return FALLBACK_PLAN_OPTIONS
@@ -58,7 +76,7 @@ function normalizePlanOptions(planOptions?: PlanOption[] | null) {
 
   const mapped = planOptions
     .map((plan) => {
-      const codigo = String(plan.codigo || '').trim().toUpperCase()
+      const codigo = normalizePlanIdentifier(plan.codigo)
       const nome = String(plan.nome || '').trim()
       const descricao = String(plan.descricao || '').trim()
       const beneficios = Array.isArray(plan.beneficios)
@@ -143,7 +161,7 @@ export function StepDependentes({
     }
   }, [data.tipo_plano, tipo_plano])
 
-  const selectedPlan = availablePlans.find((plan) => plan.codigo === tipo_plano) || availablePlans[0]
+  const selectedPlan = findPlanOptionByCode(availablePlans, tipo_plano) || availablePlans[0]
   const planPermiteDependentes = Boolean(selectedPlan?.permiteDependentes)
   const dependentesMinimos = selectedPlan?.permiteDependentes
     ? Math.max(0, Number(selectedPlan.minDependentes || 0))
@@ -173,7 +191,7 @@ export function StepDependentes({
 
   useEffect(() => {
     if (!selectedPlan) return
-    if (tipo_plano && availablePlans.some((plan) => plan.codigo === tipo_plano)) return
+    if (tipo_plano && findPlanOptionByCode(availablePlans, tipo_plano)) return
 
     const nextPlanCode = selectedPlan.codigo
     setTipoPlano(nextPlanCode)
@@ -295,7 +313,7 @@ export function StepDependentes({
   }
 
   const handleTipoPlanoChange = (planCode: string) => {
-    const selected = availablePlans.find((plan) => plan.codigo === planCode)
+    const selected = findPlanOptionByCode(availablePlans, planCode)
     if (!selected) {
       return
     }

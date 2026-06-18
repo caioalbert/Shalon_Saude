@@ -60,26 +60,40 @@ export async function GET(request: NextRequest) {
     }
 
     // Try instituto (either fast-path or vendedor not found)
-    try {
-      const { data: instituto } = await supabase
-        .from('institutos')
-        .select('id, nome, codigo_indicacao, ativo')
-        .eq('codigo_indicacao', ref)
-        .maybeSingle()
+    const { data: instituto, error: institutoError } = await supabase
+      .from('institutos')
+      .select('id, nome, codigo_indicacao, ativo')
+      .eq('codigo_indicacao', ref)
+      .maybeSingle()
 
-      if (instituto && instituto.ativo === true) {
-        return NextResponse.json({
-          success: true,
-          tipo: 'instituto',
-          vendedor: {
-            id: instituto.id,
-            nome: instituto.nome,
-            codigoIndicacao: instituto.codigo_indicacao,
-          },
-        })
+    if (institutoError) {
+      const details = `${institutoError.message || ''} ${institutoError.details || ''}`
+      if (/relation .*institutos|does not exist|42P01/i.test(details)) {
+        return NextResponse.json(
+          { error: 'Banco desatualizado. Execute scripts/015_add_institutos_module.sql no Supabase SQL Editor.' },
+          { status: 500 }
+        )
       }
-    } catch {
-      // instituto table may not exist yet — fall through to 404
+      if (isSupabaseConnectivityIssue(details)) {
+        return NextResponse.json(
+          { error: 'Não foi possível validar o consultor agora. Tente novamente em alguns minutos.' },
+          { status: 503 }
+        )
+      }
+      console.error('Public instituto lookup error:', institutoError)
+      return NextResponse.json({ error: 'Erro ao consultar parceiro.' }, { status: 500 })
+    }
+
+    if (instituto && instituto.ativo === true) {
+      return NextResponse.json({
+        success: true,
+        tipo: 'instituto',
+        vendedor: {
+          id: instituto.id,
+          nome: instituto.nome,
+          codigoIndicacao: instituto.codigo_indicacao,
+        },
+      })
     }
 
     return NextResponse.json({ error: 'Consultor não encontrado para este link.' }, { status: 404 })

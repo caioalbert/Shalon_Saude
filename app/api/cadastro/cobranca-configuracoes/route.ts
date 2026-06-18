@@ -199,12 +199,12 @@ export async function GET(request: NextRequest) {
     let refNome: string | null = null
 
     if (ref) {
+      const isInstitutoRef = ref.startsWith('INSTITUTO-')
+
       try {
         const supabase = createAdminClient()
 
         // Fast-path: INSTITUTO- prefix means it can only be an instituto
-        const isInstitutoRef = ref.startsWith('INSTITUTO-')
-
         if (!isInstitutoRef) {
           // Try vendedor first (codes without prefix are always vendedores)
           const { data: vendedor } = await supabase
@@ -221,11 +221,48 @@ export async function GET(request: NextRequest) {
 
         if (!tipoRef) {
           // Try instituto
-          const { data: instituto } = await supabase
+          const { data: instituto, error: institutoError } = await supabase
             .from('institutos')
             .select('id, nome, ativo, sem_adesao')
             .eq('codigo_indicacao', ref)
             .maybeSingle()
+
+          if (institutoError) {
+            const details = `${institutoError.message || ''} ${institutoError.details || ''} ${institutoError.code || ''}`
+
+            if (/relation .*institutos|does not exist|42P01/i.test(details)) {
+              return NextResponse.json(
+                {
+                  error:
+                    'Banco desatualizado. Execute scripts/015_add_institutos_module.sql no Supabase SQL Editor.',
+                },
+                { status: 500 }
+              )
+            }
+
+            if (/fetch failed|enotfound|getaddrinfo|network/i.test(details)) {
+              return NextResponse.json(
+                {
+                  error:
+                    'Falha ao conectar no Supabase. Verifique NEXT_PUBLIC_SUPABASE_URL e as chaves no arquivo .env/.env.local.',
+                },
+                { status: 503 }
+              )
+            }
+
+            console.error('[cobranca-config] instituto lookup error:', institutoError)
+            return NextResponse.json(
+              { error: 'Erro ao validar link de instituto.' },
+              { status: 500 }
+            )
+          }
+
+          if (isInstitutoRef && (!instituto || instituto.ativo !== true)) {
+            return NextResponse.json(
+              { error: 'Link de instituto inválido ou inativo.' },
+              { status: 404 }
+            )
+          }
 
           if (instituto && instituto.ativo) {
             tipoRef = 'instituto'
@@ -242,7 +279,22 @@ export async function GET(request: NextRequest) {
               .order('created_at', { ascending: true })
 
             if (planosErr) {
+              const details = `${planosErr.message || ''} ${planosErr.details || ''} ${planosErr.code || ''}`
+              if (/does not exist|42P01|relation.*instituto_planos/i.test(details)) {
+                return NextResponse.json(
+                  {
+                    error:
+                      'Banco desatualizado. Execute scripts/017_instituto_own_plans.sql no Supabase SQL Editor.',
+                  },
+                  { status: 500 }
+                )
+              }
+
               console.error('[cobranca-config] instituto_planos query error:', planosErr.message, planosErr.details)
+              return NextResponse.json(
+                { error: 'Erro ao carregar planos do instituto.' },
+                { status: 500 }
+              )
             } else {
               console.log(`[cobranca-config] instituto ${instituto.id} (${ref}) — ${institutoPlanos?.length ?? 0} planos encontrados`)
             }
@@ -259,15 +311,35 @@ export async function GET(request: NextRequest) {
                 maxDependentes: p.max_dependentes != null ? Number(p.max_dependentes) : null,
                 valorDependenteAdicional: Number(p.valor_dependente_adicional) || 0,
               }))
-            } else if (planosErr && /does not exist|42P01|relation.*instituto_planos/i.test(`${planosErr.message} ${planosErr.code}`)) {
-              console.warn('[cobranca-config] instituto_planos table missing — run scripts/017_instituto_own_plans.sql')
             } else {
-              console.warn(`[cobranca-config] instituto ${ref} has no active plans — falling back to global plans`)
+              return NextResponse.json(
+                { error: 'Nenhum plano ativo disponível para este instituto.' },
+                { status: 404 }
+              )
             }
           }
         }
       } catch (err) {
         console.error('[cobranca-config] ref lookup failed:', err)
+
+        if (isInstitutoRef) {
+          const details = err instanceof Error ? err.message : String(err)
+
+          if (/fetch failed|enotfound|getaddrinfo|network/i.test(details)) {
+            return NextResponse.json(
+              {
+                error:
+                  'Falha ao conectar no Supabase. Verifique NEXT_PUBLIC_SUPABASE_URL e as chaves no arquivo .env/.env.local.',
+              },
+              { status: 503 }
+            )
+          }
+
+          return NextResponse.json(
+            { error: 'Erro ao validar link de instituto.' },
+            { status: 500 }
+          )
+        }
       }
     }
     // -----------------------------------------------------------
@@ -339,4 +411,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Erro ao carregar configurações de cobrança.' }, { status: 500 })
   }
 }
-

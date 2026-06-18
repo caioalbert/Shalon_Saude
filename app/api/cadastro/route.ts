@@ -85,6 +85,27 @@ function normalizePlanCode(value: unknown) {
   return String(value || '').trim().toUpperCase()
 }
 
+function normalizeSubmittedPlanCode(value: unknown) {
+  const trimmed = String(value || '').trim()
+  const upper = trimmed.toUpperCase()
+
+  return upper === 'INDIVIDUAL' || upper === 'FAMILIAR' ? upper : trimmed
+}
+
+function findCadastroPlanByCode(
+  planOptions: CadastroPlanOption[],
+  requestedCode: string | null | undefined
+) {
+  const normalizedCode = normalizeSubmittedPlanCode(requestedCode)
+  if (!normalizedCode) return null
+
+  return (
+    planOptions.find((plan) => plan.codigo === normalizedCode) ||
+    planOptions.find((plan) => plan.codigo.toLowerCase() === normalizedCode.toLowerCase()) ||
+    null
+  )
+}
+
 function toPositiveNumber(value: unknown, fallback: number) {
   const parsed = Number(value)
   if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -411,7 +432,7 @@ export async function POST(request: NextRequest) {
     const cidadeValue = cidade?.trim()
     const estadoValue = estado?.trim()
     const cepValue = cep?.trim()
-    const tipoPlanoRequested = tipo_plano?.trim().toUpperCase()
+    const tipoPlanoRequested = normalizeSubmittedPlanCode(tipo_plano)
     const temDependentesInformado = temDependentesPayload
     const mensalidadeBillingTypeRequested = mensalidade_billing_type?.trim().toUpperCase()
     const vendedorRefValue = vendedor_ref?.trim().toUpperCase()
@@ -506,48 +527,60 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // First try to find in vendedores
-      const { data: vendedor, error: vendedorError } = await supabaseAdmin
-        .from('vendedores')
-        .select('id, codigo_indicacao, ativo')
-        .eq('codigo_indicacao', vendedorRefValue)
-        .maybeSingle()
+      const isInstitutoRef = vendedorRefValue.startsWith('INSTITUTO-')
+      let shouldTryInstituto = isInstitutoRef
 
-      if (vendedorError) {
-        const details = `${vendedorError.message || ''} ${vendedorError.details || ''}`
+      if (!isInstitutoRef) {
+        const { data: vendedor, error: vendedorError } = await supabaseAdmin
+          .from('vendedores')
+          .select('id, codigo_indicacao, ativo')
+          .eq('codigo_indicacao', vendedorRefValue)
+          .maybeSingle()
 
-        if (/relation .*vendedores|does not exist|42P01|column .*vendedor_id|vendedor_codigo/i.test(details)) {
+        if (vendedorError) {
+          const details = `${vendedorError.message || ''} ${vendedorError.details || ''}`
+
+          if (/relation .*vendedores|does not exist|42P01|column .*vendedor_id|vendedor_codigo/i.test(details)) {
+            return NextResponse.json(
+              {
+                error:
+                  'Banco desatualizado. Execute scripts/007_add_vendedores_module.sql no Supabase SQL Editor.',
+              },
+              { status: 500 }
+            )
+          }
+
+          if (isConnectivityIssue(details)) {
+            return NextResponse.json(
+              {
+                error:
+                  'Falha ao conectar no Supabase. Verifique NEXT_PUBLIC_SUPABASE_URL e as chaves no arquivo .env/.env.local.',
+              },
+              { status: 503 }
+            )
+          }
+
+          console.error('Vendedor lookup error:', vendedorError)
           return NextResponse.json(
-            {
-              error:
-                'Banco desatualizado. Execute scripts/007_add_vendedores_module.sql no Supabase SQL Editor.',
-            },
+            { error: 'Erro ao validar link de vendedor.' },
             { status: 500 }
           )
         }
 
-        if (isConnectivityIssue(details)) {
+        if (vendedor && vendedor.ativo === true) {
+          vendedorId = vendedor.id
+          vendedorCodigo = vendedor.codigo_indicacao
+        } else if (!vendedor) {
+          shouldTryInstituto = true
+        } else {
           return NextResponse.json(
-            {
-              error:
-                'Falha ao conectar no Supabase. Verifique NEXT_PUBLIC_SUPABASE_URL e as chaves no arquivo .env/.env.local.',
-            },
-            { status: 503 }
+            { error: 'Link de vendedor inválido ou inativo.' },
+            { status: 400 }
           )
         }
-
-        console.error('Vendedor lookup error:', vendedorError)
-        return NextResponse.json(
-          { error: 'Erro ao validar link de vendedor.' },
-          { status: 500 }
-        )
       }
 
-      if (vendedor && vendedor.ativo === true) {
-        vendedorId = vendedor.id
-        vendedorCodigo = vendedor.codigo_indicacao
-      } else if (!vendedor) {
-        // Not found in vendedores, try institutos
+      if (shouldTryInstituto && !vendedorId) {
         const { data: instituto, error: institutoError } = await supabaseAdmin
           .from('institutos')
           .select('id, codigo_indicacao, ativo, sem_adesao')
@@ -556,31 +589,33 @@ export async function POST(request: NextRequest) {
 
         if (institutoError) {
           const details = `${institutoError.message || ''} ${institutoError.details || ''}`
-          // If institutos table doesn't exist yet, just ignore (no instituto found)
-          if (!/relation .*institutos|does not exist|42P01/i.test(details)) {
-            console.error('Instituto lookup error:', institutoError)
+          if (/relation .*institutos|does not exist|42P01/i.test(details)) {
             return NextResponse.json(
-              { error: 'Erro ao validar link de parceiro.' },
+              {
+                error:
+                  'Banco desatualizado. Execute scripts/015_add_institutos_module.sql no Supabase SQL Editor.',
+              },
               { status: 500 }
             )
           }
-        } else if (instituto && instituto.ativo === true) {
+
+          console.error('Instituto lookup error:', institutoError)
+          return NextResponse.json(
+            { error: 'Erro ao validar link de parceiro.' },
+            { status: 500 }
+          )
+        }
+
+        if (instituto && instituto.ativo === true) {
           institutoId = instituto.id
           institutoCodigo = instituto.codigo_indicacao
           semAdesao = instituto.sem_adesao !== false // use configured value, default true
         } else {
-          // Found in neither table OR found but inactive
           return NextResponse.json(
             { error: 'Link de indicação inválido ou inativo.' },
             { status: 400 }
           )
         }
-      } else {
-        // Vendedor found but inactive
-        return NextResponse.json(
-          { error: 'Link de vendedor inválido ou inativo.' },
-          { status: 400 }
-        )
       }
     }
 
@@ -668,27 +703,52 @@ export async function POST(request: NextRequest) {
 
         if (plErr) {
           const details = `${plErr.message} ${plErr.details || ''}`
-          if (!/relation.*instituto_planos|does not exist|42P01/i.test(details)) throw plErr
+          if (/relation.*instituto_planos|does not exist|42P01/i.test(details)) {
+            return NextResponse.json(
+              {
+                error:
+                  'Banco desatualizado. Execute scripts/017_instituto_own_plans.sql no Supabase SQL Editor.',
+              },
+              { status: 500 }
+            )
+          }
+
+          throw plErr
         }
 
-        if (institutoPlanos && institutoPlanos.length > 0) {
-          // Replace global planOptions with instituto-specific ones. codigo = UUID of the plan.
-          planOptions.length = 0
-          for (const p of institutoPlanos) {
-            planOptions.push({
-              codigo: p.id,
-              nome: String(p.nome || '').trim(),
-              valor: Number(p.valor),
-              permiteDependentes: Boolean(p.permite_dependentes),
-              minDependentes: Number(p.dependentes_minimos) || 0,
-              maxDependentes: p.max_dependentes != null ? Number(p.max_dependentes) : null,
-              valorDependenteAdicional: Number(p.valor_dependente_adicional) || 0,
-            })
-          }
+        if (!institutoPlanos || institutoPlanos.length === 0) {
+          return NextResponse.json(
+            { error: 'Nenhum plano ativo disponível para este instituto.' },
+            { status: 400 }
+          )
+        }
+
+        // Replace global planOptions with instituto-specific ones. codigo = UUID of the plan.
+        planOptions.length = 0
+        for (const p of institutoPlanos) {
+          planOptions.push({
+            codigo: p.id,
+            nome: String(p.nome || '').trim(),
+            valor: Number(p.valor),
+            permiteDependentes: Boolean(p.permite_dependentes),
+            minDependentes: Number(p.dependentes_minimos) || 0,
+            maxDependentes: p.max_dependentes != null ? Number(p.max_dependentes) : null,
+            valorDependenteAdicional: Number(p.valor_dependente_adicional) || 0,
+          })
         }
       } catch (err) {
         const details = err instanceof Error ? err.message : String(err)
-        if (!/relation.*instituto_planos|does not exist|42P01/i.test(details)) throw err
+        if (/relation.*instituto_planos|does not exist|42P01/i.test(details)) {
+          return NextResponse.json(
+            {
+              error:
+                'Banco desatualizado. Execute scripts/017_instituto_own_plans.sql no Supabase SQL Editor.',
+            },
+            { status: 500 }
+          )
+        }
+
+        throw err
       }
     }
 
@@ -701,14 +761,14 @@ export async function POST(request: NextRequest) {
         return planOptions[0].codigo
       }
 
-      const selected = planOptions.find((plan) => plan.codigo === tipoPlanoRequested)
+      const selected = findCadastroPlanByCode(planOptions, tipoPlanoRequested)
       if (!selected) {
         throw new Error('Tipo de plano inválido.')
       }
 
       return selected.codigo
     })()
-    const selectedPlan = planOptions.find((plan) => plan.codigo === tipoPlano)
+    const selectedPlan = findCadastroPlanByCode(planOptions, tipoPlano)
 
     if (!selectedPlan) {
       throw new Error('Tipo de plano inválido.')
