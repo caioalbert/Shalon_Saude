@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import Link from 'next/link'
@@ -12,42 +12,63 @@ import { clienteColors, clienteCopy, clienteRadius } from '@/lib/cliente-ui'
 
 const CPF_PASSWORD_LENGTH = 4
 
-export default function LoginPage() {
+function formatCPF(value: string) {
+  const n = value.replace(/\D/g, '').slice(0, 11)
+  return n
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+}
+
+function formatCNPJ(value: string) {
+  const n = value.replace(/\D/g, '').slice(0, 14)
+  return n
+    .replace(/(\d{2})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1/$2')
+    .replace(/(\d{4})(\d{1,2})$/, '$1-$2')
+}
+
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const isEmpresa = searchParams.get('tipo') === 'empresa'
+
   const isOnline = useOnlineStatus()
-  const [cpf, setCpf] = useState('')
-  const [cpfPrefix, setCpfPrefix] = useState('')
+  const [doc, setDoc] = useState('')
+  const [docPrefix, setDocPrefix] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
-  const formatCPF = (value: string) => {
-    const numbers = value.replace(/\D/g, '')
-    if (numbers.length <= 11) {
-      return numbers
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
-    }
-    return cpf
+  const docLabel = isEmpresa ? 'CNPJ' : 'CPF'
+  const docLength = isEmpresa ? 14 : 11
+  const docPlaceholder = isEmpresa ? '00.000.000/0000-00' : '000.000.000-00'
+  const docMaxLen = isEmpresa ? 18 : 14
+
+  const handleDocChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = isEmpresa
+      ? formatCNPJ(e.target.value)
+      : formatCPF(e.target.value)
+    setDoc(formatted)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
 
-    const cpfClean = cpf.replace(/\D/g, '')
-    if (cpfClean.length !== 11) {
-      setError('Informe um CPF válido com 11 dígitos.')
+    const docClean = doc.replace(/\D/g, '')
+    if (docClean.length !== docLength) {
+      setError(`Informe um ${docLabel} válido com ${docLength} dígitos.`)
       return
     }
 
-    if (cpfPrefix.length !== CPF_PASSWORD_LENGTH) {
-      setError(`Informe os ${CPF_PASSWORD_LENGTH} primeiros dígitos do CPF.`)
+    if (docPrefix.length !== CPF_PASSWORD_LENGTH) {
+      setError(`Informe os ${CPF_PASSWORD_LENGTH} primeiros dígitos do ${docLabel}.`)
       return
     }
 
-    if (cpfClean.slice(0, CPF_PASSWORD_LENGTH) !== cpfPrefix) {
-      setError(`Os ${CPF_PASSWORD_LENGTH} primeiros dígitos não conferem com o CPF informado.`)
+    if (docClean.slice(0, CPF_PASSWORD_LENGTH) !== docPrefix) {
+      setError(`Os ${CPF_PASSWORD_LENGTH} primeiros dígitos não conferem com o ${docLabel} informado.`)
       return
     }
 
@@ -60,13 +81,14 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
+      const body = isEmpresa
+        ? { cnpj: docClean, cnpj_prefix: docPrefix }
+        : { cpf: docClean, cpf_prefix: docPrefix }
+
       const response = await fetch('/api/cliente/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cpf: cpfClean,
-          cpf_prefix: cpfPrefix,
-        }),
+        body: JSON.stringify(body),
       })
 
       const data = await response.json()
@@ -115,22 +137,52 @@ export default function LoginPage() {
             className="mx-auto h-16 w-auto"
           />
           <p className="mt-3 text-sm" style={{ color: clienteColors.textMuted }}>
-            {clienteCopy.appTagline}
+            {isEmpresa ? 'Acesso para empresas parceiras' : clienteCopy.appTagline}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+        {/* Tipo toggle */}
+        <div className="mt-6 flex overflow-hidden rounded-xl border" style={{ borderColor: clienteColors.borderMint }}>
+          <Link
+            href="/login"
+            className="flex flex-1 items-center justify-center py-2.5 text-sm font-semibold transition-colors"
+            style={{
+              backgroundColor: !isEmpresa ? clienteColors.primary : 'transparent',
+              color: !isEmpresa ? clienteColors.surface : clienteColors.textMuted,
+            }}
+          >
+            Sou Cliente
+          </Link>
+          <Link
+            href="/login?tipo=empresa"
+            className="flex flex-1 items-center justify-center border-l py-2.5 text-sm font-semibold transition-colors"
+            style={{
+              borderColor: clienteColors.borderMint,
+              backgroundColor: isEmpresa ? clienteColors.primary : 'transparent',
+              color: isEmpresa ? clienteColors.surface : clienteColors.textMuted,
+            }}
+          >
+            Sou Empresa
+          </Link>
+        </div>
+
+        <form onSubmit={handleSubmit} className="mt-6 space-y-5">
           <div>
-            <label htmlFor="cpf" className="mb-1.5 block text-sm font-medium" style={{ color: clienteColors.text }}>
-              CPF
+            <label
+              htmlFor="doc"
+              className="mb-1.5 block text-sm font-medium"
+              style={{ color: clienteColors.text }}
+            >
+              {docLabel}
             </label>
             <Input
-              id="cpf"
+              id="doc"
               type="text"
-              value={cpf}
-              onChange={(e) => setCpf(formatCPF(e.target.value))}
-              placeholder="000.000.000-00"
-              maxLength={14}
+              inputMode="numeric"
+              value={doc}
+              onChange={handleDocChange}
+              placeholder={docPlaceholder}
+              maxLength={docMaxLen}
               required
               disabled={isLoading}
               autoComplete="off"
@@ -140,15 +192,21 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="cpf_prefix" className="mb-1.5 block text-sm font-medium" style={{ color: clienteColors.text }}>
+            <label
+              htmlFor="doc_prefix"
+              className="mb-1.5 block text-sm font-medium"
+              style={{ color: clienteColors.text }}
+            >
               Senha
             </label>
             <Input
-              id="cpf_prefix"
+              id="doc_prefix"
               type="password"
               inputMode="numeric"
-              value={cpfPrefix}
-              onChange={(e) => setCpfPrefix(e.target.value.replace(/\D/g, '').slice(0, CPF_PASSWORD_LENGTH))}
+              value={docPrefix}
+              onChange={(e) =>
+                setDocPrefix(e.target.value.replace(/\D/g, '').slice(0, CPF_PASSWORD_LENGTH))
+              }
               placeholder={'0'.repeat(CPF_PASSWORD_LENGTH)}
               maxLength={CPF_PASSWORD_LENGTH}
               required
@@ -158,7 +216,7 @@ export default function LoginPage() {
               style={{ borderColor: clienteColors.border, borderRadius: clienteRadius.md }}
             />
             <p className="mt-2 text-xs" style={{ color: clienteColors.textMuted }}>
-              Os {CPF_PASSWORD_LENGTH} primeiros dígitos do seu CPF (somente números).
+              Os {CPF_PASSWORD_LENGTH} primeiros dígitos do seu {docLabel} (somente números).
             </p>
           </div>
 
@@ -202,7 +260,7 @@ export default function LoginPage() {
           </Button>
 
           <p className="text-center text-sm leading-relaxed" style={{ color: clienteColors.textMuted }}>
-            CPF completo + senha com os {CPF_PASSWORD_LENGTH} primeiros dígitos do CPF.
+            {docLabel} completo + senha com os {CPF_PASSWORD_LENGTH} primeiros dígitos do {docLabel}.
           </p>
         </form>
 
@@ -228,5 +286,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   )
 }

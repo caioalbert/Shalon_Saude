@@ -64,6 +64,13 @@ export default function AdminCobrancaConfiguracoesPage() {
   const [isSavingComissao, setIsSavingComissao] = useState(false)
   const [comissaoMessage, setComissaoMessage] = useState<string | null>(null)
   const [comissaoError, setComissaoError] = useState<string | null>(null)
+  // Configurações operacionais
+  const [telefoneEmergencia, setTelefoneEmergencia] = useState('')
+  const [whatsappUrl, setWhatsappUrl] = useState('')
+  const [appTagline, setAppTagline] = useState('')
+  const [isSavingOperacional, setIsSavingOperacional] = useState(false)
+  const [operacionalMessage, setOperacionalMessage] = useState<string | null>(null)
+  const [operacionalError, setOperacionalError] = useState<string | null>(null)
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -120,6 +127,10 @@ export default function AdminCobrancaConfiguracoesPage() {
         setComissaoModo('custom')
         setComissaoMensalidadesMaxCustom(String(maxMensalidades))
       }
+      // Configurações operacionais
+      setTelefoneEmergencia(data?.settings?.telefoneEmergencia || '')
+      setWhatsappUrl(data?.settings?.whatsappUrl || '')
+      setAppTagline(data?.settings?.appTagline || '')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar configurações de cobrança.')
     } finally {
@@ -291,6 +302,31 @@ export default function AdminCobrancaConfiguracoesPage() {
       setComissaoError(err instanceof Error ? err.message : 'Erro ao salvar configurações de comissão.')
     } finally {
       setIsSavingComissao(false)
+    }
+  }
+
+  const handleSaveOperacional = async () => {
+    try {
+      setIsSavingOperacional(true)
+      setOperacionalError(null)
+      setOperacionalMessage(null)
+
+      const response = await fetch('/api/admin/cobranca-configuracoes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telefoneEmergencia, whatsappUrl, appTagline }),
+      })
+
+      const data = await response.json().catch(() => null)
+
+      if (response.status === 401) { router.push('/admin/login'); return }
+      if (!response.ok) throw new Error(data?.error || 'Erro ao salvar.')
+
+      setOperacionalMessage('Configurações operacionais salvas com sucesso.')
+    } catch (err) {
+      setOperacionalError(err instanceof Error ? err.message : 'Erro ao salvar.')
+    } finally {
+      setIsSavingOperacional(false)
     }
   }
 
@@ -530,6 +566,74 @@ export default function AdminCobrancaConfiguracoesPage() {
             </>
           )}
         </div>
+
+        {/* ── CONFIGURAÇÕES OPERACIONAIS ── */}
+        <div className="mt-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900">Configurações Operacionais</h2>
+          <p className="mt-1 text-sm text-gray-500">Telefone de emergência, WhatsApp e slogan exibidos no app do cliente.</p>
+
+          <div className="mt-6 space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Telefone de Emergência
+              </label>
+              <input
+                type="text"
+                value={telefoneEmergencia}
+                onChange={(e) => setTelefoneEmergencia(e.target.value)}
+                placeholder="(85) 3000-0000"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <p className="mt-1 text-xs text-gray-400">Exibido na tela do cliente com botão "Ligar".</p>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Link do WhatsApp
+              </label>
+              <input
+                type="url"
+                value={whatsappUrl}
+                onChange={(e) => setWhatsappUrl(e.target.value)}
+                placeholder="https://wa.me/5585999999999"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <p className="mt-1 text-xs text-gray-400">Formato: https://wa.me/55DDD999999999 (sem espaços ou traços).</p>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Slogan do App
+              </label>
+              <input
+                type="text"
+                value={appTagline}
+                onChange={(e) => setAppTagline(e.target.value)}
+                placeholder="Sua saúde completa e segura"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <p className="mt-1 text-xs text-gray-400">Texto exibido abaixo do logo na tela do cliente.</p>
+            </div>
+
+            {operacionalError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="text-sm text-red-700">{operacionalError}</p>
+              </div>
+            )}
+            {operacionalMessage && (
+              <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                <p className="text-sm text-green-700">{operacionalMessage}</p>
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <Button onClick={handleSaveOperacional} disabled={isSavingOperacional || isLoading}>
+                {isSavingOperacional ? 'Salvando...' : 'Salvar Configurações Operacionais'}
+              </Button>
+            </div>
+          </div>
+        </div>
+
       </div>
     </main>
   )

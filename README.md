@@ -92,13 +92,6 @@ Edite `.env.local` com:
 - `ASAAS_API_KEY` - Token de API do Asaas
 - `ASAAS_API_BASE_URL` - URL base da API (sandbox: `https://api-sandbox.asaas.com/v3`)
 - `ASAAS_WEBHOOK_TOKEN` - Token de segurança validado no webhook
-- `ASAAS_MENSALIDADE_INDIVIDUAL_VALUE` - Fallback da mensalidade do plano individual
-- `ASAAS_MENSALIDADE_FAMILIAR_VALUE` - Fallback da mensalidade do plano familiar
-- `ASAAS_DEFAULT_PLAN_TYPE` - Fallback do plano padrão (`INDIVIDUAL` ou `FAMILIAR`)
-- `ASAAS_MENSALIDADE_BILLING_TYPE` - Fallback da forma padrão da mensalidade
-- `ASAAS_MENSALIDADE_BILLING_TYPES` - Fallback de opções permitidas (`PIX,BOLETO,CREDIT_CARD`)
-- `ASAAS_MENSALIDADE_VALUE` - (Opcional/legado) fallback único para ambos os planos
-- `ASAAS_ADESAO_VALUE` - (Opcional/legado) fallback único para compatibilidade
 
 #### Rapidoc
 - `RAPIDOC_ACCESS_URL` - URL SSO/portal usada pelo endpoint `/api/cliente/telemedicina/url`. Aceita placeholders como `{nome}`, `{email}`, `{cpf_digits}`, `{telefone_digits}` e `{data_nascimento}`.

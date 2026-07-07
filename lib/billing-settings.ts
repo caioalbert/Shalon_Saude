@@ -21,13 +21,16 @@ type BillingSettingsRow = {
   comissao_percentual_adesao?: number | null
   comissao_percentual_mensalidade?: number | null
   comissao_mensalidades_max?: number | null
+  telefone_emergencia?: string | null
+  whatsapp_url?: string | null
+  app_tagline?: string | null
 }
 
 export type BillingSettings = {
   // Compatibilidade legada: valor padrão do plano selecionado como default
   adesaoValue: number
   mensalidadeValue: number
-  // Valor por plano (regra atual: adesão e mensalidade usam o mesmo valor do plano)
+  // Valor por plano
   adesaoByPlanType: Record<PlanTypeOption, number>
   mensalidadeByPlanType: Record<PlanTypeOption, number>
   mensalidadeIndividualValue: number
@@ -36,11 +39,15 @@ export type BillingSettings = {
   defaultMensalidadeBillingType: BillingTypeOption
   defaultPlanType: string
   updatedAt?: string
-  source: 'database' | 'env'
+  source: 'database'
   // Configurações de comissão
-  comissaoPercentualAdesao: number // default 50
-  comissaoPercentualMensalidade: number // default 50
-  comissaoMensalidadesMax: number | null // null = vitalício, default 1
+  comissaoPercentualAdesao: number
+  comissaoPercentualMensalidade: number
+  comissaoMensalidadesMax: number | null
+  // Configurações operacionais
+  telefoneEmergencia: string
+  whatsappUrl: string
+  appTagline: string
 }
 
 type UpdateBillingSettingsInput = {
@@ -53,6 +60,9 @@ type UpdateBillingSettingsInput = {
   comissaoPercentualAdesao?: number | null
   comissaoPercentualMensalidade?: number | null
   comissaoMensalidadesMax?: number | null
+  telefoneEmergencia?: string | null
+  whatsappUrl?: string | null
+  appTagline?: string | null
 }
 
 function toUpperTrim(value: string | null | undefined) {
@@ -87,7 +97,7 @@ function normalizeBillingTypeList(values: string[]) {
   const allowed = unique.filter((value): value is BillingTypeOption => Boolean(value))
 
   if (allowed.length === 0) {
-    return ['BOLETO'] as BillingTypeOption[]
+    throw new Error('Nenhuma forma de cobrança válida foi configurada no banco.')
   }
 
   return allowed
@@ -98,14 +108,10 @@ function parsePositiveAmount(value: number | string | null | undefined, fieldLab
   const normalized = raw.replace(',', '.').trim()
   const parsed = Number.parseFloat(normalized)
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(`Valor inválido para ${fieldLabel}.`)
+    throw new Error(`Valor invÃ¡lido para ${fieldLabel}.`)
   }
 
   return Math.round((parsed + Number.EPSILON) * 100) / 100
-}
-
-function getEnvValue(name: string) {
-  return process.env[name]?.trim()
 }
 
 export function getPlanValueByPlanType(
@@ -137,11 +143,14 @@ function buildBillingSettings(params: {
   defaultMensalidadeBillingType: BillingTypeOption
   defaultPlanType: string
   defaultPlanValue?: number
-  source: 'database' | 'env'
+  source: 'database'
   updatedAt?: string
   comissaoPercentualAdesao?: number | null
   comissaoPercentualMensalidade?: number | null
   comissaoMensalidadesMax?: number | null
+  telefoneEmergencia?: string | null
+  whatsappUrl?: string | null
+  appTagline?: string | null
 }): BillingSettings {
   const valorByPlanType: Record<PlanTypeOption, number> = {
     INDIVIDUAL: params.mensalidadeIndividualValue,
@@ -170,56 +179,21 @@ function buildBillingSettings(params: {
     comissaoPercentualAdesao: params.comissaoPercentualAdesao ?? 50,
     comissaoPercentualMensalidade: params.comissaoPercentualMensalidade ?? 50,
     comissaoMensalidadesMax: params.comissaoMensalidadesMax !== undefined ? params.comissaoMensalidadesMax : 1,
+    telefoneEmergencia: params.telefoneEmergencia || '(85) 3000-0000',
+    whatsappUrl: params.whatsappUrl || 'https://wa.me/5585991452514',
+    appTagline: params.appTagline || 'Sua saude completa e segura',
   }
-}
-
-function readEnvFallbackSettings(): BillingSettings {
-  const legacyBaseValue =
-    getEnvValue('ASAAS_MENSALIDADE_VALUE') || getEnvValue('ASAAS_ADESAO_VALUE') || '49.90'
-
-  const mensalidadeIndividualValue = parsePositiveAmount(
-    getEnvValue('ASAAS_MENSALIDADE_INDIVIDUAL_VALUE') || legacyBaseValue,
-    'valor do plano individual'
-  )
-  const mensalidadeFamiliarValue = parsePositiveAmount(
-    getEnvValue('ASAAS_MENSALIDADE_FAMILIAR_VALUE') || legacyBaseValue,
-    'valor do plano familiar'
-  )
-
-  const rawTypes =
-    getEnvValue('ASAAS_MENSALIDADE_BILLING_TYPES') ||
-    getEnvValue('ASAAS_MENSALIDADE_BILLING_TYPE') ||
-    'BOLETO'
-  const mensalidadeBillingTypes = normalizeBillingTypeList(rawTypes.split(','))
-
-  const requestedDefault = normalizeBillingTypeValue(
-    getEnvValue('ASAAS_MENSALIDADE_BILLING_TYPE') || mensalidadeBillingTypes[0]
-  )
-  const defaultMensalidadeBillingType = requestedDefault && mensalidadeBillingTypes.includes(requestedDefault)
-    ? requestedDefault
-    : mensalidadeBillingTypes[0]
-
-  const defaultPlanType = normalizePlanType(getEnvValue('ASAAS_DEFAULT_PLAN_TYPE'), 'INDIVIDUAL')
-
-  return buildBillingSettings({
-    mensalidadeIndividualValue,
-    mensalidadeFamiliarValue,
-    mensalidadeBillingTypes,
-    defaultMensalidadeBillingType,
-    defaultPlanType,
-    source: 'env',
-  })
 }
 
 function normalizeSettingsRow(row: BillingSettingsRow): BillingSettings {
   const legacyMensalidadeValue = row.mensalidade_value ?? row.adesao_value
 
   const mensalidadeIndividualValue = parsePositiveAmount(
-    row.mensalidade_individual_value ?? legacyMensalidadeValue ?? '49.90',
+    row.mensalidade_individual_value ?? legacyMensalidadeValue,
     'valor do plano individual'
   )
   const mensalidadeFamiliarValue = parsePositiveAmount(
-    row.mensalidade_familiar_value ?? legacyMensalidadeValue ?? mensalidadeIndividualValue,
+    row.mensalidade_familiar_value ?? legacyMensalidadeValue,
     'valor do plano familiar'
   )
 
@@ -230,10 +204,9 @@ function normalizeSettingsRow(row: BillingSettingsRow): BillingSettings {
     ? requestedDefault
     : mensalidadeBillingTypes[0]
   const normalizedDefaultPlanType = normalizePlanType(row.default_plan_type, 'INDIVIDUAL')
-  const defaultPlanValue = parsePositiveAmount(
-    legacyMensalidadeValue ?? mensalidadeIndividualValue,
-    'valor padrão do plano'
-  )
+  const defaultPlanValue = legacyMensalidadeValue === null || legacyMensalidadeValue === undefined
+    ? undefined
+    : parsePositiveAmount(legacyMensalidadeValue, 'valor padrÃ£o do plano')
 
   return buildBillingSettings({
     mensalidadeIndividualValue,
@@ -249,6 +222,9 @@ function normalizeSettingsRow(row: BillingSettingsRow): BillingSettings {
     comissaoMensalidadesMax: row.comissao_mensalidades_max !== undefined && row.comissao_mensalidades_max !== null
       ? row.comissao_mensalidades_max
       : 1,
+    telefoneEmergencia: row.telefone_emergencia || null,
+    whatsappUrl: row.whatsapp_url || null,
+    appTagline: row.app_tagline || null,
   })
 }
 
@@ -257,7 +233,7 @@ async function fetchBillingSettingsRow() {
   return supabase
     .from('cobranca_configuracoes')
     .select(
-      'id, adesao_value, mensalidade_value, mensalidade_individual_value, mensalidade_familiar_value, mensalidade_billing_types, default_mensalidade_billing_type, default_plan_type, updated_at, comissao_percentual_adesao, comissao_percentual_mensalidade, comissao_mensalidades_max'
+      'id, adesao_value, mensalidade_value, mensalidade_individual_value, mensalidade_familiar_value, mensalidade_billing_types, default_mensalidade_billing_type, default_plan_type, updated_at, comissao_percentual_adesao, comissao_percentual_mensalidade, comissao_mensalidades_max, telefone_emergencia, whatsapp_url, app_tagline'
     )
     .eq('id', true)
     .maybeSingle()
@@ -340,30 +316,24 @@ async function syncPlanCatalogBaseValues(input: {
 
 export async function getBillingSettings(): Promise<BillingSettings> {
   return serverCache('billing-settings', 120, async () => {
-    try {
-      const { data, error } = await fetchBillingSettingsRow()
-      if (error) {
-        const details = `${error.message || ''} ${error.details || ''}`
-        if (/relation .*cobranca_configuracoes|does not exist|42P01/i.test(details)) {
-          return readEnvFallbackSettings()
-        }
+    const { data, error } = await fetchBillingSettingsRow()
 
-        throw error
-      }
-
-      if (!data) {
-        return readEnvFallbackSettings()
-      }
-
-      return normalizeSettingsRow(data as BillingSettingsRow)
-    } catch (error) {
-      const details = error instanceof Error ? error.message : String(error)
+    if (error) {
+      const details = `${error.message || ''} ${error.details || ''}`
       if (/relation .*cobranca_configuracoes|does not exist|42P01/i.test(details)) {
-        return readEnvFallbackSettings()
+        throw new Error(
+          'Configurações de cobrança não encontradas. Execute as migrations de cobrança e configure os valores no banco.'
+        )
       }
 
       throw error
     }
+
+    if (!data) {
+      throw new Error('Configurações de cobrança não cadastradas no banco.')
+    }
+
+    return normalizeSettingsRow(data as BillingSettingsRow)
   })
 }
 
@@ -420,13 +390,13 @@ export async function updateBillingSettings(input: UpdateBillingSettingsInput): 
 
   if (mensalidadeIndividualValue < MIN_ASAAS_CHARGE_VALUE) {
     throw new Error(
-      `Valor inválido para o plano individual. O mínimo permitido pelo Asaas é R$ ${MIN_ASAAS_CHARGE_VALUE.toFixed(2).replace('.', ',')}.`
+      `Valor invÃ¡lido para o plano individual. O mÃ­nimo permitido pelo Asaas Ã© R$ ${MIN_ASAAS_CHARGE_VALUE.toFixed(2).replace('.', ',')}.`
     )
   }
 
   if (mensalidadeFamiliarValue < MIN_ASAAS_CHARGE_VALUE) {
     throw new Error(
-      `Valor inválido para o plano familiar. O mínimo permitido pelo Asaas é R$ ${MIN_ASAAS_CHARGE_VALUE.toFixed(2).replace('.', ',')}.`
+      `Valor invÃ¡lido para o plano familiar. O mÃ­nimo permitido pelo Asaas Ã© R$ ${MIN_ASAAS_CHARGE_VALUE.toFixed(2).replace('.', ',')}.`
     )
   }
 
@@ -453,7 +423,6 @@ export async function updateBillingSettings(input: UpdateBillingSettingsInput): 
     .upsert(
       {
         id: true,
-        // Legado: mantém um valor único, usando o plano padrão
         adesao_value: defaultPlanValue,
         mensalidade_value: defaultPlanValue,
         mensalidade_individual_value: mensalidadeIndividualValue,
@@ -467,11 +436,14 @@ export async function updateBillingSettings(input: UpdateBillingSettingsInput): 
         comissao_mensalidades_max: input.comissaoMensalidadesMax !== undefined
           ? input.comissaoMensalidadesMax
           : undefined,
+        ...(input.telefoneEmergencia !== undefined && { telefone_emergencia: input.telefoneEmergencia }),
+        ...(input.whatsappUrl !== undefined && { whatsapp_url: input.whatsappUrl }),
+        ...(input.appTagline !== undefined && { app_tagline: input.appTagline }),
       },
       { onConflict: 'id' }
     )
     .select(
-      'id, adesao_value, mensalidade_value, mensalidade_individual_value, mensalidade_familiar_value, mensalidade_billing_types, default_mensalidade_billing_type, default_plan_type, updated_at, comissao_percentual_adesao, comissao_percentual_mensalidade, comissao_mensalidades_max'
+      'id, adesao_value, mensalidade_value, mensalidade_individual_value, mensalidade_familiar_value, mensalidade_billing_types, default_mensalidade_billing_type, default_plan_type, updated_at, comissao_percentual_adesao, comissao_percentual_mensalidade, comissao_mensalidades_max, telefone_emergencia, whatsapp_url, app_tagline'
     )
     .single()
 

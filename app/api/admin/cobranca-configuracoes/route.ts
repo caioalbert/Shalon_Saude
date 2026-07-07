@@ -23,6 +23,10 @@ function mapDatabaseErrorMessage(error: unknown) {
     return 'Banco desatualizado. Execute scripts/014_add_comissao_config.sql no Supabase SQL Editor.'
   }
 
+  if (/telefone_emergencia|whatsapp_url|app_tagline/i.test(details)) {
+    return 'Banco desatualizado. Execute scripts/019_add_configuracoes_operacionais.sql no Supabase SQL Editor.'
+  }
+
   if (/fetch failed|enotfound|getaddrinfo|network/i.test(details)) {
     return 'Falha ao conectar no Supabase. Verifique NEXT_PUBLIC_SUPABASE_URL e as chaves no arquivo .env/.env.local.'
   }
@@ -97,6 +101,9 @@ export async function GET(request: NextRequest) {
         comissaoPercentualAdesao: settings.comissaoPercentualAdesao,
         comissaoPercentualMensalidade: settings.comissaoPercentualMensalidade,
         comissaoMensalidadesMax: settings.comissaoMensalidadesMax,
+        telefoneEmergencia: settings.telefoneEmergencia,
+        whatsappUrl: settings.whatsappUrl,
+        appTagline: settings.appTagline,
       },
       allowedBillingTypes: BILLING_TYPE_OPTIONS,
       allowedPlanTypes,
@@ -131,6 +138,9 @@ export async function PUT(request: NextRequest) {
           comissaoPercentualAdesao?: number | string
           comissaoPercentualMensalidade?: number | string
           comissaoMensalidadesMax?: number | string | null
+          telefoneEmergencia?: string
+          whatsappUrl?: string
+          appTagline?: string
         }
       | null
 
@@ -200,6 +210,9 @@ export async function PUT(request: NextRequest) {
       comissaoPercentualAdesao,
       comissaoPercentualMensalidade,
       comissaoMensalidadesMax,
+      telefoneEmergencia: body.telefoneEmergencia !== undefined ? body.telefoneEmergencia : currentSettings.telefoneEmergencia,
+      whatsappUrl: body.whatsappUrl !== undefined ? body.whatsappUrl : currentSettings.whatsappUrl,
+      appTagline: body.appTagline !== undefined ? body.appTagline : currentSettings.appTagline,
     })
     const allowedPlanTypes = await loadPlanCodesForDefaultSelection()
     const defaultPlanType = allowedPlanTypes.includes(updated.defaultPlanType)
@@ -224,6 +237,9 @@ export async function PUT(request: NextRequest) {
         comissaoPercentualAdesao: updated.comissaoPercentualAdesao,
         comissaoPercentualMensalidade: updated.comissaoPercentualMensalidade,
         comissaoMensalidadesMax: updated.comissaoMensalidadesMax,
+        telefoneEmergencia: updated.telefoneEmergencia,
+        whatsappUrl: updated.whatsappUrl,
+        appTagline: updated.appTagline,
       },
       allowedBillingTypes: BILLING_TYPE_OPTIONS,
       allowedPlanTypes,

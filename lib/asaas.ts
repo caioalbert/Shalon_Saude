@@ -232,7 +232,7 @@ function getAsaasApiKey() {
   const key = process.env.ASAAS_API_KEY?.trim()
   if (!key) {
     throw new AsaasIntegrationError(
-      'Integração de pagamentos indisponível. Configure ASAAS_API_KEY.',
+      'IntegraÃ§Ã£o de pagamentos indisponÃ­vel. Configure ASAAS_API_KEY.',
       'configuration',
       503
     )
@@ -273,7 +273,7 @@ function isHtmlPayload(value: string) {
 function normalizeAsaasAmount(value: number, envName: string) {
   if (!Number.isFinite(value) || value <= 0) {
     throw new AsaasIntegrationError(
-      `Valor inválido para ${envName}.`,
+      `Valor invalido para ${envName}.`,
       'configuration',
       503
     )
@@ -288,7 +288,7 @@ function normalizeAsaasMaxPayments(value?: number) {
   const parsed = Number(value)
   if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
     throw new AsaasIntegrationError(
-      'Quantidade máxima de cobranças inválida para a assinatura.',
+      'Quantidade maxima de cobranças invalida para a assinatura.',
       'configuration',
       500
     )
@@ -300,7 +300,7 @@ function normalizeAsaasMaxPayments(value?: number) {
 function assertAsaasDate(value: string, fieldName: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     throw new AsaasIntegrationError(
-      `Formato inválido para ${fieldName}. Use YYYY-MM-DD.`,
+      `Formato invalido para ${fieldName}. Use YYYY-MM-DD.`,
       'configuration',
       500
     )
@@ -433,15 +433,15 @@ export async function createAsaasCustomer(
       method: 'POST',
       body: JSON.stringify(payload),
     },
-    'Não foi possível criar o cliente no Asaas.'
+    'NÃ£o foi possÃ­vel criar o cliente no Asaas.'
   )
 
   const data = await parseAsaasJson<AsaasCustomerResponse>(
     response,
-    'Asaas retornou uma resposta inválida ao criar o cliente.'
+    'Asaas retornou uma resposta invÃ¡lida ao criar o cliente.'
   )
 
-  const customer = mapAsaasCustomer(data, 'Asaas retornou uma resposta inválida ao criar o cliente.')
+  const customer = mapAsaasCustomer(data, 'Asaas retornou uma resposta invÃ¡lida ao criar o cliente.')
 
   return { id: customer.id }
 }
@@ -450,7 +450,7 @@ export async function updateAsaasCustomer(input: UpdateAsaasCustomerInput): Prom
   const customerId = String(input.id || '').trim()
   if (!customerId) {
     throw new AsaasIntegrationError(
-      'Identificador do cliente no Asaas é obrigatório.',
+      'Identificador do cliente no Asaas Ã© obrigatÃ³rio.',
       'configuration',
       500
     )
@@ -476,15 +476,15 @@ export async function updateAsaasCustomer(input: UpdateAsaasCustomerInput): Prom
       method: 'PUT',
       body: JSON.stringify(payload),
     },
-    'Não foi possível atualizar o cliente no Asaas.'
+    'NÃo foi possivel atualizar o cliente no Asaas.'
   )
 
   const data = await parseAsaasJson<AsaasCustomerResponse>(
     response,
-    'Asaas retornou uma resposta inválida ao atualizar o cliente.'
+    'Asaas retornou uma resposta invalida ao atualizar o cliente.'
   )
 
-  return mapAsaasCustomer(data, 'Asaas retornou uma resposta inválida ao atualizar o cliente.')
+  return mapAsaasCustomer(data, 'Asaas retornou uma resposta invÃ¡lida ao atualizar o cliente.')
 }
 
 type ListAsaasCustomersInput = {
@@ -529,19 +529,19 @@ export async function listAsaasCustomers(input: ListAsaasCustomersInput = {}): P
   const response = await asaasRequest(
     `customers?${params.toString()}`,
     { method: 'GET' },
-    'Não foi possível listar os clientes no Asaas.'
+    'NÃ£o foi possÃ­vel listar os clientes no Asaas.'
   )
 
   const data = await parseAsaasJson<AsaasListResponse<AsaasCustomerResponse>>(
     response,
-    'Asaas retornou uma resposta inválida ao listar clientes.'
+    'Asaas retornou uma resposta invÃ¡lida ao listar clientes.'
   )
 
   const customers = Array.isArray(data.data)
     ? data.data
         .filter((customer) => customer.id)
         .map((customer) =>
-          mapAsaasCustomer(customer, 'Asaas retornou um cliente inválido na listagem.')
+          mapAsaasCustomer(customer, 'Asaas retornou um cliente invalido na listagem.')
         )
     : []
 
@@ -607,7 +607,7 @@ export async function createAsaasPayment(
   creditCardToken?: string
 }> {
   assertAsaasDate(input.dueDate, 'dueDate')
-  const value = normalizeAsaasAmount(input.value, 'ASAAS_ADESAO_VALUE')
+  const value = normalizeAsaasAmount(input.value, 'valor da adesão')
 
   const payload = compactPayload({
     customer: input.customer.trim(),
@@ -624,17 +624,17 @@ export async function createAsaasPayment(
       method: 'POST',
       body: JSON.stringify(payload),
     },
-    'Não foi possível criar a cobrança de adesão no Asaas.'
+    'Não foi possivel criar a cobranças de adesão no Asaas.'
   )
 
   const data = await parseAsaasJson<AsaasCreatePaymentResponse>(
     response,
-    'Asaas retornou uma resposta inválida ao criar a cobrança.'
+    'Asaas retornou uma resposta invalida ao criar a cobranças.'
   )
 
   if (!data.id) {
     throw new AsaasIntegrationError(
-      'Asaas retornou uma resposta inválida ao criar a cobrança.',
+      'Asaas retornou uma resposta invalida ao criar a cobranças.',
       'invalid_response',
       502
     )
@@ -656,7 +656,7 @@ export async function cancelAsaasPayment(paymentId: string): Promise<void> {
   const normalizedPaymentId = String(paymentId || '').trim()
   if (!normalizedPaymentId) {
     throw new AsaasIntegrationError(
-      'Identificador da cobrança no Asaas é obrigatório.',
+      'Identificador da cobranças no Asaas Ã© obrigatÃ³rio.',
       'configuration',
       500
     )
@@ -665,7 +665,7 @@ export async function cancelAsaasPayment(paymentId: string): Promise<void> {
   await asaasRequest(
     `payments/${encodeURIComponent(normalizedPaymentId)}`,
     { method: 'DELETE' },
-    'Não foi possível cancelar a cobrança no Asaas.'
+    'NÃ£o foi possÃ­vel cancelar a cobranÃ§a no Asaas.'
   )
 }
 
@@ -673,17 +673,17 @@ export async function getAsaasPixQrCode(paymentId: string): Promise<AsaasPixQrCo
   const response = await asaasRequest(
     `payments/${paymentId}/pixQrCode`,
     { method: 'GET' },
-    'Não foi possível obter o QR Code PIX no Asaas.'
+    'NÃ£o foi possÃ­vel obter o QR Code PIX no Asaas.'
   )
 
   const data = await parseAsaasJson<AsaasPixQrCodeResponse>(
     response,
-    'Asaas retornou uma resposta inválida ao obter o QR Code PIX.'
+    'Asaas retornou uma resposta invÃ¡lida ao obter o QR Code PIX.'
   )
 
   if (!data.encodedImage || !data.payload) {
     throw new AsaasIntegrationError(
-      'Asaas retornou uma resposta inválida ao obter o QR Code PIX.',
+      'Asaas retornou uma resposta invÃ¡lida ao obter o QR Code PIX.',
       'invalid_response',
       502
     )
@@ -700,17 +700,17 @@ export async function getAsaasPayment(paymentId: string): Promise<AsaasPaymentIn
   const response = await asaasRequest(
     `payments/${paymentId}`,
     { method: 'GET' },
-    'Não foi possível consultar o pagamento no Asaas.'
+    'NÃ£o foi possÃ­vel consultar o pagamento no Asaas.'
   )
 
   const data = await parseAsaasJson<AsaasPaymentResponse>(
     response,
-    'Asaas retornou uma resposta inválida ao consultar o pagamento.'
+    'Asaas retornou uma resposta invÃ¡lida ao consultar o pagamento.'
   )
 
   if (!data.id) {
     throw new AsaasIntegrationError(
-      'Asaas retornou uma resposta inválida ao consultar o pagamento.',
+      'Asaas retornou uma resposta invÃ¡lida ao consultar o pagamento.',
       'invalid_response',
       502
     )
@@ -736,17 +736,17 @@ export async function getAsaasSubscription(subscriptionId: string): Promise<Asaa
   const response = await asaasRequest(
     `subscriptions/${subscriptionId}`,
     { method: 'GET' },
-    'Não foi possível consultar a assinatura no Asaas.'
+    'NÃ£o foi possÃ­vel consultar a assinatura no Asaas.'
   )
 
   const data = await parseAsaasJson<AsaasSubscriptionResponse>(
     response,
-    'Asaas retornou uma resposta inválida ao consultar a assinatura.'
+    'Asaas retornou uma resposta invÃ¡lida ao consultar a assinatura.'
   )
 
   if (!data.id) {
     throw new AsaasIntegrationError(
-      'Asaas retornou uma resposta inválida ao consultar a assinatura.',
+      'Asaas retornou uma resposta invÃ¡lida ao consultar a assinatura.',
       'invalid_response',
       502
     )
@@ -768,12 +768,12 @@ export async function listAsaasPayments(customerId: string): Promise<AsaasPaymen
   const response = await asaasRequest(
     `payments?customer=${customerId}&limit=100`,
     { method: 'GET' },
-    'Não foi possível listar os pagamentos no Asaas.'
+    'NÃ£o foi possÃ­vel listar os pagamentos no Asaas.'
   )
 
   const data = await parseAsaasJson<{ data?: AsaasPaymentResponse[] }>(
     response,
-    'Asaas retornou uma resposta inválida ao listar pagamentos.'
+    'Asaas retornou uma resposta invÃ¡lida ao listar pagamentos.'
   )
 
   if (!Array.isArray(data.data)) {
@@ -804,12 +804,12 @@ export async function listAsaasSubscriptionPayments(subscriptionId: string): Pro
   const response = await asaasRequest(
     `subscriptions/${subscriptionId}/payments?limit=100`,
     { method: 'GET' },
-    'Não foi possível listar os pagamentos da assinatura no Asaas.'
+    'NÃ£o foi possÃ­vel listar os pagamentos da assinatura no Asaas.'
   )
 
   const data = await parseAsaasJson<{ data?: AsaasPaymentResponse[] }>(
     response,
-    'Asaas retornou uma resposta inválida ao listar pagamentos da assinatura.'
+    'Asaas retornou uma resposta invÃ¡lida ao listar pagamentos da assinatura.'
   )
 
   if (!Array.isArray(data.data)) {
@@ -868,12 +868,12 @@ export async function listAsaasSubscriptions(
   const response = await asaasRequest(
     `subscriptions?${params.toString()}`,
     { method: 'GET' },
-    'Não foi possível listar as assinaturas no Asaas.'
+    'NÃ£o foi possÃ­vel listar as assinaturas no Asaas.'
   )
 
   const data = await parseAsaasJson<AsaasListResponse<AsaasSubscriptionResponse>>(
     response,
-    'Asaas retornou uma resposta inválida ao listar assinaturas.'
+    'Asaas retornou uma resposta invÃ¡lida ao listar assinaturas.'
   )
 
   if (!Array.isArray(data.data)) {
@@ -898,7 +898,7 @@ export async function createAsaasSubscription(
   input: CreateAsaasSubscriptionInput
 ): Promise<{ id: string; nextDueDate?: string }> {
   assertAsaasDate(input.nextDueDate, 'nextDueDate')
-  const value = normalizeAsaasAmount(input.value, 'ASAAS_MENSALIDADE_VALUE')
+  const value = normalizeAsaasAmount(input.value, 'valor da mensalidade')
   const maxPayments = normalizeAsaasMaxPayments(input.maxPayments)
 
   const payload = compactPayload({
@@ -918,17 +918,17 @@ export async function createAsaasSubscription(
       method: 'POST',
       body: JSON.stringify(payload),
     },
-    'Não foi possível criar a assinatura recorrente no Asaas.'
+    'NÃ£o foi possÃ­vel criar a assinatura recorrente no Asaas.'
   )
 
   const data = await parseAsaasJson<AsaasCreateSubscriptionResponse>(
     response,
-    'Asaas retornou uma resposta inválida ao criar a assinatura.'
+    'Asaas retornou uma resposta invÃ¡lida ao criar a assinatura.'
   )
 
   if (!data.id) {
     throw new AsaasIntegrationError(
-      'Asaas retornou uma resposta inválida ao criar a assinatura.',
+      'Asaas retornou uma resposta invÃ¡lida ao criar a assinatura.',
       'invalid_response',
       502
     )
@@ -944,7 +944,7 @@ export async function cancelAsaasSubscription(subscriptionId: string): Promise<v
   const normalizedSubscriptionId = String(subscriptionId || '').trim()
   if (!normalizedSubscriptionId) {
     throw new AsaasIntegrationError(
-      'Identificador da assinatura no Asaas é obrigatório.',
+      'Identificador da assinatura no Asaas Ã© obrigatÃ³rio.',
       'configuration',
       500
     )
@@ -953,7 +953,7 @@ export async function cancelAsaasSubscription(subscriptionId: string): Promise<v
   await asaasRequest(
     `subscriptions/${encodeURIComponent(normalizedSubscriptionId)}`,
     { method: 'DELETE' },
-    'Não foi possível cancelar a assinatura no Asaas.'
+    'NÃ£o foi possÃ­vel cancelar a assinatura no Asaas.'
   )
 }
 
@@ -964,13 +964,13 @@ export async function updateAsaasSubscriptionValue(
   const normalizedSubscriptionId = String(subscriptionId || '').trim()
   if (!normalizedSubscriptionId) {
     throw new AsaasIntegrationError(
-      'Identificador da assinatura no Asaas é obrigatório.',
+      'Identificador da assinatura no Asaas Ã© obrigatÃ³rio.',
       'configuration',
       500
     )
   }
 
-  const value = normalizeAsaasAmount(newValue, 'ASAAS_MENSALIDADE_VALUE')
+  const value = normalizeAsaasAmount(newValue, 'valor da mensalidade')
 
   const payload = { value }
 
@@ -980,7 +980,7 @@ export async function updateAsaasSubscriptionValue(
       method: 'PUT',
       body: JSON.stringify(payload),
     },
-    'Não foi possível atualizar o valor da assinatura no Asaas.'
+    'NÃ£o foi possÃ­vel atualizar o valor da assinatura no Asaas.'
   )
 }
 
@@ -988,7 +988,7 @@ export async function deleteAsaasCustomer(customerId: string): Promise<void> {
   const normalizedCustomerId = String(customerId || '').trim()
   if (!normalizedCustomerId) {
     throw new AsaasIntegrationError(
-      'Identificador do cliente no Asaas é obrigatório.',
+      'Identificador do cliente no Asaas Ã© obrigatÃ³rio.',
       'configuration',
       500
     )
@@ -997,7 +997,7 @@ export async function deleteAsaasCustomer(customerId: string): Promise<void> {
   await asaasRequest(
     `customers/${encodeURIComponent(normalizedCustomerId)}`,
     { method: 'DELETE' },
-    'Não foi possível remover o cliente no Asaas.'
+    'NÃ£o foi possÃ­vel remover o cliente no Asaas.'
   )
 }
 
@@ -1005,7 +1005,7 @@ export async function hasAsaasOverdueSubscriptionPayment(subscriptionId: string)
   const normalizedSubscriptionId = String(subscriptionId || '').trim()
   if (!normalizedSubscriptionId) {
     throw new AsaasIntegrationError(
-      'Identificador da assinatura no Asaas é obrigatório.',
+      'Identificador da assinatura no Asaas Ã© obrigatÃ³rio.',
       'configuration',
       500
     )
@@ -1014,17 +1014,17 @@ export async function hasAsaasOverdueSubscriptionPayment(subscriptionId: string)
   const response = await asaasRequest(
     `subscriptions/${encodeURIComponent(normalizedSubscriptionId)}/payments?status=OVERDUE&limit=1`,
     { method: 'GET' },
-    'Não foi possível consultar as cobranças da assinatura no Asaas.'
+    'NÃ£o foi possÃ­vel consultar as cobranÃ§as da assinatura no Asaas.'
   )
 
   const data = await parseAsaasJson<AsaasListResponse<AsaasSubscriptionPaymentListItem>>(
     response,
-    'Asaas retornou uma resposta inválida ao consultar cobranças da assinatura.'
+    'Asaas retornou uma resposta invÃ¡lida ao consultar cobranÃ§as da assinatura.'
   )
 
   if (!Array.isArray(data.data)) {
     throw new AsaasIntegrationError(
-      'Asaas retornou uma resposta inválida ao consultar cobranças da assinatura.',
+      'Asaas retornou uma resposta invÃ¡lida ao consultar cobranÃ§as da assinatura.',
       'invalid_response',
       502
     )
