@@ -4,6 +4,7 @@ import {
   createAsaasPayment,
   createAsaasCustomer,
   deleteAsaasCustomer,
+  getAsaasPixQrCode,
 } from '@/lib/asaas'
 import {
   getBillingSettings,
@@ -921,6 +922,8 @@ export async function POST(request: NextRequest) {
     let asaasPaymentId: string | null = null
     let asaasPaymentInvoiceUrl: string | null = null
     let asaasPaymentBankSlipUrl: string | null = null
+    let asaasPixCopiaECola: string | null = null
+    let asaasPixQrCodeBase64: string | null = null
     try {
       const asaasCustomer = await createAsaasCustomer({
         name: nomeValue,
@@ -953,6 +956,19 @@ export async function POST(request: NextRequest) {
         asaasPaymentId = payment.id
         asaasPaymentInvoiceUrl = payment.invoiceUrl || null
         asaasPaymentBankSlipUrl = payment.bankSlipUrl || null
+
+        if (adesaoBillingType === 'BOLETO') {
+          try {
+            const pixQrCode = await getAsaasPixQrCode(payment.id)
+            asaasPixCopiaECola = pixQrCode.payload
+            asaasPixQrCodeBase64 = pixQrCode.encodedImage
+          } catch (pixError) {
+            console.warn('Could not load Asaas Pix QR Code for payment:', {
+              asaasPaymentId: payment.id,
+              error: pixError,
+            })
+          }
+        }
       }
       // For instituto clients (semAdesao=true): no adhesion payment, subscription will be created after admin activates
     } catch (error) {
@@ -1128,6 +1144,8 @@ export async function POST(request: NextRequest) {
         billingType: adesaoBillingType,
         invoiceUrl: asaasPaymentInvoiceUrl,
         bankSlipUrl: asaasPaymentBankSlipUrl,
+        pixCopiaECola: asaasPixCopiaECola,
+        qrCodeBase64: asaasPixQrCodeBase64,
       } : null,
       tipoPlanoEscolhido: tipoPlano,
       mensalidadeValor,

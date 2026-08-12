@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import Link from 'next/link'
 import Image from 'next/image'
+import { Copy, ExternalLink } from 'lucide-react'
 
 type CadastroPagamento = {
   id: string
@@ -15,6 +15,8 @@ type CadastroPagamento = {
   pixCopiaECola?: string | null
   qrCodeBase64?: string | null
 }
+
+const SAUDE_24H_APP_STORE_URL = 'https://apps.apple.com/app/id1101572255'
 
 interface CadastroSuccessProps {
   data: {
@@ -38,12 +40,15 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
 
   const isPendingPayment = status === 'PENDENTE_PAGAMENTO' && Boolean(data.pagamento)
   const isCreditCardPayment = data.pagamento?.billingType === 'CREDIT_CARD'
-  const paymentMethodLabel = isCreditCardPayment ? 'Cartão de Crédito' : 'BolePIX'
+  const isBolePixPayment = !isCreditCardPayment
+  const paymentMethodLabel = isCreditCardPayment ? 'Cartão de crédito' : 'Pix ou boleto'
   const invoiceUrl = data.pagamento?.invoiceUrl || null
   const bankSlipUrl = data.pagamento?.bankSlipUrl || null
   const pixCopiaECola = String(data.pagamento?.pixCopiaECola || '').trim()
   const qrCodeBase64 = String(data.pagamento?.qrCodeBase64 || '').trim()
-  const hasLegacyPixData = Boolean(pixCopiaECola && qrCodeBase64)
+  const hasPixData = Boolean(pixCopiaECola && qrCodeBase64)
+  const primaryExternalPaymentUrl = invoiceUrl || bankSlipUrl
+  const secondaryBankSlipUrl = bankSlipUrl && bankSlipUrl !== invoiceUrl ? bankSlipUrl : null
 
   const formatCurrency = (value: number) =>
     value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -200,60 +205,73 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
                 <p className="text-sm text-gray-700">
                   {isCreditCardPayment
                     ? 'Pague a adesão com cartão na fatura. A assinatura mensal seguirá o mesmo método.'
-                    : 'Pague a fatura por boleto ou Pix (BolePIX). A assinatura mensal seguirá o mesmo método.'}
+                    : hasPixData
+                      ? 'Escaneie o QR Code ou copie o código Pix. A assinatura mensal seguirá o mesmo método.'
+                      : 'Abra a fatura para pagar por boleto ou Pix. A assinatura mensal seguirá o mesmo método.'}
                 </p>
 
-                <div className="flex flex-col gap-2">
-                  {invoiceUrl && (
-                    <Button asChild className="w-full bg-indigo-600 hover:bg-indigo-700">
-                      <a href={invoiceUrl} target="_blank" rel="noreferrer">
-                        {isCreditCardPayment ? 'Adicionar dados do cartão' : 'Abrir Fatura'}
-                      </a>
+                {isBolePixPayment && hasPixData ? (
+                  <div className="space-y-4">
+                    <div className="flex justify-center">
+                      <Image
+                        src={`data:image/png;base64,${qrCodeBase64}`}
+                        alt="QR Code Pix da adesão"
+                        className="h-60 w-60 rounded-lg border border-gray-200 bg-white p-2"
+                        width={240}
+                        height={240}
+                        unoptimized
+                      />
+                    </div>
+                    <textarea
+                      readOnly
+                      value={pixCopiaECola}
+                      aria-label="Código Pix copia e cola"
+                      className="h-24 w-full resize-none rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-xs font-mono text-gray-800"
+                    />
+                    <Button onClick={handleCopyPixCode} className="w-full bg-indigo-600 hover:bg-indigo-700">
+                      <Copy className="mr-2 h-4 w-4" aria-hidden="true" />
+                      Copiar código Pix
                     </Button>
-                  )}
+                    {copyMessage && (
+                      <p className="text-xs text-gray-600">{copyMessage}</p>
+                    )}
+                    {primaryExternalPaymentUrl && (
+                      <Button asChild variant="outline" className="w-full">
+                        <a href={primaryExternalPaymentUrl} target="_blank" rel="noreferrer">
+                          <ExternalLink className="mr-2 h-4 w-4" aria-hidden="true" />
+                          Abrir fatura no Asaas
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {invoiceUrl && (
+                      <Button asChild className="w-full bg-indigo-600 hover:bg-indigo-700">
+                        <a href={invoiceUrl} target="_blank" rel="noreferrer">
+                          <ExternalLink className="mr-2 h-4 w-4" aria-hidden="true" />
+                          {isCreditCardPayment ? 'Adicionar dados do cartão' : 'Abrir fatura para pagar'}
+                        </a>
+                      </Button>
+                    )}
 
-                  {bankSlipUrl && bankSlipUrl !== invoiceUrl && (
-                    <Button asChild variant="outline" className="w-full">
-                      <a href={bankSlipUrl} target="_blank" rel="noreferrer">
-                        Abrir Boleto
-                      </a>
-                    </Button>
-                  )}
-                </div>
+                    {secondaryBankSlipUrl && (
+                      <Button asChild variant="outline" className="w-full">
+                        <a href={secondaryBankSlipUrl} target="_blank" rel="noreferrer">
+                          <ExternalLink className="mr-2 h-4 w-4" aria-hidden="true" />
+                          Abrir boleto
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                )}
 
-                {!invoiceUrl && !bankSlipUrl && (
+                {!primaryExternalPaymentUrl && !hasPixData && (
                   <p className="text-xs text-amber-700">
                     A fatura ainda está sendo processada. Clique em verificar para atualizar o status.
                   </p>
                 )}
               </div>
-
-              {hasLegacyPixData && (
-                <div className="rounded-lg border border-gray-200 p-4 space-y-3">
-                  <p className="text-sm font-medium text-gray-700">Opção PIX (legado)</p>
-                  <div className="flex justify-center">
-                    <Image
-                      src={`data:image/png;base64,${qrCodeBase64}`}
-                      alt="QR Code PIX da adesão"
-                      className="h-56 w-56 rounded-lg border border-gray-200"
-                      width={224}
-                      height={224}
-                      unoptimized
-                    />
-                  </div>
-                  <textarea
-                    readOnly
-                    value={pixCopiaECola}
-                    className="w-full h-24 rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-xs font-mono text-gray-800"
-                  />
-                  <Button onClick={handleCopyPixCode} variant="outline" className="w-full">
-                    Copiar Código PIX
-                  </Button>
-                  {copyMessage && (
-                    <p className="text-xs text-gray-600">{copyMessage}</p>
-                  )}
-                </div>
-              )}
 
               <div className="space-y-3">
                 <Button
@@ -284,14 +302,6 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
                   </p>
                 </div>
               )}
-
-              <div className="flex flex-col gap-3">
-                <Link href="/" className="w-full">
-                  <Button variant="outline" className="w-full">
-                    Voltar para Início
-                  </Button>
-                </Link>
-              </div>
             </div>
           </div>
         </div>
@@ -319,8 +329,8 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
                 />
               </svg>
             </div>
-            <h1 className="text-3xl font-bold text-white">Cadastro Realizado!</h1>
-            <p className="text-green-100 mt-2">Pagamento confirmado e adesão ativada</p>
+            <h1 className="text-3xl font-bold text-white">Pagamento Validado!</h1>
+            <p className="text-green-100 mt-2">Sua adesão foi ativada com sucesso</p>
           </div>
 
           <div className="px-6 py-8 sm:px-8 space-y-6">
@@ -339,55 +349,20 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
               </div>
             </div>
 
-            <div className="space-y-3 text-sm text-gray-700">
-              <div className="flex items-start space-x-3">
-                <svg
-                  className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <span>Seu termo de adesão foi gerado e salvo com segurança</span>
-              </div>
-              <div className="flex items-start space-x-3">
-                <svg
-                  className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <span>Você receberá um email em breve com seu termo em PDF</span>
-              </div>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-sm text-blue-900">
-                <strong>Próximos passos:</strong> Verifique seu email para receber e acessar seu
-                termo de adesão.
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-5 text-center">
+              <p className="text-sm font-semibold text-emerald-900">Baixe nosso app</p>
+              <p className="mt-2 text-sm text-emerald-800">
+                Acesse seus benefícios pelo Saúde 24h.
               </p>
             </div>
 
             <div className="flex flex-col gap-3">
-              <Link href="/login" className="w-full">
-                <Button className="w-full bg-indigo-600 hover:bg-indigo-700">
-                  Fazer login na minha conta
-                </Button>
-              </Link>
-              <Link href="/" className="w-full">
-                <Button variant="outline" className="w-full">
-                  Voltar para Início
-                </Button>
-              </Link>
+              <Button asChild className="w-full bg-indigo-600 hover:bg-indigo-700">
+                <a href={SAUDE_24H_APP_STORE_URL} target="_blank" rel="noreferrer">
+                  <ExternalLink className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Baixar Saúde 24h
+                </a>
+              </Button>
             </div>
           </div>
         </div>

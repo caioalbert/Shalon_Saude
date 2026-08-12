@@ -671,7 +671,7 @@ export async function cancelAsaasPayment(paymentId: string): Promise<void> {
 
 export async function getAsaasPixQrCode(paymentId: string): Promise<AsaasPixQrCode> {
   const response = await asaasRequest(
-    `payments/${paymentId}/pixQrCode`,
+    `payments/${encodeURIComponent(paymentId)}/pixQrCode`,
     { method: 'GET' },
     'NÃ£o foi possÃ­vel obter o QR Code PIX no Asaas.'
   )
