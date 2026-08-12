@@ -1,6 +1,15 @@
 import { createAdminClient } from './supabase/admin'
 import { isMaisEduConfigured, registerUserOnMaisEdu } from './maisedu'
 
+type MaisEduSyncStatus = 'PENDENTE' | 'SINCRONIZADO' | 'JA_EXISTIA' | 'ERRO' | 'IGNORADO'
+
+type MaisEduSyncUpdate = {
+  status: MaisEduSyncStatus
+  userId?: number | null
+  error?: string | null
+  syncedAt?: string | null
+}
+
 function sanitizeDigits(value?: string | null) {
   return String(value || '').replace(/\D/g, '')
 }
@@ -13,6 +22,51 @@ function formatDate(date: string | Date | null) {
   } catch {
     return undefined
   }
+}
+
+async function updateMaisEduSyncStatus(
+  cadastroId: string,
+  update: MaisEduSyncUpdate
+) {
+  const supabase = createAdminClient()
+  const updatePayload: Record<string, string | number | null> = {
+    maisedu_status: update.status,
+  }
+
+  if ('userId' in update) {
+    updatePayload.maisedu_user_id = update.userId ?? null
+  }
+
+  if ('syncedAt' in update) {
+    updatePayload.maisedu_synced_at = update.syncedAt ?? null
+  }
+
+  if ('error' in update) {
+    updatePayload.maisedu_last_error = update.error ?? null
+  }
+
+  const { error: updateError } = await supabase
+    .from('cadastros')
+    .update(updatePayload)
+    .eq('id', cadastroId)
+
+  if (updateError) {
+    console.error('[Sync MaisEdu] Erro ao atualizar status da integração no cadastro:', {
+      cadastroId,
+      status: update.status,
+      message: updateError.message,
+      details: updateError.details,
+    })
+  }
+}
+
+async function failMaisEduSync(cadastroId: string, message: string) {
+  await updateMaisEduSyncStatus(cadastroId, {
+    status: 'ERRO',
+    error: message,
+  })
+
+  return { success: false, error: message }
 }
 
 /**
@@ -43,18 +97,22 @@ export async function syncCadastroToMaisEdu(cadastroId: string) {
 
   // Se não estiver ATIVO, não sincroniza
   if (cadastro.status !== 'ATIVO') {
+    await updateMaisEduSyncStatus(cadastroId, {
+      status: 'IGNORADO',
+      error: 'Cadastro não está ATIVO',
+    })
     return { success: false, error: 'Cadastro não está ATIVO' }
   }
 
   // Verifica configuração antes de prosseguir
   if (!isMaisEduConfigured()) {
     console.warn('[Sync MaisEdu] Integração não configurada (MAISEDU_API_TOKEN ausente).')
-    return { success: false, error: 'Integração MaisEdu não configurada no servidor.' }
+    return failMaisEduSync(cadastroId, 'Integração MaisEdu não configurada no servidor.')
   }
 
   const cpfDigits = sanitizeDigits(cadastro.cpf)
   if (cpfDigits.length !== 11) {
-    return { success: false, error: 'CPF do titular inválido' }
+    return failMaisEduSync(cadastroId, 'CPF do titular inválido')
   }
 
   // 2. Cadastrar Titular na MaisEdu
@@ -75,14 +133,25 @@ export async function syncCadastroToMaisEdu(cadastroId: string) {
   // Duplicidade não é erro em reprocessamentos (usuário já existe no MaisEdu)
   if (!result.ok && result.reason === 'duplicate') {
     console.log(`[Sync MaisEdu] Titular ${cadastro.nome} (CPF: ${cpfDigits}) já está cadastrado no MaisEdu.`)
+    await updateMaisEduSyncStatus(cadastroId, {
+      status: 'JA_EXISTIA',
+      syncedAt: new Date().toISOString(),
+      error: null,
+    })
     return { success: true, count: 1, skipped: true }
   }
 
   if (!result.ok) {
     console.error(`[Sync MaisEdu] Falha ao cadastrar ${cadastro.nome}:`, result.message)
-    return { success: false, error: result.message }
+    return failMaisEduSync(cadastroId, result.message)
   }
 
   console.log(`[Sync MaisEdu] Titular ${cadastro.nome} cadastrado com sucesso no MaisEdu. user_id: ${result.data.user_id}`)
-  return { success: true, count: 1 }
+  await updateMaisEduSyncStatus(cadastroId, {
+    status: 'SINCRONIZADO',
+    userId: result.data.user_id || null,
+    syncedAt: new Date().toISOString(),
+    error: null,
+  })
+  return { success: true, count: 1, userId: result.data.user_id }
 }

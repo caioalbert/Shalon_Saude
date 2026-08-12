@@ -2,20 +2,68 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { syncCadastroToMaisEdu } from '@/lib/maisedu-sync'
 import { NextRequest, NextResponse } from 'next/server'
 
+export const runtime = 'nodejs'
+
+type SyncMaisEduRequestBody = {
+  cadastroId?: unknown
+}
+
+function normalizeCadastroId(value: unknown) {
+  const id = String(value || '').trim()
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
+    ? id
+    : ''
+}
+
+async function getRequestedCadastroId(request: NextRequest) {
+  const body = (await request.json().catch(() => null)) as SyncMaisEduRequestBody | null
+  return normalizeCadastroId(body?.cadastroId)
+}
+
 /**
  * Rota para sincronização em lote retroativa de clientes ativos com a MaisEdu.
- * Protegida por Bearer token (CRON_SECRET) se configurado.
+ * Protegida por Bearer token (CRON_SECRET).
  *
  * POST /api/admin/sync-maisedu
  */
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization')
-    const CRON_SECRET = process.env.CRON_SECRET
+    const CRON_SECRET = process.env.CRON_SECRET?.trim()
 
-    // Se houver CRON_SECRET configurado, exigir autenticação Bearer
-    if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+    if (!CRON_SECRET) {
+      console.error('[Sync MaisEdu API] CRON_SECRET não configurado.')
+      return NextResponse.json(
+        { error: 'Sincronização MaisEdu indisponível: CRON_SECRET não configurado.' },
+        { status: 503 }
+      )
+    }
+
+    if (authHeader !== `Bearer ${CRON_SECRET}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const cadastroId = await getRequestedCadastroId(request)
+
+    if (cadastroId) {
+      const result = await syncCadastroToMaisEdu(cadastroId)
+
+      if (!result.success) {
+        return NextResponse.json(
+          {
+            message: 'Falha ao sincronizar cadastro com MaisEdu.',
+            cadastroId,
+            error: result.error ?? 'Erro desconhecido',
+          },
+          { status: 400 }
+        )
+      }
+
+      return NextResponse.json({
+        message: 'Cadastro sincronizado com MaisEdu.',
+        cadastroId,
+        skipped: Boolean((result as { skipped?: boolean }).skipped),
+      })
     }
 
     const supabase = createAdminClient()

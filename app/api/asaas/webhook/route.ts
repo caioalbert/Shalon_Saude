@@ -15,6 +15,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { syncCadastroToMaisEdu } from '@/lib/maisedu-sync'
 import { NextRequest, NextResponse } from 'next/server'
 
+export const runtime = 'nodejs'
+
 const HANDLED_EVENTS = new Set(['PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED'])
 const SUBSCRIPTION_LOCK_PREFIX = 'LOCK:'
 const SUBSCRIPTION_LOCK_TTL_MS = 10 * 60 * 1000
@@ -507,7 +509,13 @@ export async function POST(request: NextRequest) {
 
     // --- INTEGRAÇÃO MAISEDU ---
     try {
-      await syncCadastroToMaisEdu(cadastro.id)
+      const maisEduResult = await syncCadastroToMaisEdu(cadastro.id)
+      if (!maisEduResult.success) {
+        console.error('Webhook: falha ao exportar paciente para MaisEdu após ativação', {
+          cadastroId: cadastro.id,
+          error: maisEduResult.error,
+        })
+      }
     } catch (error) {
       console.error('Webhook: falha ao exportar paciente para MaisEdu após ativação', {
         cadastroId: cadastro.id,

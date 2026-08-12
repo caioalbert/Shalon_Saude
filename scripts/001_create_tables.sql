@@ -29,6 +29,10 @@ CREATE TABLE IF NOT EXISTS cadastros (
   mensalidade_billing_type TEXT,
   status TEXT NOT NULL DEFAULT 'PENDENTE_PAGAMENTO',
   adesao_pago_em TIMESTAMP WITH TIME ZONE,
+  maisedu_status TEXT NOT NULL DEFAULT 'PENDENTE',
+  maisedu_user_id BIGINT,
+  maisedu_synced_at TIMESTAMP WITH TIME ZONE,
+  maisedu_last_error TEXT,
   termo_pdf_path TEXT,
   email_enviado_em TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -87,7 +91,11 @@ ALTER TABLE cadastros
   ADD COLUMN IF NOT EXISTS mensalidade_valor NUMERIC(10,2),
   ADD COLUMN IF NOT EXISTS mensalidade_billing_type TEXT,
   ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'PENDENTE_PAGAMENTO',
-  ADD COLUMN IF NOT EXISTS adesao_pago_em TIMESTAMP WITH TIME ZONE;
+  ADD COLUMN IF NOT EXISTS adesao_pago_em TIMESTAMP WITH TIME ZONE,
+  ADD COLUMN IF NOT EXISTS maisedu_status TEXT DEFAULT 'PENDENTE',
+  ADD COLUMN IF NOT EXISTS maisedu_user_id BIGINT,
+  ADD COLUMN IF NOT EXISTS maisedu_synced_at TIMESTAMP WITH TIME ZONE,
+  ADD COLUMN IF NOT EXISTS maisedu_last_error TEXT;
 
 CREATE TABLE IF NOT EXISTS vendedores (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -116,16 +124,23 @@ UPDATE cadastros
 SET tipo_plano = 'INDIVIDUAL'
 WHERE tipo_plano IS NULL;
 
+UPDATE cadastros
+SET maisedu_status = 'PENDENTE'
+WHERE maisedu_status IS NULL;
+
 ALTER TABLE cadastros
   ALTER COLUMN status SET DEFAULT 'PENDENTE_PAGAMENTO',
   ALTER COLUMN status SET NOT NULL,
   ALTER COLUMN tipo_plano SET DEFAULT 'INDIVIDUAL',
-  ALTER COLUMN tipo_plano SET NOT NULL;
+  ALTER COLUMN tipo_plano SET NOT NULL,
+  ALTER COLUMN maisedu_status SET DEFAULT 'PENDENTE',
+  ALTER COLUMN maisedu_status SET NOT NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS cadastros_asaas_customer_id_idx ON cadastros(asaas_customer_id) WHERE asaas_customer_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS cadastros_asaas_payment_id_idx ON cadastros(asaas_payment_id) WHERE asaas_payment_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS cadastros_asaas_subscription_id_idx ON cadastros(asaas_subscription_id) WHERE asaas_subscription_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS cadastros_status_idx ON cadastros(status);
+CREATE INDEX IF NOT EXISTS cadastros_maisedu_status_idx ON cadastros(maisedu_status);
 CREATE INDEX IF NOT EXISTS cadastros_vendedor_id_idx ON cadastros(vendedor_id);
 CREATE INDEX IF NOT EXISTS cadastros_vendedor_codigo_idx ON cadastros(vendedor_codigo);
 

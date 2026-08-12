@@ -2,13 +2,10 @@ import {
   formatCpfForDb,
   verifyCpfPrefix,
 } from '@/lib/cliente-login-verify'
+import { getClientJwtSecret } from '@/lib/client-jwt-secret'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { SignJWT } from 'jose'
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'shalom-saude-secret-key-change-in-production'
-)
 
 type CadastroLoginRow = {
   id: string
@@ -225,7 +222,7 @@ export async function POST(request: NextRequest) {
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
       .setExpirationTime('7d')
-      .sign(JWT_SECRET)
+      .sign(getClientJwtSecret())
 
     const response = NextResponse.json({
       success: true,

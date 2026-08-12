@@ -1,9 +1,6 @@
+import { getClientJwtSecret } from '@/lib/client-jwt-secret'
 import { jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'shalom-saude-secret-key-change-in-production'
-)
 
 export type ClienteAuth = {
   clienteId: string
@@ -16,7 +13,7 @@ export type ClienteAuth = {
 
 async function authFromToken(token: string): Promise<ClienteAuth | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET)
+    const { payload } = await jwtVerify(token, getClientJwtSecret())
     const tipo = payload.tipo === 'dependente' ? 'dependente' : 'titular'
 
     return {

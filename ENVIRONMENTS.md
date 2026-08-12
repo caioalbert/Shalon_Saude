@@ -15,8 +15,8 @@ Real secrets must stay out of Git. Keep only templates in the repository and con
 ## Vercel mapping
 
 - Development: local/sandbox credentials.
-- Preview: staging Supabase plus sandbox Asaas/Rapidoc.
-- Production: production Supabase plus production Asaas/Rapidoc.
+- Preview: staging Supabase plus sandbox Asaas and MaisEdu credentials.
+- Production: production Supabase plus production Asaas and MaisEdu credentials.
 
 Do not reuse the production Supabase service role in staging. Staging should have an isolated Supabase project/database.
 
@@ -29,18 +29,15 @@ Do not reuse the production Supabase service role in staging. Staging should hav
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | public | Supabase anon key. Public, but environment-specific. |
 | `SUPABASE_SERVICE_ROLE_KEY` | server secret | Highly sensitive. Never expose to the browser. |
 | `JWT_SECRET` | server secret | Required for client portal JWTs. Must be long and unique per environment. |
-| `CRON_SECRET` | server secret | Required by admin Rapidoc sync route. |
+| `CRON_SECRET` | server secret | Required by admin MaisEdu sync route. |
 | `BLOB_READ_WRITE_TOKEN` | server secret | Required when storing termo templates in Vercel Blob. |
 | `ASAAS_API_BASE_URL` | server | Sandbox: `https://api-sandbox.asaas.com/v3`; production: `https://api.asaas.com/v3`. |
 | `ASAAS_API_KEY` | server secret | Environment-specific Asaas key. |
 | `ASAAS_WEBHOOK_TOKEN` | server secret | Environment-specific webhook token. |
 | `RESEND_API_KEY` | server secret | Required only when sending email. |
 | `RESEND_FROM_EMAIL` | server | Sender address for Resend. |
-| `RAPIDOC_API_BASE_URL` | server | Sandbox or production Rapidoc API base. |
-| `RAPIDOC_CLIENT_ID` | server secret | Rapidoc client id. |
-| `RAPIDOC_JWT_TOKEN` | server secret | Rapidoc bearer token. |
-| `RAPIDOC_ACCESS_URL` | server | Optional template URL override. |
-| `RAPIDOC_FALLBACK_URL` | server | Fallback URL when Rapidoc API is unavailable. |
+| `MAISEDU_API_TOKEN` | server secret | Bearer token used by the MaisEdu partner registration API. |
+| `MAISEDU_REF_LOGIN` | server | Optional sponsor login. When empty or absent, the app omits `ref` from the MaisEdu request. |
 
 ## Variables declared today but apparently unused
 
@@ -51,16 +48,11 @@ These appeared in current env files but are not read by the app code:
 - `SUPABASE_JWT_SECRET`
 - `ASAAS_API_KEY_sandbox`
 
-Recommendation: remove them from real env files unless an external/manual script still uses them. `ADMIN_PASSWORD=admin123` should be treated as unsafe and rotated anywhere it was used.
+Recommendation: remove them and any remaining legacy telemedicine provider values from real env files unless an external/manual script still uses them. `ADMIN_PASSWORD=admin123` should be treated as unsafe and rotated anywhere it was used.
 
-## Optional aliases
+## Telemedicine provider
 
-`lib/rapidoc.ts` supports these aliases, but the server-side names above are preferred:
-
-- `NEXT_PUBLIC_RAPIDOC_API_BASE_URL`
-- `NEXT_PUBLIC_RAPIDOC_FALLBACK_URL`
-
-Only set `NEXT_PUBLIC_*` Rapidoc values if the browser truly needs to read them.
+Rapidoc is no longer read by the application code. The current telemedicine endpoint returns a temporary unavailable response while the provider migration is completed.
 
 ## Migration checklist
 
@@ -90,7 +82,7 @@ Review before deployment:
 
 - Replace placeholder `NEXT_PUBLIC_APP_URL` values in staging and production.
 - Create or configure an isolated staging Supabase project; the old staging file reused the same Supabase project as production.
-- Check Rapidoc production values in `.env.production.local`; the old mixed file had sandbox Rapidoc marked as active.
+- Remove any remaining Rapidoc values from private env files if they are still present.
 
 ## Billing configuration
 

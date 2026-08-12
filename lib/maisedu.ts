@@ -1,3 +1,6 @@
+import dns from 'node:dns'
+import { Agent, type Dispatcher } from 'undici'
+
 /**
  * Integração com a API de Cadastro de Parceiros do Grupo MaisEdu.
  *
@@ -5,21 +8,28 @@
  *
  * Autenticação:
  *   - Header "Authorization: Bearer <TOKEN>"  → token de acesso gerado pelo painel MaisEdu
- *   - OU header "x-api-token: <TOKEN>"
  *
  * Fluxo de cadastro:
  *   POST com payload JSON contendo os dados do usuário.
- *   O campo "ref" (login do patrocinador) é obrigatório para alocação na rede.
+ *   O campo "ref" só é enviado quando MAISEDU_REF_LOGIN estiver configurado.
  */
 
 const MAISEDU_API_URL = 'https://vo.grupomais.net.br/api/v1/partner_register.php'
-const MAISEDU_API_TOKEN = process.env.MAISEDU_API_TOKEN || ''
+const MAISEDU_API_TOKEN = process.env.MAISEDU_API_TOKEN?.trim() || ''
 
 /**
  * Login do patrocinador (conta raiz da Shalon Saúde no sistema MaisEdu).
- * Obrigatório para alocação na rede. Configure via variável de ambiente.
+ * Opcional. Quando ausente/vazio, o campo "ref" é omitido do request.
  */
 const MAISEDU_REF_LOGIN = process.env.MAISEDU_REF_LOGIN || ''
+
+const maisEduIpv4Dispatcher: Dispatcher = new Agent({
+  connect: {
+    lookup(hostname, options, callback) {
+      dns.lookup(hostname, { ...options, family: 4, all: false }, callback)
+    },
+  },
+})
 
 /** Resultado tipado de uma chamada à API MaisEdu */
 export type MaisEduResult<T> =
@@ -36,7 +46,7 @@ export type MaisEduUserPayload = {
   login: string
   /** CPF ou CNPJ (apenas números ou formatado) */
   doc: string
-  /** Login do patrocinador que indicou este usuário (obrigatório para rede) */
+  /** Login do patrocinador que indicou este usuário */
   ref?: string
   /** Senha opcional — se não enviada, a API gera uma aleatória */
   senha?: string
@@ -81,6 +91,8 @@ function maisEduHeaders(): HeadersInit {
   return {
     'Authorization': `Bearer ${MAISEDU_API_TOKEN}`,
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'User-Agent': 'ShalonSaudeHostinger/1.0',
   }
 }
 
@@ -88,7 +100,7 @@ function maisEduHeaders(): HeadersInit {
  * Cadastra um usuário na plataforma MaisEdu.
  * Retorna os dados do usuário criado ou um erro tipado com mensagem amigável.
  *
- * O campo "ref" é preenchido automaticamente com MAISEDU_REF_LOGIN.
+ * O campo "ref" é preenchido automaticamente apenas quando MAISEDU_REF_LOGIN existe.
  */
 export async function registerUserOnMaisEdu(
   payload: Omit<MaisEduUserPayload, 'ref'>
@@ -101,19 +113,20 @@ export async function registerUserOnMaisEdu(
     }
   }
 
-  // ref e opcional: incluido apenas se MAISEDU_REF_LOGIN estiver configurado
+  // ref é opcional: incluido apenas se MAISEDU_REF_LOGIN estiver configurado.
   const body: MaisEduUserPayload = {
     ...payload,
-    ...(MAISEDU_REF_LOGIN ? { ref: MAISEDU_REF_LOGIN } : {}),
+    ...(MAISEDU_REF_LOGIN.trim() ? { ref: MAISEDU_REF_LOGIN.trim() } : {}),
   }
-
 
   try {
     const res = await fetch(MAISEDU_API_URL, {
       method: 'POST',
       headers: maisEduHeaders(),
       body: JSON.stringify(body),
-    })
+      cache: 'no-store',
+      dispatcher: maisEduIpv4Dispatcher,
+    } as RequestInit & { dispatcher: Dispatcher })
 
     const textResponse = await res.text()
     let data: { status?: string; message?: string; data?: MaisEduSuccessData }
@@ -127,8 +140,7 @@ export async function registerUserOnMaisEdu(
     if (
       res.status === 401 ||
       res.status === 403 ||
-      data?.message?.includes('Token inválido') ||
-      data?.message?.includes('Acesso Negado')
+      /token.*inv[aá]lido|acesso negado|parceiro inativo/i.test(data?.message || '')
     ) {
       console.error('[MaisEdu] Erro de autenticação:', { status: res.status, message: data?.message })
       return {
@@ -139,11 +151,7 @@ export async function registerUserOnMaisEdu(
     }
 
     // Erros de duplicidade (e-mail, login ou CPF já cadastrado)
-    if (
-      res.status === 400 ||
-      data?.message?.includes('já está em uso') ||
-      data?.message?.includes('já está cadastrado')
-    ) {
+    if (/j[aá]\s*est[aá].*(uso|cadastrado)|already/i.test(data?.message || '')) {
       console.warn('[MaisEdu] Registro duplicado:', data?.message)
       return {
         ok: false,

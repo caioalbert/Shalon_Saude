@@ -93,12 +93,9 @@ Edite `.env.local` com:
 - `ASAAS_API_BASE_URL` - URL base da API (sandbox: `https://api-sandbox.asaas.com/v3`)
 - `ASAAS_WEBHOOK_TOKEN` - Token de segurança validado no webhook
 
-#### Rapidoc
-- `RAPIDOC_ACCESS_URL` - URL SSO/portal usada pelo endpoint `/api/cliente/telemedicina/url`. Aceita placeholders como `{nome}`, `{email}`, `{cpf_digits}`, `{telefone_digits}` e `{data_nascimento}`.
-- `RAPIDOC_API_BASE_URL` - Base da API Rapidoc para fallback e acesso direto. Produção: `https://api.rapidoc.tech/tema/api`.
-- `NEXT_PUBLIC_RAPIDOC_API_BASE_URL` - Base pública equivalente usada no cliente.
-- `RAPIDOC_FALLBACK_URL` - URL de fallback server-side quando a URL de acesso não estiver configurada.
-- `NEXT_PUBLIC_RAPIDOC_FALLBACK_URL` - URL pública usada no cliente como fallback.
+#### MaisEdu
+- `MAISEDU_API_TOKEN` - Token Bearer usado para cadastro no parceiro MaisEdu.
+- `MAISEDU_REF_LOGIN` - Login de patrocinador opcional. Quando vazio, o campo `ref` não é enviado.
 
 #### Aplicação
 - `NEXT_PUBLIC_APP_URL` - URL da aplicação (ex: http://localhost:3000)
@@ -138,6 +135,14 @@ Se o banco já existia antes, execute também:
 -- scripts/010_add_planos_dependentes_rules.sql
 -- scripts/011_add_planos_publico_conteudo.sql
 -- scripts/012_apply_planos_regras_por_vida.sql
+-- scripts/013_normalize_billing_types_bolepix_credit.sql
+-- scripts/014_add_comissao_config.sql
+-- scripts/015_add_institutos_module.sql
+-- scripts/016_add_instituto_sem_adesao.sql
+-- scripts/017_instituto_own_plans.sql
+-- scripts/018_prefix_instituto_codes.sql
+-- scripts/019_add_configuracoes_operacionais.sql
+-- scripts/020_add_maisedu_sync_status.sql
 ```
 
 ### 5. Criar usuário admin (opcional)
@@ -401,6 +406,10 @@ keytool -list -v -keystore android.keystore -alias android
 | mensalidade_valor | NUMERIC(10,2) |
 | mensalidade_billing_type | TEXT |
 | adesao_pago_em | TIMESTAMP |
+| maisedu_status | TEXT |
+| maisedu_user_id | BIGINT |
+| maisedu_synced_at | TIMESTAMP |
+| maisedu_last_error | TEXT |
 | termo_pdf_path | TEXT |
 | email_enviado_em | TIMESTAMP |
 | created_at | TIMESTAMP |
