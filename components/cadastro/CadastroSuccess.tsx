@@ -235,14 +235,6 @@ export function CadastroSuccess({ data }: CadastroSuccessProps) {
                     {copyMessage && (
                       <p className="text-xs text-gray-600">{copyMessage}</p>
                     )}
-                    {primaryExternalPaymentUrl && (
-                      <Button asChild variant="outline" className="w-full">
-                        <a href={primaryExternalPaymentUrl} target="_blank" rel="noreferrer">
-                          <ExternalLink className="mr-2 h-4 w-4" aria-hidden="true" />
-                          Abrir fatura no Asaas
-                        </a>
-                      </Button>
-                    )}
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2">
