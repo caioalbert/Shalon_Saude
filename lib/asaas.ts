@@ -229,7 +229,7 @@ function getAsaasApiBaseUrl() {
 }
 
 function getAsaasApiKey() {
-  const key = process.env.ASAAS_API_KEY?.trim()
+  const key = process.env.ASAAS_API_KEY?.trim().replace(/^\\\$/, '$')
   if (!key) {
     throw new AsaasIntegrationError(
       'IntegraÃ§Ã£o de pagamentos indisponÃ­vel. Configure ASAAS_API_KEY.',
