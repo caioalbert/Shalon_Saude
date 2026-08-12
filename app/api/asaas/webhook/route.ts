@@ -12,7 +12,7 @@ import {
   getMensalidadeValueByPlanType,
 } from '@/lib/billing-settings'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { syncCadastroToRapidoc } from '@/lib/rapidoc-sync'
+import { syncCadastroToMaisEdu } from '@/lib/maisedu-sync'
 import { NextRequest, NextResponse } from 'next/server'
 
 const HANDLED_EVENTS = new Set(['PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED'])
@@ -505,11 +505,11 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // --- NOVA INTEGRAÇÃO RAPIDOC ---
+    // --- INTEGRAÇÃO MAISEDU ---
     try {
-      await syncCadastroToRapidoc(cadastro.id)
+      await syncCadastroToMaisEdu(cadastro.id)
     } catch (error) {
-      console.error('Webhook: falha ao exportar paciente para Rapidoc após ativação', {
+      console.error('Webhook: falha ao exportar paciente para MaisEdu após ativação', {
         cadastroId: cadastro.id,
         error,
       })

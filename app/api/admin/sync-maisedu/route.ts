@@ -1,11 +1,12 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { syncCadastroToRapidoc } from '@/lib/rapidoc-sync'
+import { syncCadastroToMaisEdu } from '@/lib/maisedu-sync'
 import { NextRequest, NextResponse } from 'next/server'
 
 /**
- * Rota para sincronização em lote retroativa de clientes ativos com a Rapidoc.
- * Idealmente, deve ser protegida (ex: x-api-key) se exposta publicamente,
- * mas aqui assumimos uso via painel admin ou script restrito.
+ * Rota para sincronização em lote retroativa de clientes ativos com a MaisEdu.
+ * Protegida por Bearer token (CRON_SECRET) se configurado.
+ *
+ * POST /api/admin/sync-maisedu
  */
 export async function POST(request: NextRequest) {
   try {
@@ -34,43 +35,45 @@ export async function POST(request: NextRequest) {
     }
 
     let successCount = 0
+    let skippedCount = 0
     let errorCount = 0
-    let totalExported = 0
-    const errors = []
+    const errors: { id: string; nome: string; error: string }[] = []
 
-    // Processar sequencialmente para não estourar rate limit da Rapidoc
+    // Processar sequencialmente para respeitar possível rate limit da MaisEdu
     for (const cadastro of cadastros) {
       try {
-        const result = await syncCadastroToRapidoc(cadastro.id)
+        const result = await syncCadastroToMaisEdu(cadastro.id)
         if (result.success) {
-          successCount++
-          totalExported += (result.count || 0)
+          if ((result as { skipped?: boolean }).skipped) {
+            skippedCount++
+          } else {
+            successCount++
+          }
         } else {
           errorCount++
-          errors.push({ id: cadastro.id, nome: cadastro.nome, error: result.error })
+          errors.push({ id: cadastro.id, nome: cadastro.nome, error: result.error ?? 'Erro desconhecido' })
         }
       } catch (err) {
         errorCount++
         errors.push({ id: cadastro.id, nome: cadastro.nome, error: String(err) })
       }
-      
-      // Delay pequeno para evitar throttling
-      await new Promise(r => setTimeout(r, 200))
+
+      // Pequeno delay para evitar throttling na API da MaisEdu
+      await new Promise(r => setTimeout(r, 300))
     }
 
     return NextResponse.json({
-      message: 'Sincronização finalizada.',
+      message: 'Sincronização com MaisEdu finalizada.',
       stats: {
         total_verificados: cadastros.length,
-        sucessos: successCount,
+        cadastrados: successCount,
+        ja_existiam: skippedCount,
         erros: errorCount,
-        vidas_exportadas: totalExported
       },
-      errors: errors.length > 0 ? errors : undefined
+      errors: errors.length > 0 ? errors : undefined,
     })
-
   } catch (error) {
-    console.error('[Sync Rapidoc API] Erro fatal:', error)
-    return NextResponse.json({ error: 'Erro interno ao sincronizar' }, { status: 500 })
+    console.error('[Sync MaisEdu API] Erro fatal:', error)
+    return NextResponse.json({ error: 'Erro interno ao sincronizar com MaisEdu.' }, { status: 500 })
   }
 }

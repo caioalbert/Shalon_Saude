@@ -13,17 +13,17 @@ const MAX_TEMPLATE_SIZE_BYTES = 200 * 1024
 
 export const DEFAULT_TERMO_BODY = `TELEMEDICINA
 
-O Paciente ou seu Representante Legal reconhece e concorda que a plataforma RAPIDOC (RD BRASIL INTERMEDIACOES LTDA), empresa de direito privado, com sede na Avenida Itacolomi, n° 3160, Bairro São Vicente, na cidade de Gravataí, Rio Grande do Sul, CEP 94155-222, inscrita no CNPJ de n° 27.696.922/0001-31 é um meio de viabilizar a TELECONSULTA, possibilitando o atendimento médico ao paciente de forma remota nos moldes determinados pela Resolução CFM n° 2.314/2022.
+O Paciente ou seu Representante Legal reconhece e concorda que a plataforma de Telemedicina do Grupo MaisEdu é um meio de viabilizar a TELECONSULTA, possibilitando o atendimento médico ao paciente de forma remota nos moldes determinados pela Resolução CFM n° 2.314/2022.
 
-O Paciente ou seu Representante Legal declara estar ciente de que a Igreja Cristã Ministério Efraim – CNPJ 43.677.025/0001-37, trata-se meramente de Agenciadora/Vendedora do produto do Prestador de Serviço de Telemedicina RAPIDOC, e se isenta de quaisquer responsabilidades referente ao serviço de Telemedicina prestado pela RAPIDOC.
+O Paciente ou seu Representante Legal declara estar ciente de que a Igreja Cristã Ministério Efraim – CNPJ 43.677.025/0001-37, trata-se meramente de Agenciadora/Vendedora do produto do Prestador de Serviço de Telemedicina MaisEdu, e se isenta de quaisquer responsabilidades referente ao serviço de Telemedicina prestado pela MaisEdu.
 
-Pelo presente termo, o paciente ou seu representante legal declara que procurou o serviço de Telemedicina RAPIDOC por livre e espontânea vontade para fins de realização de atendimento online e, para tanto, declara que, na condição de paciente/responsável legal, obteve orientação e esclarecimentos suficientes sobre o ato médico.
+Pelo presente termo, o paciente ou seu representante legal declara que procurou o serviço de Telemedicina por livre e espontânea vontade para fins de realização de atendimento online e, para tanto, declara que, na condição de paciente/responsável legal, obteve orientação e esclarecimentos suficientes sobre o ato médico.
 
 A prestação do serviço contempla atendimento pré-clínico, de suporte assistencial, de consulta, monitoramento e diagnóstico, por meio de tecnologia da informação para Clínico Geral e nas modalidades de Cardiologia, Dermatologia, Endocrinologia, Geriatria, Ginecologia, Neurologia, Pediatria, Psiquiatria, Traumatologia, Otorrinolaringologia e Urologia através da plataforma.
 
-Telemedicina RAPIDOC não se trata de Seguro Saúde, bem como não possui cobertura para exames laboratoriais, operações cirúrgicas, internações e/ou consultas e/ou atendimentos emergenciais em hospitais e/ou outros, e nem oferece reembolso de despesas médicas, ficando estes custos a cargo do paciente/representante legal.
+O serviço de Telemedicina não se trata de Seguro Saúde, bem como não possui cobertura para exames laboratoriais, operações cirúrgicas, internações e/ou consultas e/ou atendimentos emergenciais em hospitais e/ou outros, e nem oferece reembolso de despesas médicas, ficando estes custos a cargo do paciente/representante legal.
 
-A plataforma de Telemedicina RAPIDOC transmitirá ao médico as informações pessoais e de saúde via videoconferência, bem como permitirá o registro dos dados coletados através da videoconferência em prontuário para todos os fins.
+A plataforma de Telemedicina transmitirá ao médico as informações pessoais e de saúde via videoconferência, bem como permitirá o registro dos dados coletados através da videoconferência em prontuário para todos os fins.
 
 Estar ciente de que paciente menor de 18 (dezoito) anos deve estar acompanhado, no momento da consulta, de um responsável legal.
 
@@ -31,9 +31,9 @@ Conhecimento de que todas as informações estão asseguradas pelo sigilo médic
 
 Concorda que as informações pessoais poderão ser compartilhadas com outros profissionais de saúde, e que a presente autorização é concedida a título gratuito, por tempo indeterminado, em todo o território nacional.
 
-A plataforma do serviço de Telemedicina RAPIDOC dispõe de prescrição exclusivamente digital de receituários, emissão de atestados e pedidos de exames, com certificação digital do médico responsável.
+A plataforma de Telemedicina dispõe de prescrição exclusivamente digital de receituários, emissão de atestados e pedidos de exames, com certificação digital do médico responsável.
 
-Assim, expresso meu pleno consentimento para utilização da plataforma Telemedicina RAPIDOC.
+Assim, expresso meu pleno consentimento para utilização da plataforma de Telemedicina.
 
 ASSISTÊNCIA FUNERÁRIA
 
