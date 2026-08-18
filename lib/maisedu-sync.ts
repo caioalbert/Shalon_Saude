@@ -74,6 +74,7 @@ async function failMaisEduSync(cadastroId: string, message: string) {
  *
  * Comportamento:
  * - Somente cadastros com status ATIVO são sincronizados.
+ * - Cadastros já sincronizados retornam sucesso sem novo envio à MaisEdu.
  * - CPF inválido (diferente de 11 dígitos) impede o envio.
  * - Erros de duplicidade (usuário já cadastrado) são tratados como sucesso silencioso,
  *   pois podem ocorrer em reprocessamentos retroativos.
@@ -93,6 +94,22 @@ export async function syncCadastroToMaisEdu(cadastroId: string) {
   if (cadastroError || !cadastro) {
     console.error('[Sync MaisEdu] Erro ao buscar cadastro:', cadastroError)
     return { success: false, error: 'Cadastro não encontrado' }
+  }
+
+  const maisEduStatus = String(cadastro.maisedu_status || '').trim().toUpperCase()
+  const maisEduUserId = Number(cadastro.maisedu_user_id)
+  const alreadySynced =
+    maisEduStatus === 'SINCRONIZADO' ||
+    maisEduStatus === 'JA_EXISTIA' ||
+    (Number.isFinite(maisEduUserId) && maisEduUserId > 0)
+
+  if (alreadySynced) {
+    return {
+      success: true,
+      count: 0,
+      skipped: true,
+      userId: Number.isFinite(maisEduUserId) && maisEduUserId > 0 ? maisEduUserId : undefined,
+    }
   }
 
   // Se não estiver ATIVO, não sincroniza

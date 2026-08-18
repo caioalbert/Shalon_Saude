@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Trash2,
   TriangleAlert,
+  UserPlus,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -117,6 +118,7 @@ export default function AdminCadastrosPage() {
   const [exportScope, setExportScope] =
     useState<ExportScopeOption>("FILTRADOS");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [syncingMaisEduId, setSyncingMaisEduId] = useState<string | null>(null);
   const [cadastroToDelete, setCadastroToDelete] = useState<Cadastro | null>(
     null,
   );
@@ -296,6 +298,48 @@ export default function AdminCadastrosPage() {
       setError(err instanceof Error ? err.message : "Erro ao reenviar termo");
     } finally {
       setResendingId(null);
+    }
+  };
+
+  const handleSyncMaisEdu = async (cadastro: Cadastro) => {
+    if (String(cadastro.status || "").toUpperCase() !== "ATIVO") {
+      setError(
+        "O cliente precisa estar ativo para ser cadastrado na MaisEdu.",
+      );
+      return;
+    }
+
+    try {
+      setSyncingMaisEduId(cadastro.id);
+      setError(null);
+      setSuccessMessage(null);
+
+      const response = await fetch(
+        `/api/admin/cadastro/${cadastro.id}/sync-maisedu`,
+        { method: "POST" },
+      );
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.push("/admin/login");
+          return;
+        }
+
+        throw new Error(data.error || "Erro ao cadastrar cliente na MaisEdu");
+      }
+
+      setSuccessMessage(
+        data.message || "Cliente cadastrado na MaisEdu com sucesso.",
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Erro ao cadastrar cliente na MaisEdu",
+      );
+    } finally {
+      setSyncingMaisEduId(null);
     }
   };
 
@@ -1009,6 +1053,31 @@ export default function AdminCadastrosPage() {
                                   <Pencil className="h-4 w-4" />
                                 </Button>
                               </Link>
+                              <Button
+                                size="icon-sm"
+                                variant="outline"
+                                onClick={() => handleSyncMaisEdu(row.cadastro)}
+                                disabled={
+                                  syncingMaisEduId === row.cadastroId ||
+                                  String(
+                                    row.cadastro.status || "",
+                                  ).toUpperCase() !== "ATIVO"
+                                }
+                                aria-label="Cadastrar cliente na MaisEdu"
+                                title={
+                                  String(
+                                    row.cadastro.status || "",
+                                  ).toUpperCase() !== "ATIVO"
+                                    ? "Disponível somente para clientes ativos"
+                                    : "Cadastrar cliente na MaisEdu"
+                                }
+                              >
+                                {syncingMaisEduId === row.cadastroId ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <UserPlus className="h-4 w-4" />
+                                )}
+                              </Button>
                               <Button
                                 size="icon-sm"
                                 variant="outline"
