@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
           {
             message: 'Falha ao sincronizar cadastro com MaisEdu.',
             cadastroId,
-            error: result.error ?? 'Erro desconhecido',
+            error: 'error' in result ? result.error ?? 'Erro desconhecido' : 'Erro desconhecido',
           },
           { status: 400 }
         )
@@ -99,7 +99,11 @@ export async function POST(request: NextRequest) {
           }
         } else {
           errorCount++
-          errors.push({ id: cadastro.id, nome: cadastro.nome, error: result.error ?? 'Erro desconhecido' })
+          errors.push({
+            id: cadastro.id,
+            nome: cadastro.nome,
+            error: 'error' in result ? result.error ?? 'Erro desconhecido' : 'Erro desconhecido',
+          })
         }
       } catch (err) {
         errorCount++

@@ -513,7 +513,9 @@ export async function POST(request: NextRequest) {
       if (!maisEduResult.success) {
         console.error('Webhook: falha ao exportar paciente para MaisEdu após ativação', {
           cadastroId: cadastro.id,
-          error: maisEduResult.error,
+          error: 'error' in maisEduResult
+            ? maisEduResult.error ?? 'Erro desconhecido'
+            : 'Erro desconhecido',
         })
       }
     } catch (error) {
