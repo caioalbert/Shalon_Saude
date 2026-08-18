@@ -18,7 +18,7 @@ type CadastroPagamento = {
 
 const SAUDE_24H_APP_STORE_URL = 'https://apps.apple.com/app/id1101572255'
 const SAUDE_24H_GOOGLE_PLAY_URL =
-  'https://play.google.com/store/apps/details?id=br.com.shalon.saude'
+  'https://play.google.com/store/apps/details?id=br.com.ambienteprd.saude&pcampaignid=web_share'
 const SUPPORT_URL = 'mailto:suporte@shalom.com.br'
 
 function formatOrderNumber(value: string) {
