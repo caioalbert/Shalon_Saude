@@ -129,3 +129,46 @@
     background-color: #000000;
   }
 }
+
+@keyframes success-mark-float {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) translateY(0) rotate(-1deg);
+  }
+  50% {
+    transform: translate(-50%, -50%) translateY(-7px) rotate(1deg);
+  }
+}
+
+@keyframes success-confetti-float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -8px;
+  }
+}
+
+.success-mark-float {
+  animation: success-mark-float 4.8s ease-in-out infinite;
+}
+
+.success-confetti-piece {
+  animation: success-confetti-float 3.6s ease-in-out infinite;
+}
+
+.success-confetti-piece:nth-child(2n) {
+  animation-delay: -1.2s;
+}
+
+.success-confetti-piece:nth-child(3n) {
+  animation-delay: -2.4s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .success-mark-float,
+  .success-confetti-piece {
+    animation: none;
+  }
+}
