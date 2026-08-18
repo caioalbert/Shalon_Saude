@@ -12,7 +12,6 @@ import {
   getMensalidadeValueByPlanType,
 } from '@/lib/billing-settings'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { syncCadastroToMaisEdu } from '@/lib/maisedu-sync'
 import { NextRequest, NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -506,25 +505,6 @@ export async function POST(request: NextRequest) {
         error,
       })
     }
-
-    // --- INTEGRAÇÃO MAISEDU ---
-    try {
-      const maisEduResult = await syncCadastroToMaisEdu(cadastro.id)
-      if (!maisEduResult.success) {
-        console.error('Webhook: falha ao exportar paciente para MaisEdu após ativação', {
-          cadastroId: cadastro.id,
-          error: 'error' in maisEduResult
-            ? maisEduResult.error ?? 'Erro desconhecido'
-            : 'Erro desconhecido',
-        })
-      }
-    } catch (error) {
-      console.error('Webhook: falha ao exportar paciente para MaisEdu após ativação', {
-        cadastroId: cadastro.id,
-        error,
-      })
-    }
-    // -------------------------------
 
     return NextResponse.json({
       received: true,
