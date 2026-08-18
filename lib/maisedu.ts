@@ -26,7 +26,7 @@ const MAISEDU_REF_LOGIN = process.env.MAISEDU_REF_LOGIN || ''
 const maisEduIpv4Dispatcher: Dispatcher = new Agent({
   connect: {
     lookup(hostname, options, callback) {
-      dns.lookup(hostname, { ...options, family: 4, all: false }, callback)
+      dns.lookup(hostname, { ...options, family: 4, all: true }, callback)
     },
   },
 })
