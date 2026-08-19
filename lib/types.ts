@@ -1,3 +1,5 @@
+export type FinanceiroStatus = 'EM_DIA' | 'EM_ATRASO' | 'ADESAO_NAO_CONCLUIDA'
+
 export interface Cadastro {
   id: string
   email: string
@@ -35,7 +37,8 @@ export interface Cadastro {
   email_enviado_em?: string
   dependentes_sem_rg_count?: number
   dependentes_sem_email_count?: number
-  financeiro_status?: 'EM_DIA' | 'EM_ATRASO' | 'ADESAO_NAO_CONCLUIDA' | string | null
+  financeiro_status?: FinanceiroStatus | string | null
+  financeiro_status_atualizado_em?: string | null
   created_at: string
   updated_at: string
 }

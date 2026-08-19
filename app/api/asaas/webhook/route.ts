@@ -3,6 +3,7 @@ import {
   cancelAsaasSubscription,
   createAsaasSubscription,
   getAsaasPayment,
+  hasAsaasOverdueSubscriptionPayment,
   isAsaasPaidStatus,
   listAsaasSubscriptions,
 } from '@/lib/asaas'
@@ -12,21 +13,35 @@ import {
   getMensalidadeValueByPlanType,
 } from '@/lib/billing-settings'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { FinanceiroStatus } from '@/lib/types'
 import { NextRequest, NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
 
-const HANDLED_EVENTS = new Set(['PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED'])
+const ACTIVATION_EVENTS = new Set(['PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED'])
+const FINANCIAL_STATUS_EVENTS = new Set([
+  'PAYMENT_RECEIVED',
+  'PAYMENT_CONFIRMED',
+  'PAYMENT_OVERDUE',
+  'PAYMENT_RESTORED',
+  'PAYMENT_UPDATED',
+  'PAYMENT_DELETED',
+  'PAYMENT_REFUNDED',
+  'PAYMENT_PARTIALLY_REFUNDED',
+  'PAYMENT_RECEIVED_IN_CASH_UNDONE',
+])
+const HANDLED_EVENTS = new Set([...ACTIVATION_EVENTS, ...FINANCIAL_STATUS_EVENTS])
 const SUBSCRIPTION_LOCK_PREFIX = 'LOCK:'
 const SUBSCRIPTION_LOCK_TTL_MS = 10 * 60 * 1000
 const FIDELIDADE_MAX_PAYMENTS = 12
 
 const CADASTRO_SELECT_FIELDS =
-  'id, status, asaas_customer_id, asaas_payment_id, asaas_subscription_id, tipo_plano, mensalidade_valor, mensalidade_billing_type, updated_at'
+  'id, status, financeiro_status, financeiro_status_atualizado_em, asaas_customer_id, asaas_payment_id, asaas_subscription_id, tipo_plano, mensalidade_valor, mensalidade_billing_type, updated_at'
 
 type AsaasWebhookPayment = {
   id?: string
   customer?: string
+  subscription?: string
   externalReference?: string
   status?: string
 }
@@ -39,6 +54,8 @@ type AsaasWebhookPayload = {
 type CadastroWebhookRecord = {
   id: string
   status: string | null
+  financeiro_status: FinanceiroStatus | null
+  financeiro_status_atualizado_em: string | null
   asaas_customer_id: string | null
   asaas_payment_id: string | null
   asaas_subscription_id: string | null
@@ -97,7 +114,7 @@ function wait(ms: number) {
 }
 
 function isSchemaIssue(details: string) {
-  return /asaas_payment_id|asaas_subscription_id|status|adesao_pago_em|mensalidade_billing_type|tipo_plano|mensalidade_valor|updated_at/i.test(
+  return /asaas_payment_id|asaas_subscription_id|financeiro_status|financeiro_status_atualizado_em|status|adesao_pago_em|mensalidade_billing_type|tipo_plano|mensalidade_valor|updated_at/i.test(
     details
   )
 }
@@ -133,7 +150,8 @@ function normalizeSubscriptionId(value: string | null | undefined) {
 async function fetchCadastroByPaymentReference(
   supabase: ReturnType<typeof createAdminClient>,
   paymentId: string,
-  externalReference?: string
+  externalReference?: string,
+  subscriptionId?: string
 ) {
   const initialResult = await supabase
     .from('cadastros')
@@ -141,15 +159,33 @@ async function fetchCadastroByPaymentReference(
     .eq('asaas_payment_id', paymentId)
     .maybeSingle<CadastroWebhookRecord>()
 
-  if (initialResult.data || !externalReference) {
+  if (initialResult.data || initialResult.error) {
     return initialResult
   }
 
-  return supabase
-    .from('cadastros')
-    .select(CADASTRO_SELECT_FIELDS)
-    .eq('id', externalReference)
-    .maybeSingle<CadastroWebhookRecord>()
+  const normalizedExternalReference = String(externalReference || '').trim()
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalizedExternalReference)) {
+    const externalReferenceResult = await supabase
+      .from('cadastros')
+      .select(CADASTRO_SELECT_FIELDS)
+      .eq('id', normalizedExternalReference)
+      .maybeSingle<CadastroWebhookRecord>()
+
+    if (externalReferenceResult.data || externalReferenceResult.error) {
+      return externalReferenceResult
+    }
+  }
+
+  const normalizedSubscriptionId = normalizeSubscriptionId(subscriptionId)
+  if (normalizedSubscriptionId) {
+    return supabase
+      .from('cadastros')
+      .select(CADASTRO_SELECT_FIELDS)
+      .eq('asaas_subscription_id', normalizedSubscriptionId)
+      .maybeSingle<CadastroWebhookRecord>()
+  }
+
+  return initialResult
 }
 
 async function fetchCadastroById(supabase: ReturnType<typeof createAdminClient>, cadastroId: string) {
@@ -158,6 +194,35 @@ async function fetchCadastroById(supabase: ReturnType<typeof createAdminClient>,
     .select(CADASTRO_SELECT_FIELDS)
     .eq('id', cadastroId)
     .maybeSingle<CadastroWebhookRecord>()
+}
+
+async function reconcileFinanceiroStatus(
+  supabase: ReturnType<typeof createAdminClient>,
+  cadastroId: string,
+  subscriptionId: string
+): Promise<FinanceiroStatus> {
+  const hasOverduePayment = await hasAsaasOverdueSubscriptionPayment(subscriptionId)
+  const financeiroStatus: FinanceiroStatus = hasOverduePayment ? 'EM_ATRASO' : 'EM_DIA'
+  const { error } = await supabase
+    .from('cadastros')
+    .update({
+      financeiro_status: financeiroStatus,
+      financeiro_status_atualizado_em: new Date().toISOString(),
+    })
+    .eq('id', cadastroId)
+    .eq('asaas_subscription_id', subscriptionId)
+
+  if (error) {
+    console.error('Webhook: erro ao persistir status financeiro', {
+      cadastroId,
+      subscriptionId,
+      financeiroStatus,
+      error,
+    })
+    throw new Error('Erro ao atualizar o status financeiro do contrato.')
+  }
+
+  return financeiroStatus
 }
 
 async function releaseSubscriptionLock(
@@ -261,7 +326,8 @@ export async function POST(request: NextRequest) {
     const cadastroResult = await fetchCadastroByPaymentReference(
       supabase,
       paymentId,
-      payload.payment.externalReference
+      payload.payment.externalReference,
+      payload.payment.subscription
     )
 
     if (cadastroResult.error) {
@@ -270,7 +336,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error:
-              'Banco desatualizado. Execute scripts/001_create_tables.sql, scripts/004_add_cadastro_pagamentos.sql, scripts/005_add_billing_settings_admin.sql e scripts/006_add_plan_type_pricing.sql.',
+              'Banco desatualizado. Execute scripts/001_create_tables.sql ou a migration scripts/021_add_financeiro_status.sql.',
           },
           { status: 500 }
         )
@@ -290,11 +356,61 @@ export async function POST(request: NextRequest) {
     }
 
     const initialSubscriptionId = normalizeSubscriptionId(cadastro.asaas_subscription_id)
-    if (cadastro.status === 'ATIVO' && initialSubscriptionId && !isSubscriptionLockToken(initialSubscriptionId)) {
+    const webhookSubscriptionId = normalizeSubscriptionId(payload.payment.subscription)
+
+    if (
+      cadastro.asaas_customer_id &&
+      payload.payment.customer &&
+      cadastro.asaas_customer_id !== payload.payment.customer
+    ) {
+      console.error('Webhook: customer mismatch', {
+        cadastroId: cadastro.id,
+        cadastroCustomerId: cadastro.asaas_customer_id,
+        paymentCustomerId: payload.payment.customer,
+      })
+      return NextResponse.json(
+        { error: 'Pagamento não corresponde ao cliente esperado.' },
+        { status: 409 }
+      )
+    }
+
+    if (
+      cadastro.status === 'ATIVO' &&
+      initialSubscriptionId &&
+      !isSubscriptionLockToken(initialSubscriptionId)
+    ) {
+      if (webhookSubscriptionId && webhookSubscriptionId !== initialSubscriptionId) {
+        console.error('Webhook: subscription mismatch', {
+          cadastroId: cadastro.id,
+          cadastroSubscriptionId: initialSubscriptionId,
+          paymentSubscriptionId: webhookSubscriptionId,
+        })
+        return NextResponse.json(
+          { error: 'Pagamento não corresponde à assinatura esperada.' },
+          { status: 409 }
+        )
+      }
+
+      const financeiroStatus = await reconcileFinanceiroStatus(
+        supabase,
+        cadastro.id,
+        initialSubscriptionId
+      )
+
       return NextResponse.json({
         received: true,
         processed: true,
         alreadyProcessed: true,
+        cadastroId: cadastro.id,
+        financeiroStatus,
+      })
+    }
+
+    if (!ACTIVATION_EVENTS.has(payload.event)) {
+      return NextResponse.json({
+        received: true,
+        ignored: true,
+        reason: 'O cadastro ainda não possui uma assinatura ativa para reconciliar.',
       })
     }
 
@@ -307,7 +423,11 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    if (cadastro.asaas_customer_id && asaasPayment.customer && cadastro.asaas_customer_id !== asaasPayment.customer) {
+    if (
+      cadastro.asaas_customer_id &&
+      asaasPayment.customer &&
+      cadastro.asaas_customer_id !== asaasPayment.customer
+    ) {
       console.error('Webhook: customer mismatch', {
         cadastroId: cadastro.id,
         cadastroCustomerId: cadastro.asaas_customer_id,
@@ -382,11 +502,18 @@ export async function POST(request: NextRequest) {
           refreshedSubscriptionId &&
           !isSubscriptionLockToken(refreshedSubscriptionId)
         ) {
+          const financeiroStatus = await reconcileFinanceiroStatus(
+            supabase,
+            refreshedCadastro.id,
+            refreshedSubscriptionId
+          )
+
           return NextResponse.json({
             received: true,
             processed: true,
             alreadyProcessed: true,
             asaasSubscriptionId: refreshedSubscriptionId,
+            financeiroStatus,
           })
         }
 
@@ -454,6 +581,8 @@ export async function POST(request: NextRequest) {
         .from('cadastros')
         .update({
           status: 'ATIVO',
+          financeiro_status: 'EM_DIA',
+          financeiro_status_atualizado_em: nowIso,
           adesao_pago_em: nowIso,
           asaas_subscription_id: subscriptionId,
         })
@@ -486,6 +615,8 @@ export async function POST(request: NextRequest) {
         .from('cadastros')
         .update({
           status: 'ATIVO',
+          financeiro_status: 'EM_DIA',
+          financeiro_status_atualizado_em: nowIso,
           adesao_pago_em: nowIso,
           asaas_subscription_id: subscriptionId,
         })

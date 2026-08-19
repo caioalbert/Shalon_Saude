@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS cadastros (
   mensalidade_valor NUMERIC(10,2),
   mensalidade_billing_type TEXT,
   status TEXT NOT NULL DEFAULT 'PENDENTE_PAGAMENTO',
+  financeiro_status TEXT DEFAULT 'ADESAO_NAO_CONCLUIDA',
+  financeiro_status_atualizado_em TIMESTAMP WITH TIME ZONE,
   adesao_pago_em TIMESTAMP WITH TIME ZONE,
   maisedu_status TEXT NOT NULL DEFAULT 'PENDENTE',
   maisedu_user_id BIGINT,
@@ -91,6 +93,8 @@ ALTER TABLE cadastros
   ADD COLUMN IF NOT EXISTS mensalidade_valor NUMERIC(10,2),
   ADD COLUMN IF NOT EXISTS mensalidade_billing_type TEXT,
   ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'PENDENTE_PAGAMENTO',
+  ADD COLUMN IF NOT EXISTS financeiro_status TEXT,
+  ADD COLUMN IF NOT EXISTS financeiro_status_atualizado_em TIMESTAMP WITH TIME ZONE,
   ADD COLUMN IF NOT EXISTS adesao_pago_em TIMESTAMP WITH TIME ZONE,
   ADD COLUMN IF NOT EXISTS maisedu_status TEXT DEFAULT 'PENDENTE',
   ADD COLUMN IF NOT EXISTS maisedu_user_id BIGINT,
@@ -121,6 +125,11 @@ SET status = 'PENDENTE_PAGAMENTO'
 WHERE status IS NULL;
 
 UPDATE cadastros
+SET financeiro_status = 'ADESAO_NAO_CONCLUIDA'
+WHERE financeiro_status IS NULL
+  AND status <> 'ATIVO';
+
+UPDATE cadastros
 SET tipo_plano = 'INDIVIDUAL'
 WHERE tipo_plano IS NULL;
 
@@ -131,6 +140,7 @@ WHERE maisedu_status IS NULL;
 ALTER TABLE cadastros
   ALTER COLUMN status SET DEFAULT 'PENDENTE_PAGAMENTO',
   ALTER COLUMN status SET NOT NULL,
+  ALTER COLUMN financeiro_status SET DEFAULT 'ADESAO_NAO_CONCLUIDA',
   ALTER COLUMN tipo_plano SET DEFAULT 'INDIVIDUAL',
   ALTER COLUMN tipo_plano SET NOT NULL,
   ALTER COLUMN maisedu_status SET DEFAULT 'PENDENTE',
@@ -140,9 +150,28 @@ CREATE UNIQUE INDEX IF NOT EXISTS cadastros_asaas_customer_id_idx ON cadastros(a
 CREATE UNIQUE INDEX IF NOT EXISTS cadastros_asaas_payment_id_idx ON cadastros(asaas_payment_id) WHERE asaas_payment_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS cadastros_asaas_subscription_id_idx ON cadastros(asaas_subscription_id) WHERE asaas_subscription_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS cadastros_status_idx ON cadastros(status);
+CREATE INDEX IF NOT EXISTS cadastros_financeiro_status_idx ON cadastros(financeiro_status);
 CREATE INDEX IF NOT EXISTS cadastros_maisedu_status_idx ON cadastros(maisedu_status);
 CREATE INDEX IF NOT EXISTS cadastros_vendedor_id_idx ON cadastros(vendedor_id);
 CREATE INDEX IF NOT EXISTS cadastros_vendedor_codigo_idx ON cadastros(vendedor_codigo);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'cadastros_financeiro_status_check'
+      AND conrelid = 'cadastros'::regclass
+  ) THEN
+    ALTER TABLE cadastros
+      ADD CONSTRAINT cadastros_financeiro_status_check
+      CHECK (
+        financeiro_status IS NULL
+        OR financeiro_status IN ('ADESAO_NAO_CONCLUIDA', 'EM_DIA', 'EM_ATRASO')
+      );
+  END IF;
+END
+$$;
 
 DO $$
 BEGIN

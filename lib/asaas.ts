@@ -78,6 +78,7 @@ type AsaasPaymentResponse = {
   id?: string
   status?: string
   customer?: string
+  subscription?: string
   externalReference?: string
   paymentDate?: string
   clientPaymentDate?: string
@@ -169,6 +170,7 @@ export type AsaasPaymentInfo = {
   id: string
   status?: string
   customer?: string
+  subscription?: string
   externalReference?: string
   paymentDate?: string
   clientPaymentDate?: string
@@ -720,6 +722,7 @@ export async function getAsaasPayment(paymentId: string): Promise<AsaasPaymentIn
     id: data.id,
     status: data.status,
     customer: data.customer,
+    subscription: data.subscription,
     externalReference: data.externalReference,
     paymentDate: data.paymentDate,
     clientPaymentDate: data.clientPaymentDate,
@@ -786,6 +789,7 @@ export async function listAsaasPayments(customerId: string): Promise<AsaasPaymen
       id: p.id!,
       status: p.status,
       customer: p.customer,
+      subscription: p.subscription,
       externalReference: p.externalReference,
       paymentDate: p.paymentDate,
       clientPaymentDate: p.clientPaymentDate,
@@ -822,6 +826,7 @@ export async function listAsaasSubscriptionPayments(subscriptionId: string): Pro
       id: p.id!,
       status: p.status,
       customer: p.customer,
+      subscription: p.subscription,
       externalReference: p.externalReference,
       paymentDate: p.paymentDate,
       clientPaymentDate: p.clientPaymentDate,
