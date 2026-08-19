@@ -11,6 +11,10 @@ type MaisEduSyncUpdate = {
   syncedAt?: string | null
 }
 
+type MaisEduSyncOptions = {
+  force?: boolean
+}
+
 function sanitizeDigits(value?: string | null) {
   return String(value || '').replace(/\D/g, '')
 }
@@ -75,14 +79,17 @@ async function failMaisEduSync(cadastroId: string, message: string) {
  *
  * Comportamento:
  * - Somente cadastros com status ATIVO são sincronizados.
- * - Cadastros já sincronizados retornam sucesso sem novo envio à MaisEdu.
+ * - Cadastros já sincronizados retornam sucesso sem novo envio, exceto quando
+ *   a chamada manual solicita um reenvio forçado.
  * - CPF inválido (diferente de 11 dígitos) impede o envio.
- * - Erros de duplicidade (usuário já cadastrado) são tratados como sucesso silencioso,
- *   pois podem ocorrer em reprocessamentos retroativos.
+ * - Duplicidade sem user_id e produto confirmados não é considerada sucesso.
  * - Dependentes não são enviados individualmente à MaisEdu nesta versão,
  *   pois a API de parceiros não possui um campo de vínculo familiar.
  */
-export async function syncCadastroToMaisEdu(cadastroId: string) {
+export async function syncCadastroToMaisEdu(
+  cadastroId: string,
+  options: MaisEduSyncOptions = {}
+) {
   const supabase = createAdminClient()
 
   // 1. Buscar Cadastro
@@ -99,17 +106,19 @@ export async function syncCadastroToMaisEdu(cadastroId: string) {
 
   const maisEduStatus = String(cadastro.maisedu_status || '').trim().toUpperCase()
   const maisEduUserId = Number(cadastro.maisedu_user_id)
+  const hasMaisEduUserId = Number.isFinite(maisEduUserId) && maisEduUserId > 0
+  const confirmedSync = maisEduStatus === 'SINCRONIZADO' && hasMaisEduUserId
   const alreadySynced =
-    maisEduStatus === 'SINCRONIZADO' ||
+    confirmedSync ||
     maisEduStatus === 'JA_EXISTIA' ||
-    (Number.isFinite(maisEduUserId) && maisEduUserId > 0)
+    hasMaisEduUserId
 
-  if (alreadySynced) {
+  if (confirmedSync || (alreadySynced && !options.force)) {
     return {
       success: true,
       count: 0,
       skipped: true,
-      userId: Number.isFinite(maisEduUserId) && maisEduUserId > 0 ? maisEduUserId : undefined,
+      userId: hasMaisEduUserId ? maisEduUserId : undefined,
     }
   }
 
@@ -159,15 +168,21 @@ export async function syncCadastroToMaisEdu(cadastroId: string) {
     nascimento: formatDate(cadastro.data_nascimento) || undefined,
   })
 
-  // Duplicidade não é erro em reprocessamentos (usuário já existe no MaisEdu)
+  // Duplicidade não confirma que o produto solicitado foi ativado. O registro
+  // permanece reenviável para que o administrador tente novamente após a
+  // regularização do usuário junto ao parceiro.
   if (!result.ok && result.reason === 'duplicate') {
     console.log(`[Sync MaisEdu] Titular ${cadastro.nome} (CPF: ${cpfDigits}) já está cadastrado no MaisEdu.`)
+    const partnerMessage = result.message || 'Usuário já cadastrado na MaisEdu.'
+    const duplicateMessage =
+      `A MaisEdu recusou o reenvio: ${partnerMessage} A resposta não confirmou a ativação do produto. Solicite ao suporte MaisEdu a regularização ou exclusão do cadastro e tente novamente.`
+
     await updateMaisEduSyncStatus(cadastroId, {
       status: 'JA_EXISTIA',
-      syncedAt: new Date().toISOString(),
-      error: null,
+      syncedAt: null,
+      error: partnerMessage,
     })
-    return { success: true, count: 1, skipped: true }
+    return { success: false, reason: 'duplicate' as const, error: duplicateMessage }
   }
 
   if (!result.ok) {
@@ -182,5 +197,11 @@ export async function syncCadastroToMaisEdu(cadastroId: string) {
     syncedAt: new Date().toISOString(),
     error: null,
   })
-  return { success: true, count: 1, userId: result.data.user_id }
+  return {
+    success: true,
+    count: 1,
+    userId: result.data.user_id,
+    login: result.data.login,
+    temporaryPassword: result.data.pass_temp,
+  }
 }

@@ -27,14 +27,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'ID de cliente inválido.' }, { status: 400 })
     }
 
-    const result = await syncCadastroToMaisEdu(cadastroId)
+    const result = await syncCadastroToMaisEdu(cadastroId, { force: true })
 
     if (!result.success) {
+      const isDuplicate = 'reason' in result && result.reason === 'duplicate'
       return NextResponse.json(
         {
           error: 'error' in result ? result.error ?? 'Erro desconhecido' : 'Erro desconhecido',
         },
-        { status: 400 }
+        { status: isDuplicate ? 409 : 400 }
       )
     }
 
@@ -46,6 +47,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
       message: skipped
         ? 'O cliente já estava cadastrado na MaisEdu.'
         : 'Cliente cadastrado na MaisEdu com sucesso.',
+      ...(!skipped && 'login' in result ? { login: result.login } : {}),
+      ...(!skipped && 'temporaryPassword' in result && result.temporaryPassword
+        ? { temporaryPassword: result.temporaryPassword }
+        : {}),
     })
   } catch (error) {
     console.error('Erro ao cadastrar cliente na MaisEdu:', error)

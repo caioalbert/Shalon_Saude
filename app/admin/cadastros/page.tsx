@@ -329,8 +329,12 @@ export default function AdminCadastrosPage() {
         throw new Error(data.error || "Erro ao cadastrar cliente na MaisEdu");
       }
 
+      const credentialsMessage = data.temporaryPassword
+        ? ` Login: ${data.login}. Senha temporária: ${data.temporaryPassword}. Copie a senha agora; ela não será armazenada.`
+        : "";
+
       setSuccessMessage(
-        data.message || "Cliente cadastrado na MaisEdu com sucesso.",
+        `${data.message || "Cliente cadastrado na MaisEdu com sucesso."}${credentialsMessage}`,
       );
     } catch (err) {
       setError(
@@ -1063,13 +1067,13 @@ export default function AdminCadastrosPage() {
                                     row.cadastro.status || "",
                                   ).toUpperCase() !== "ATIVO"
                                 }
-                                aria-label="Cadastrar cliente na MaisEdu"
+                                aria-label="Enviar ou reenviar cliente para a MaisEdu"
                                 title={
                                   String(
                                     row.cadastro.status || "",
                                   ).toUpperCase() !== "ATIVO"
                                     ? "Disponível somente para clientes ativos"
-                                    : "Cadastrar cliente na MaisEdu"
+                                    : "Enviar ou reenviar cliente para a MaisEdu"
                                 }
                               >
                                 {syncingMaisEduId === row.cadastroId ? (
