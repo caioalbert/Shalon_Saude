@@ -105,6 +105,11 @@ function maisEduHeaders(): HeadersInit {
   }
 }
 
+function parsePositiveInteger(value: unknown): number | null {
+  const parsed = typeof value === 'number' ? value : Number(String(value ?? '').trim())
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null
+}
+
 /**
  * Cadastra um usuário na plataforma MaisEdu.
  * Retorna os dados do usuário criado ou um erro tipado com mensagem amigável.
@@ -179,19 +184,61 @@ export async function registerUserOnMaisEdu(
     }
 
     // Sucesso: { status: "success", message: "...", data: { user_id, login, email, produto, pass_temp? } }
-    const responseData = data?.data as MaisEduSuccessData | undefined
+    const rawResponseData = data?.data as
+      | (Partial<Omit<MaisEduSuccessData, 'user_id' | 'produto'>> & {
+          user_id?: unknown
+          produto?: Partial<Omit<MaisEduSuccessData['produto'], 'id'>> & { id?: unknown }
+        })
+      | undefined
+    const userId = parsePositiveInteger(rawResponseData?.user_id)
+    const returnedProductId = parsePositiveInteger(rawResponseData?.produto?.id)
 
-    if (!responseData?.user_id || responseData.produto?.id !== payload.produto) {
+    if (!userId || returnedProductId !== payload.produto) {
+      const validationIssues = [
+        !userId ? "campo 'user_id' ausente ou inválido" : null,
+        returnedProductId === null
+          ? "campo 'produto.id' ausente ou inválido"
+          : returnedProductId !== payload.produto
+            ? `produto retornado ${returnedProductId}, esperado ${payload.produto}`
+            : null,
+      ].filter((issue): issue is string => Boolean(issue))
+
       console.error('[MaisEdu] Resposta de sucesso incompatível com o contrato V1.0:', {
-        hasUserId: Boolean(responseData?.user_id),
+        httpStatus: res.status,
+        apiStatus: data?.status,
+        apiMessage: data?.message,
+        hasUserId: Boolean(userId),
         requestedProductId: payload.produto,
-        returnedProductId: responseData?.produto?.id,
+        returnedProductId,
       })
       return {
         ok: false,
         reason: 'api_error',
-        message: 'A MaisEdu não confirmou a ativação do produto solicitado.',
+        message: `A MaisEdu respondeu, mas não confirmou a ativação do produto: ${validationIssues.join('; ')}.${data?.message ? ` Mensagem do parceiro: ${data.message}` : ''}`,
       }
+    }
+
+    const responseData: MaisEduSuccessData = {
+      user_id: userId,
+      login:
+        typeof rawResponseData?.login === 'string' && rawResponseData.login.trim()
+          ? rawResponseData.login
+          : payload.login,
+      email:
+        typeof rawResponseData?.email === 'string' && rawResponseData.email.trim()
+          ? rawResponseData.email
+          : payload.email,
+      produto: {
+        id: payload.produto,
+        nome:
+          typeof rawResponseData?.produto?.nome === 'string'
+            ? rawResponseData.produto.nome
+            : '',
+        prod_id: Number(rawResponseData?.produto?.prod_id) || 0,
+        valor: Number(rawResponseData?.produto?.valor) || 0,
+      },
+      pass_temp:
+        typeof rawResponseData?.pass_temp === 'string' ? rawResponseData.pass_temp : undefined,
     }
 
     return { ok: true, data: responseData }
