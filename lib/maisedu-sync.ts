@@ -1,5 +1,6 @@
 import { createAdminClient } from './supabase/admin'
 import { isMaisEduConfigured, registerUserOnMaisEdu } from './maisedu'
+import { getMaisEduProductId } from './maisedu-products'
 
 type MaisEduSyncStatus = 'PENDENTE' | 'SINCRONIZADO' | 'JA_EXISTIA' | 'ERRO' | 'IGNORADO'
 
@@ -132,19 +133,30 @@ export async function syncCadastroToMaisEdu(cadastroId: string) {
     return failMaisEduSync(cadastroId, 'CPF do titular inválido')
   }
 
+  const produto = getMaisEduProductId(cadastro.tipo_plano)
+  if (!produto) {
+    const internalPlanCode = String(cadastro.tipo_plano || '').trim() || 'NÃO INFORMADO'
+    return failMaisEduSync(
+      cadastroId,
+      `Plano interno ${internalPlanCode} sem produto MaisEdu configurado.`
+    )
+  }
+
   // 2. Cadastrar Titular na MaisEdu
   const result = await registerUserOnMaisEdu({
     nome: cadastro.nome,
     email: cadastro.email || `${cpfDigits}@shalomsaude.com.br`,
     login: cpfDigits,                                // CPF sem pontuação como login
     doc: cpfDigits,
+    produto,
     telefone: sanitizeDigits(cadastro.telefone) || undefined,
     cep: sanitizeDigits(cadastro.cep) || undefined,
     rua: cadastro.endereco || undefined,
+    numero: cadastro.numero || undefined,
+    bairro: cadastro.bairro || undefined,
     cidade: cadastro.cidade || undefined,
     estado: cadastro.estado || undefined,
     nascimento: formatDate(cadastro.data_nascimento) || undefined,
-    tipo: 1,                                         // Pessoa Física
   })
 
   // Duplicidade não é erro em reprocessamentos (usuário já existe no MaisEdu)

@@ -1,10 +1,13 @@
 import dns from 'node:dns'
 import { Agent, type Dispatcher } from 'undici'
+import type { MaisEduProductId } from './maisedu-products'
+
+export type { MaisEduProductId } from './maisedu-products'
 
 /**
  * Integração com a API de Cadastro de Parceiros do Grupo MaisEdu.
  *
- * Endpoint: POST https://vo.grupomais.net.br/api/v1/partner_register.php
+ * Endpoint: POST https://vo.grupomais.net.br/api/v1/partner_register
  *
  * Autenticação:
  *   - Header "Authorization: Bearer <TOKEN>"  → token de acesso gerado pelo painel MaisEdu
@@ -14,7 +17,7 @@ import { Agent, type Dispatcher } from 'undici'
  *   O campo "ref" só é enviado quando MAISEDU_REF_LOGIN estiver configurado.
  */
 
-const MAISEDU_API_URL = 'https://vo.grupomais.net.br/api/v1/partner_register.php'
+const MAISEDU_API_URL = 'https://vo.grupomais.net.br/api/v1/partner_register'
 const MAISEDU_API_TOKEN = process.env.MAISEDU_API_TOKEN?.trim() || ''
 
 /**
@@ -46,6 +49,8 @@ export type MaisEduUserPayload = {
   login: string
   /** CPF ou CNPJ (apenas números ou formatado) */
   doc: string
+  /** Produto do fornecedor que será ativado para o usuário */
+  produto: MaisEduProductId
   /** Login do patrocinador que indicou este usuário */
   ref?: string
   /** Senha opcional — se não enviada, a API gera uma aleatória */
@@ -68,8 +73,6 @@ export type MaisEduUserPayload = {
   estado?: string
   /** Data de nascimento no formato YYYY-MM-DD */
   nascimento?: string
-  /** Tipo de conta (padrão: 1 = Pessoa Física) */
-  tipo?: number
 }
 
 /** Resposta de sucesso da API MaisEdu */
@@ -77,8 +80,14 @@ export type MaisEduSuccessData = {
   user_id: number
   login: string
   email: string
+  produto: {
+    id: MaisEduProductId
+    nome: string
+    prod_id: number
+    valor: number
+  }
   /** Presente apenas se o campo 'senha' não foi enviado no payload */
-  senha_gerada?: string
+  pass_temp?: string
 }
 
 /** Verifica se as credenciais da MaisEdu estão configuradas no servidor */
@@ -169,19 +178,19 @@ export async function registerUserOnMaisEdu(
       }
     }
 
-    // Sucesso: { status: "success", message: "...", data: { user_id, login, email, senha_gerada? } }
+    // Sucesso: { status: "success", message: "...", data: { user_id, login, email, produto, pass_temp? } }
     const responseData = data?.data as MaisEduSuccessData | undefined
 
-    if (!responseData?.user_id) {
-      // Interpretamos como sucesso parcial (API retornou 200 mas sem campo data)
-      console.warn('[MaisEdu] Sucesso sem dados de retorno:', data)
+    if (!responseData?.user_id || responseData.produto?.id !== payload.produto) {
+      console.error('[MaisEdu] Resposta de sucesso incompatível com o contrato V1.0:', {
+        hasUserId: Boolean(responseData?.user_id),
+        requestedProductId: payload.produto,
+        returnedProductId: responseData?.produto?.id,
+      })
       return {
-        ok: true,
-        data: {
-          user_id: 0,
-          login: payload.login,
-          email: payload.email,
-        },
+        ok: false,
+        reason: 'api_error',
+        message: 'A MaisEdu não confirmou a ativação do produto solicitado.',
       }
     }
 

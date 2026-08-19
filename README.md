@@ -96,6 +96,8 @@ Edite `.env.local` com:
 #### MaisEdu
 - `MAISEDU_API_TOKEN` - Token Bearer usado para cadastro no parceiro MaisEdu.
 - `MAISEDU_REF_LOGIN` - Login de patrocinador opcional. Quando vazio, o campo `ref` não é enviado.
+- Mapeamento por código do plano interno: `INDIVIDUAL` ativa o produto MaisEdu `1`; `FAMILIAR` e `PLANO-EMPRESARIAL` ativam o produto MaisEdu `2`.
+- Os preços comerciais da SHALOM são independentes dos valores de referência do fornecedor e não são usados no mapeamento.
 
 #### Aplicação
 - `NEXT_PUBLIC_APP_URL` - URL da aplicação (ex: http://localhost:3000)
