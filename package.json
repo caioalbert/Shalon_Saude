@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test:maisedu": "node scripts/tests/run-maisedu-tests.mjs",
     "android:build": "bash scripts/build-android-artifacts.sh"
   },
   "dependencies": {

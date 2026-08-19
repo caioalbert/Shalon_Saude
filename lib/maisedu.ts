@@ -1,8 +1,13 @@
 import dns from 'node:dns'
 import { Agent, type Dispatcher } from 'undici'
 import type { MaisEduProductId } from './maisedu-products'
+import {
+  parseMaisEduSuccessData,
+  type MaisEduSuccessData,
+} from './maisedu-response'
 
 export type { MaisEduProductId } from './maisedu-products'
+export type { MaisEduSuccessData } from './maisedu-response'
 
 /**
  * Integração com a API de Cadastro de Parceiros do Grupo MaisEdu.
@@ -75,21 +80,6 @@ export type MaisEduUserPayload = {
   nascimento?: string
 }
 
-/** Resposta de sucesso da API MaisEdu */
-export type MaisEduSuccessData = {
-  user_id: number
-  login: string
-  email: string
-  produto: {
-    id: MaisEduProductId
-    nome: string
-    prod_id: number
-    valor: number
-  }
-  /** Presente apenas se o campo 'senha' não foi enviado no payload */
-  pass_temp?: string
-}
-
 /** Verifica se as credenciais da MaisEdu estão configuradas no servidor */
 export function isMaisEduConfigured(): boolean {
   return Boolean(MAISEDU_API_TOKEN)
@@ -103,11 +93,6 @@ function maisEduHeaders(): HeadersInit {
     'Accept': 'application/json',
     'User-Agent': 'ShalonSaudeHostinger/1.0',
   }
-}
-
-function parsePositiveInteger(value: unknown): number | null {
-  const parsed = typeof value === 'number' ? value : Number(String(value ?? '').trim())
-  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null
 }
 
 /**
@@ -143,7 +128,7 @@ export async function registerUserOnMaisEdu(
     } as RequestInit & { dispatcher: Dispatcher })
 
     const textResponse = await res.text()
-    let data: { status?: string; message?: string; data?: MaisEduSuccessData }
+    let data: { status?: string; message?: string; data?: unknown }
     try {
       data = textResponse ? JSON.parse(textResponse) : {}
     } catch {
@@ -184,64 +169,39 @@ export async function registerUserOnMaisEdu(
     }
 
     // Sucesso: { status: "success", message: "...", data: { user_id, login, email, produto, pass_temp? } }
-    const rawResponseData = data?.data as
-      | (Partial<Omit<MaisEduSuccessData, 'user_id' | 'produto'>> & {
-          user_id?: unknown
-          produto?: Partial<Omit<MaisEduSuccessData['produto'], 'id'>> & { id?: unknown }
-        })
-      | undefined
-    const userId = parsePositiveInteger(rawResponseData?.user_id)
-    const returnedProductId = parsePositiveInteger(rawResponseData?.produto?.id)
+    const parsedSuccess = parseMaisEduSuccessData({
+      rawData: data?.data,
+      requestedProductId: payload.produto,
+      fallbackLogin: payload.login,
+      fallbackEmail: payload.email,
+    })
 
-    if (!userId || returnedProductId !== payload.produto) {
-      const validationIssues = [
-        !userId ? "campo 'user_id' ausente ou inválido" : null,
-        returnedProductId === null
-          ? "campo 'produto.id' ausente ou inválido"
-          : returnedProductId !== payload.produto
-            ? `produto retornado ${returnedProductId}, esperado ${payload.produto}`
-            : null,
-      ].filter((issue): issue is string => Boolean(issue))
-
+    if (!parsedSuccess.ok) {
       console.error('[MaisEdu] Resposta de sucesso incompatível com o contrato V1.0:', {
         httpStatus: res.status,
         apiStatus: data?.status,
         apiMessage: data?.message,
-        hasUserId: Boolean(userId),
+        hasUserId: parsedSuccess.hasUserId,
         requestedProductId: payload.produto,
-        returnedProductId,
+        returnedProductId: parsedSuccess.returnedProductId,
       })
       return {
         ok: false,
         reason: 'api_error',
-        message: `A MaisEdu respondeu, mas não confirmou a ativação do produto: ${validationIssues.join('; ')}.${data?.message ? ` Mensagem do parceiro: ${data.message}` : ''}`,
+        message: `A MaisEdu respondeu com dados de cadastro inválidos: ${parsedSuccess.issues.join('; ')}.${data?.message ? ` Mensagem do parceiro: ${data.message}` : ''}`,
       }
     }
 
-    const responseData: MaisEduSuccessData = {
-      user_id: userId,
-      login:
-        typeof rawResponseData?.login === 'string' && rawResponseData.login.trim()
-          ? rawResponseData.login
-          : payload.login,
-      email:
-        typeof rawResponseData?.email === 'string' && rawResponseData.email.trim()
-          ? rawResponseData.email
-          : payload.email,
-      produto: {
-        id: payload.produto,
-        nome:
-          typeof rawResponseData?.produto?.nome === 'string'
-            ? rawResponseData.produto.nome
-            : '',
-        prod_id: Number(rawResponseData?.produto?.prod_id) || 0,
-        valor: Number(rawResponseData?.produto?.valor) || 0,
-      },
-      pass_temp:
-        typeof rawResponseData?.pass_temp === 'string' ? rawResponseData.pass_temp : undefined,
+    if (parsedSuccess.returnedProductId === null) {
+      console.warn('[MaisEdu] Resposta de sucesso omitiu produto.id; usando o produto solicitado.', {
+        httpStatus: res.status,
+        apiStatus: data?.status,
+        requestedProductId: payload.produto,
+        hasUserId: true,
+      })
     }
 
-    return { ok: true, data: responseData }
+    return { ok: true, data: parsedSuccess.data }
   } catch (err) {
     console.error('[MaisEdu API] Erro de rede ao cadastrar:', err)
     return {
