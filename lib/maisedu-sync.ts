@@ -1,4 +1,82 @@
+import dns from "node:dns";
+import https from "node:https";
+import http from "node:http";
+import { URL } from "node:url";
 import { resolveMaisEduProduct } from "./maisedu-products";
+
+// Força a resolução DNS a priorizar IPv4 no processo Node.js
+try {
+  if (typeof dns.setDefaultResultOrder === "function") {
+    dns.setDefaultResultOrder("ipv4first");
+  }
+} catch {}
+
+/**
+ * Realiza uma requisição POST JSON forçando estritamente a conexão por IPv4 (family: 4)
+ */
+async function postJsonIPv4(
+  urlStr: string,
+  headers: Record<string, string>,
+  body: any
+): Promise<{ status: number; data: any; ok: boolean }> {
+  return new Promise((resolve, reject) => {
+    const url = new URL(urlStr);
+    const postData = JSON.stringify(body);
+    const isHttps = url.protocol === "https:";
+    const client = isHttps ? https : http;
+
+    const reqHeaders: Record<string, string | number> = {
+      ...headers,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "Content-Length": Buffer.byteLength(postData),
+    };
+
+    const options: https.RequestOptions = {
+      hostname: url.hostname,
+      port: url.port || (isHttps ? 443 : 80),
+      path: url.pathname + url.search,
+      method: "POST",
+      headers: reqHeaders,
+      family: 4, // <-- FORÇA ESTRITAMENTE IPV4
+      timeout: 20000,
+    };
+
+    const req = client.request(options, (res) => {
+      let rawData = "";
+      res.on("data", (chunk) => {
+        rawData += chunk;
+      });
+
+      res.on("end", () => {
+        let parsedData: any = {};
+        try {
+          parsedData = JSON.parse(rawData);
+        } catch {
+          parsedData = { raw: rawData };
+        }
+
+        const statusCode = res.statusCode || 500;
+        resolve({
+          status: statusCode,
+          ok: statusCode >= 200 && statusCode < 300,
+          data: parsedData,
+        });
+      });
+    });
+
+    req.on("error", (err) => {
+      reject(err);
+    });
+
+    req.on("timeout", () => {
+      req.destroy(new Error("Timeout ao conectar com a API do parceiro"));
+    });
+
+    req.write(postData);
+    req.end();
+  });
+}
 
 function formatNascimento(dateString?: string): string {
   if (!dateString) return "";
@@ -15,7 +93,7 @@ function formatNascimento(dateString?: string): string {
     return `${y}-${m}-${d}`;
   }
 
-  // ISO string com timestamp
+  // ISO string
   try {
     const d = new Date(cleaned);
     if (!isNaN(d.getTime())) {
@@ -102,7 +180,7 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
     };
   }
 
-  // 2. Leitura das variáveis de ambiente do Grupo Mais / MaisEdu
+  // 2. Leitura das variáveis de ambiente
   const rawBaseUrl =
     process.env.GRUPOMAIS_API_URL ||
     process.env.MAISEDU_API_URL ||
@@ -124,10 +202,7 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
   const token = rawToken.trim();
 
   try {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    };
+    const headers: Record<string, string> = {};
 
     if (token) {
       headers["Authorization"] = token.toLowerCase().startsWith("bearer ")
@@ -135,40 +210,35 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
         : `Bearer ${token}`;
     }
 
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload),
-    });
+    // Executa a requisição forçando IPv4
+    const res = await postJsonIPv4(endpoint, headers, payload);
 
-    const responseData = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
+    if (!res.ok) {
       return {
         success: false,
         error:
-          responseData.message ||
-          responseData.error ||
-          `Erro HTTP ${response.status} na API do parceiro`,
-        status: response.status,
-        data: responseData,
+          res.data?.message ||
+          res.data?.error ||
+          res.data?.raw ||
+          `Erro HTTP ${res.status} na API do parceiro`,
+        status: res.status,
+        data: res.data,
         payloadSent: payload,
       };
     }
 
     return {
       success: true,
-      data: responseData,
-      status: response.status,
+      data: res.data,
+      status: res.status,
       payloadSent: payload,
     };
   } catch (err: any) {
-    const causeDetail = err.cause ? ` [Causa: ${err.cause.code || err.cause.message || err.cause}]` : "";
-    console.error(`[sync-grupomais] Erro ao conectar em ${endpoint}:`, err);
+    console.error(`[sync-grupomais-ipv4] Erro ao conectar em ${endpoint}:`, err);
 
     return {
       success: false,
-      error: `Falha de conexão com ${endpoint}: ${err.message}${causeDetail}`,
+      error: `Falha de conexão com ${endpoint}: ${err.message}`,
       payloadSent: payload,
     };
   }
