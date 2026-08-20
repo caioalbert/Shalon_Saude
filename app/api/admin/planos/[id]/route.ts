@@ -35,6 +35,10 @@ function mapDatabaseErrorMessage(error: unknown) {
     return 'Banco desatualizado. Execute scripts/011_add_planos_publico_conteudo.sql no Supabase SQL Editor.'
   }
 
+  if (/maisedu_produto_id/i.test(details)) {
+    return 'Banco desatualizado. Execute scripts/022_add_planos_maisedu_produto_id.sql no Supabase SQL Editor.'
+  }
+
   if (/relation .*cobranca_configuracoes|does not exist|42P01/i.test(details)) {
     return 'Banco desatualizado. Execute scripts/005_add_billing_settings_admin.sql e scripts/006_add_plan_type_pricing.sql no Supabase SQL Editor.'
   }
@@ -165,6 +169,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           dependentes_minimos?: number | string
           max_dependentes?: number | string | null
           valor_dependente_adicional?: number | string
+          maisedu_produto_id?: number | string | null
         }
       | null
 
@@ -193,6 +198,25 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const hasDependentesMinimosField = body.dependentes_minimos !== undefined
     const hasMaxDependentesField = body.max_dependentes !== undefined
     const hasValorDependenteAdicionalField = body.valor_dependente_adicional !== undefined
+    const hasMaisEduProdutoIdField = body.maisedu_produto_id !== undefined
+
+    // Parse maisedu_produto_id: aceita 1-6 ou null/''  para limpar
+    let maisEduProdutoId: number | null | undefined = undefined
+    if (hasMaisEduProdutoIdField) {
+      const raw = body.maisedu_produto_id
+      if (raw === null || raw === '') {
+        maisEduProdutoId = null
+      } else {
+        const parsed = Number(raw)
+        if (!Number.isInteger(parsed) || parsed < 1 || parsed > 6) {
+          return NextResponse.json(
+            { error: 'maisedu_produto_id inválido. Deve ser um inteiro entre 1 e 6 ou nulo.' },
+            { status: 400 }
+          )
+        }
+        maisEduProdutoId = parsed
+      }
+    }
 
     if (nome !== undefined && !nome) {
       return NextResponse.json({ error: 'Nome do plano é obrigatório.' }, { status: 400 })
@@ -218,7 +242,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       !hasPermiteDependentesField &&
       !hasDependentesMinimosField &&
       !hasMaxDependentesField &&
-      !hasValorDependenteAdicionalField
+      !hasValorDependenteAdicionalField &&
+      !hasMaisEduProdutoIdField
     ) {
       return NextResponse.json({ error: 'Nenhum campo para atualizar.' }, { status: 400 })
     }
@@ -228,7 +253,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { data: currentPlan, error: currentPlanError } = await supabase
       .from('planos')
       .select(
-        'id, codigo, nome, descricao_publica, beneficios_publicos, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, created_at, updated_at'
+        'id, codigo, nome, descricao_publica, beneficios_publicos, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, maisedu_produto_id, created_at, updated_at'
       )
       .eq('id', planId)
       .maybeSingle()
@@ -320,6 +345,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       dependentes_minimos?: number
       max_dependentes?: number | null
       valor_dependente_adicional?: number
+      maisedu_produto_id?: number | null
       updated_at: string
     } = {
       updated_at: new Date().toISOString(),
@@ -341,13 +367,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       payload.max_dependentes = nextMaxDependentes
       payload.valor_dependente_adicional = nextValorDependenteAdicional
     }
+    if (hasMaisEduProdutoIdField) payload.maisedu_produto_id = maisEduProdutoId ?? null
 
     const { data: updatedPlan, error: updateError } = await supabase
       .from('planos')
       .update(payload)
       .eq('id', planId)
       .select(
-        'id, codigo, nome, descricao_publica, beneficios_publicos, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, created_at, updated_at'
+        'id, codigo, nome, descricao_publica, beneficios_publicos, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, maisedu_produto_id, created_at, updated_at'
       )
       .single()
 

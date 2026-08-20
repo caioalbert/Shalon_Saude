@@ -1,213 +1,160 @@
-import { createAdminClient } from './supabase/admin'
-import { isMaisEduConfigured, registerUserOnMaisEdu } from './maisedu'
-import { createMaisEduLoginFromName } from './maisedu-login'
-import { getMaisEduProductId } from './maisedu-products'
+import { resolveMaisEduProduct } from "./maisedu-products";
 
-type MaisEduSyncStatus = 'PENDENTE' | 'SINCRONIZADO' | 'JA_EXISTIA' | 'ERRO' | 'IGNORADO'
+function formatNascimento(dateString?: string): string {
+  if (!dateString) return "";
+  const cleaned = String(dateString).trim();
 
-type MaisEduSyncUpdate = {
-  status: MaisEduSyncStatus
-  userId?: number | null
-  error?: string | null
-  syncedAt?: string | null
-}
+  // Formato YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
+    return cleaned;
+  }
 
-type MaisEduSyncOptions = {
-  force?: boolean
-}
+  // Formato DD/MM/YYYY
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(cleaned)) {
+    const [d, m, y] = cleaned.split("/");
+    return `${y}-${m}-${d}`;
+  }
 
-function sanitizeDigits(value?: string | null) {
-  return String(value || '').replace(/\D/g, '')
-}
-
-function formatDate(date: string | Date | null) {
-  if (!date) return undefined
+  // ISO string
   try {
-    const d = new Date(date)
-    return d.toISOString().split('T')[0] // yyyy-MM-dd
-  } catch {
-    return undefined
-  }
+    const d = new Date(cleaned);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().split("T")[0];
+    }
+  } catch {}
+
+  return cleaned;
 }
 
-async function updateMaisEduSyncStatus(
-  cadastroId: string,
-  update: MaisEduSyncUpdate
-) {
-  const supabase = createAdminClient()
-  const updatePayload: Record<string, string | number | null> = {
-    maisedu_status: update.status,
+function generateLogin(email?: string, cpfClean?: string, nome?: string): string {
+  if (email && email.includes("@")) {
+    const username = email.split("@")[0].toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (username.length >= 3) return username;
   }
 
-  if ('userId' in update) {
-    updatePayload.maisedu_user_id = update.userId ?? null
+  if (cpfClean && cpfClean.length >= 6) {
+    return `user${cpfClean.slice(0, 8)}`;
   }
 
-  if ('syncedAt' in update) {
-    updatePayload.maisedu_synced_at = update.syncedAt ?? null
+  if (nome) {
+    const cleanName = nome.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (cleanName.length >= 3) return cleanName.slice(0, 20);
   }
 
-  if ('error' in update) {
-    updatePayload.maisedu_last_error = update.error ?? null
-  }
-
-  const { error: updateError } = await supabase
-    .from('cadastros')
-    .update(updatePayload)
-    .eq('id', cadastroId)
-
-  if (updateError) {
-    console.error('[Sync MaisEdu] Erro ao atualizar status da integração no cadastro:', {
-      cadastroId,
-      status: update.status,
-      message: updateError.message,
-      details: updateError.details,
-    })
-  }
+  return `user_${Date.now()}`;
 }
 
-async function failMaisEduSync(cadastroId: string, message: string) {
-  await updateMaisEduSyncStatus(cadastroId, {
-    status: 'ERRO',
-    error: message,
-  })
+export interface MaisEduRegisterPayload {
+  nome: string;
+  email: string;
+  login: string;
+  doc: string;
+  telefone: string;
+  nascimento: string;
+  produto: number;
+  cep: string;
+  rua: string;
+  numero: string;
+  cidade: string;
+  estado: string;
+}
 
-  return { success: false, error: message }
+export interface MaisEduSyncResult {
+  success: boolean;
+  data?: any;
+  error?: string;
+  status?: number;
+  payloadSent?: MaisEduRegisterPayload;
 }
 
 /**
- * Busca um cadastro completo do Supabase e cadastra o titular na plataforma MaisEdu.
- *
- * Comportamento:
- * - Somente cadastros com status ATIVO são sincronizados.
- * - Cadastros já sincronizados retornam sucesso sem novo envio, exceto quando
- *   a chamada manual solicita um reenvio forçado.
- * - CPF inválido (diferente de 11 dígitos) impede o envio.
- * - Duplicidade sem user_id e produto confirmados não é considerada sucesso.
- * - Dependentes não são enviados individualmente à MaisEdu nesta versão,
- *   pois a API de parceiros não possui um campo de vínculo familiar.
+ * Função principal de sincronização com a API do parceiro
  */
-export async function syncCadastroToMaisEdu(
-  cadastroId: string,
-  options: MaisEduSyncOptions = {}
-) {
-  const supabase = createAdminClient()
+export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncResult> {
+  const produtoId = resolveMaisEduProduct(cadastro);
 
-  // 1. Buscar Cadastro
-  const { data: cadastro, error: cadastroError } = await supabase
-    .from('cadastros')
-    .select('*')
-    .eq('id', cadastroId)
-    .single()
+  const docClean = (cadastro.cpf || cadastro.doc || "").replace(/\D/g, "");
+  const telefoneClean = (cadastro.telefone || cadastro.celular || "").replace(/\D/g, "");
+  const cepClean = (cadastro.cep || "").trim();
+  const nascimentoFormatted = formatNascimento(cadastro.data_nascimento || cadastro.nascimento);
+  const emailClean = (cadastro.email || "").trim().toLowerCase();
+  const nomeClean = (cadastro.nome || cadastro.nome_completo || "").trim();
+  const loginClean = cadastro.login || generateLogin(emailClean, docClean, nomeClean);
 
-  if (cadastroError || !cadastro) {
-    console.error('[Sync MaisEdu] Erro ao buscar cadastro:', cadastroError)
-    return { success: false, error: 'Cadastro não encontrado' }
+  const payload: MaisEduRegisterPayload = {
+    nome: nomeClean,
+    email: emailClean,
+    login: loginClean,
+    doc: docClean,
+    telefone: telefoneClean,
+    nascimento: nascimentoFormatted,
+    produto: Number(produtoId), // 1 ou 2
+    cep: cepClean,
+    rua: cadastro.endereco || cadastro.rua || cadastro.logradouro || "Não informado",
+    numero: String(cadastro.numero || "S/N"),
+    cidade: cadastro.cidade || "Não informada",
+    estado: (cadastro.estado || cadastro.uf || "").toUpperCase().slice(0, 2),
+  };
+
+  // Validações antes do envio
+  if (!payload.doc || !payload.email) {
+    return {
+      success: false,
+      error: "CPF (doc) e Email são obrigatórios para a sincronização.",
+      payloadSent: payload,
+    };
   }
 
-  const maisEduStatus = String(cadastro.maisedu_status || '').trim().toUpperCase()
-  const maisEduUserId = Number(cadastro.maisedu_user_id)
-  const hasMaisEduUserId = Number.isFinite(maisEduUserId) && maisEduUserId > 0
-  const confirmedSync = maisEduStatus === 'SINCRONIZADO' && hasMaisEduUserId
-  const alreadySynced =
-    confirmedSync ||
-    maisEduStatus === 'JA_EXISTIA' ||
-    hasMaisEduUserId
+  if (typeof payload.produto !== "number" || isNaN(payload.produto) || payload.produto <= 0) {
+    return {
+      success: false,
+      error: `Código de produto inválido (${payload.produto}). Verifique o plano cadastrado.`,
+      payloadSent: payload,
+    };
+  }
 
-  if (confirmedSync || (alreadySynced && !options.force)) {
+  const baseUrl = process.env.MAISEDU_API_URL || "https://api.parceiro.com.br";
+  const token = process.env.MAISEDU_API_TOKEN || "";
+
+  try {
+    const response = await fetch(`${baseUrl}/api/v1/partner_register`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const responseData = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error:
+          responseData.message ||
+          responseData.error ||
+          `Erro HTTP ${response.status} na API do parceiro`,
+        status: response.status,
+        data: responseData,
+        payloadSent: payload,
+      };
+    }
+
     return {
       success: true,
-      count: 0,
-      skipped: true,
-      userId: hasMaisEduUserId ? maisEduUserId : undefined,
-    }
-  }
-
-  // Se não estiver ATIVO, não sincroniza
-  if (cadastro.status !== 'ATIVO') {
-    await updateMaisEduSyncStatus(cadastroId, {
-      status: 'IGNORADO',
-      error: 'Cadastro não está ATIVO',
-    })
-    return { success: false, error: 'Cadastro não está ATIVO' }
-  }
-
-  // Verifica configuração antes de prosseguir
-  if (!isMaisEduConfigured()) {
-    console.warn('[Sync MaisEdu] Integração não configurada (MAISEDU_API_TOKEN ausente).')
-    return failMaisEduSync(cadastroId, 'Integração MaisEdu não configurada no servidor.')
-  }
-
-  const cpfDigits = sanitizeDigits(cadastro.cpf)
-  if (cpfDigits.length !== 11) {
-    return failMaisEduSync(cadastroId, 'CPF do titular inválido')
-  }
-
-  const produto = getMaisEduProductId(cadastro.tipo_plano)
-  if (!produto) {
-    const internalPlanCode = String(cadastro.tipo_plano || '').trim() || 'NÃO INFORMADO'
-    return failMaisEduSync(
-      cadastroId,
-      `Plano interno ${internalPlanCode} sem produto MaisEdu configurado.`
-    )
-  }
-
-  const login = createMaisEduLoginFromName(cadastro.nome)
-  if (!login) {
-    return failMaisEduSync(cadastroId, 'Nome do titular inválido para gerar o login MaisEdu')
-  }
-
-  // 2. Cadastrar Titular na MaisEdu
-  const result = await registerUserOnMaisEdu({
-    nome: cadastro.nome,
-    email: cadastro.email || `${cpfDigits}@shalomsaude.com.br`,
-    login,
-    doc: cpfDigits,
-    produto,
-    telefone: sanitizeDigits(cadastro.telefone) || undefined,
-    cep: sanitizeDigits(cadastro.cep) || undefined,
-    rua: cadastro.endereco || undefined,
-    numero: cadastro.numero || undefined,
-    bairro: cadastro.bairro || undefined,
-    cidade: cadastro.cidade || undefined,
-    estado: cadastro.estado || undefined,
-    nascimento: formatDate(cadastro.data_nascimento) || undefined,
-  })
-
-  // Duplicidade não confirma que o produto solicitado foi ativado. O registro
-  // permanece reenviável para que o administrador tente novamente após a
-  // regularização do usuário junto ao parceiro.
-  if (!result.ok && result.reason === 'duplicate') {
-    console.log(`[Sync MaisEdu] Titular ${cadastro.nome} (CPF: ${cpfDigits}) já está cadastrado no MaisEdu.`)
-    const partnerMessage = result.message || 'Usuário já cadastrado na MaisEdu.'
-    const duplicateMessage =
-      `A MaisEdu recusou o reenvio: ${partnerMessage} A resposta não confirmou a ativação do produto. Solicite ao suporte MaisEdu a regularização ou exclusão do cadastro e tente novamente.`
-
-    await updateMaisEduSyncStatus(cadastroId, {
-      status: 'JA_EXISTIA',
-      syncedAt: null,
-      error: partnerMessage,
-    })
-    return { success: false, reason: 'duplicate' as const, error: duplicateMessage }
-  }
-
-  if (!result.ok) {
-    console.error(`[Sync MaisEdu] Falha ao cadastrar ${cadastro.nome}:`, result.message)
-    return failMaisEduSync(cadastroId, result.message)
-  }
-
-  console.log(`[Sync MaisEdu] Titular ${cadastro.nome} cadastrado com sucesso no MaisEdu. user_id: ${result.data.user_id}`)
-  await updateMaisEduSyncStatus(cadastroId, {
-    status: 'SINCRONIZADO',
-    userId: result.data.user_id || null,
-    syncedAt: new Date().toISOString(),
-    error: null,
-  })
-  return {
-    success: true,
-    count: 1,
-    userId: result.data.user_id,
-    login: result.data.login,
-    temporaryPassword: result.data.pass_temp,
+      data: responseData,
+      status: response.status,
+      payloadSent: payload,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err.message || "Falha na conexão com o servidor do parceiro.",
+      payloadSent: payload,
+    };
   }
 }
+
+// Exporta também com o alias alternativo para compatibilidade total
+export const syncSingleCadastroMaisEdu = syncCadastroToMaisEdu;

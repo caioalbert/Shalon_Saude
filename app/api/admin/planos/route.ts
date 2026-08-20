@@ -42,6 +42,10 @@ function mapDatabaseErrorMessage(error: unknown) {
     return 'Banco desatualizado. Execute scripts/011_add_planos_publico_conteudo.sql no Supabase SQL Editor.'
   }
 
+  if (/maisedu_produto_id/i.test(details)) {
+    return 'Banco desatualizado. Execute scripts/022_add_planos_maisedu_produto_id.sql no Supabase SQL Editor.'
+  }
+
   if (/duplicate key|planos_codigo_idx/i.test(details)) {
     return 'Já existe um plano com este código.'
   }
@@ -131,7 +135,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase
       .from('planos')
       .select(
-        'id, codigo, nome, descricao_publica, beneficios_publicos, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, created_at, updated_at'
+        'id, codigo, nome, descricao_publica, beneficios_publicos, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, maisedu_produto_id, created_at, updated_at'
       )
       .order('ordem', { ascending: true })
       .order('created_at', { ascending: true })
@@ -169,6 +173,7 @@ export async function POST(request: NextRequest) {
           dependentes_minimos?: number | string
           max_dependentes?: number | string | null
           valor_dependente_adicional?: number | string
+          maisedu_produto_id?: number | string | null
         }
       | null
 
@@ -181,6 +186,20 @@ export async function POST(request: NextRequest) {
     const beneficiosPublicos = String(body.beneficios_publicos || '').trim()
     const valor = Number(body.valor)
     const permiteDependentes = body.permite_dependentes === true
+
+    // maisedu_produto_id: 1-6 ou null (sem integração)
+    const rawMaisEduProdutoId = body.maisedu_produto_id
+    let maisEduProdutoId: number | null = null
+    if (rawMaisEduProdutoId !== undefined && rawMaisEduProdutoId !== null && rawMaisEduProdutoId !== '') {
+      const parsed = Number(rawMaisEduProdutoId)
+      if (!Number.isInteger(parsed) || parsed < 1 || parsed > 6) {
+        return NextResponse.json(
+          { error: 'maisedu_produto_id inválido. Deve ser um inteiro entre 1 e 6 ou nulo.' },
+          { status: 400 }
+        )
+      }
+      maisEduProdutoId = parsed
+    }
 
     if (!nome) {
       return NextResponse.json({ error: 'Nome do plano é obrigatório.' }, { status: 400 })
@@ -269,9 +288,10 @@ export async function POST(request: NextRequest) {
         dependentes_minimos: dependentesMinimos,
         max_dependentes: maxDependentes,
         valor_dependente_adicional: valorDependenteAdicional,
+        maisedu_produto_id: maisEduProdutoId,
       })
       .select(
-        'id, codigo, nome, descricao_publica, beneficios_publicos, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, created_at, updated_at'
+        'id, codigo, nome, descricao_publica, beneficios_publicos, valor, ativo, ordem, permite_dependentes, dependentes_minimos, max_dependentes, valor_dependente_adicional, maisedu_produto_id, created_at, updated_at'
       )
       .single()
 

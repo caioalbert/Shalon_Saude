@@ -1,62 +1,99 @@
-import { syncCadastroToMaisEdu } from '@/lib/maisedu-sync'
-import { requireAdminAuth } from '@/lib/supabase/admin-auth'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { syncSingleCadastroMaisEdu } from "@/lib/maisedu-sync";
 
-export const runtime = 'nodejs'
-
-type RouteContext = { params: Promise<{ id: string }> }
-
-function normalizeCadastroId(value: unknown) {
-  const id = String(value || '').trim()
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
-    ? id
-    : ''
-}
-
-export async function POST(request: NextRequest, context: RouteContext) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const authResult = await requireAdminAuth(request)
-    if (!authResult.ok) {
-      return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+    // No Next.js 15/16, params é assíncrono
+    const { id } = await params;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "ID do cadastro não informado." },
+        { status: 400 }
+      );
     }
 
-    const { id: rawId } = await context.params
-    const cadastroId = normalizeCadastroId(rawId)
+    const supabase = createAdminClient();
 
-    if (!cadastroId) {
-      return NextResponse.json({ error: 'ID de cliente inválido.' }, { status: 400 })
+    // 1. Busca o cadastro e faz o join com a tabela planos
+    const { data: cadastro, error: fetchError } = await supabase
+      .from("cadastros")
+      .select("*, planos(*)")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !cadastro) {
+      return NextResponse.json(
+        { error: "Cadastro não encontrado." },
+        { status: 404 }
+      );
     }
 
-    const result = await syncCadastroToMaisEdu(cadastroId, { force: true })
+    // 2. Se a relação planos não vier carregada, busca pelo plano_id ou tipo_plano
+    if (!cadastro.planos) {
+      if (cadastro.plano_id) {
+        const { data: planoData } = await supabase
+          .from("planos")
+          .select("*")
+          .eq("id", cadastro.plano_id)
+          .single();
+        if (planoData) cadastro.planos = planoData;
+      } else if (cadastro.tipo_plano) {
+        const { data: planoData } = await supabase
+          .from("planos")
+          .select("*")
+          .ilike("codigo", cadastro.tipo_plano)
+          .single();
+        if (planoData) cadastro.planos = planoData;
+      }
+    }
+
+    // 3. Executa o disparo para a API do parceiro
+    const result = await syncSingleCadastroMaisEdu(cadastro);
 
     if (!result.success) {
-      const isDuplicate = 'reason' in result && result.reason === 'duplicate'
+      // Registra a falha no banco para histórico
+      await supabase
+        .from("cadastros")
+        .update({
+          maisedu_sync_status: "error",
+          maisedu_response: {
+            error: result.error,
+            status: result.status,
+            attempted_at: new Date().toISOString(),
+          },
+        })
+        .eq("id", id);
+
       return NextResponse.json(
-        {
-          error: 'error' in result ? result.error ?? 'Erro desconhecido' : 'Erro desconhecido',
-        },
-        { status: isDuplicate ? 409 : 400 }
-      )
+        { error: result.error, details: result.data },
+        { status: 400 }
+      );
     }
 
-    const skipped = 'skipped' in result && result.skipped === true
+    // 4. Registra o sucesso no Supabase
+    await supabase
+      .from("cadastros")
+      .update({
+        maisedu_sync_status: "synced",
+        maisedu_synced_at: new Date().toISOString(),
+        maisedu_response: result.data,
+      })
+      .eq("id", id);
 
     return NextResponse.json({
       success: true,
-      skipped,
-      message: skipped
-        ? 'O cliente já estava cadastrado na MaisEdu.'
-        : 'Cliente cadastrado na MaisEdu com sucesso.',
-      ...(!skipped && 'login' in result ? { login: result.login } : {}),
-      ...(!skipped && 'temporaryPassword' in result && result.temporaryPassword
-        ? { temporaryPassword: result.temporaryPassword }
-        : {}),
-    })
-  } catch (error) {
-    console.error('Erro ao cadastrar cliente na MaisEdu:', error)
+      message: "Cliente sincronizado com sucesso.",
+      data: result.data,
+    });
+  } catch (err: any) {
     return NextResponse.json(
-      { error: 'Erro ao cadastrar cliente na MaisEdu.' },
+      { error: err.message || "Erro interno no servidor." },
       { status: 500 }
-    )
+    );
   }
 }
