@@ -1,4 +1,5 @@
 import dns from 'node:dns'
+import { randomUUID } from 'node:crypto'
 import { Agent, type Dispatcher } from 'undici'
 import type { MaisEduProductId } from './maisedu-products'
 import {
@@ -50,7 +51,7 @@ export type MaisEduUserPayload = {
   nome: string
   /** E-mail (usado para login e comunicação) */
   email: string
-  /** Nome de usuário — usamos o CPF sem pontuação */
+  /** Nome de usuário — usamos primeiro e último nomes sem espaços ou caracteres especiais */
   login: string
   /** CPF ou CNPJ (apenas números ou formatado) */
   doc: string
@@ -95,6 +96,25 @@ function maisEduHeaders(): HeadersInit {
   }
 }
 
+function sanitizeMaisEduLogValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sanitizeMaisEduLogValue)
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, nestedValue]) => [
+      key,
+      /^(authorization|token|senha|password|pass_temp)$/i.test(key)
+        ? '[REDACTED]'
+        : sanitizeMaisEduLogValue(nestedValue),
+    ])
+  )
+}
+
 /**
  * Cadastra um usuário na plataforma MaisEdu.
  * Retorna os dados do usuário criado ou um erro tipado com mensagem amigável.
@@ -117,12 +137,22 @@ export async function registerUserOnMaisEdu(
     ...payload,
     ...(MAISEDU_REF_LOGIN.trim() ? { ref: MAISEDU_REF_LOGIN.trim() } : {}),
   }
+  const diagnosticId = randomUUID()
+  const serializedBody = JSON.stringify(body)
+
+  console.info('[MaisEdu Runtime][REQUEST]', JSON.stringify({
+    diagnosticId,
+    method: 'POST',
+    url: MAISEDU_API_URL,
+    produtoType: typeof body.produto,
+    body: sanitizeMaisEduLogValue(body),
+  }))
 
   try {
     const res = await fetch(MAISEDU_API_URL, {
       method: 'POST',
       headers: maisEduHeaders(),
-      body: JSON.stringify(body),
+      body: serializedBody,
       cache: 'no-store',
       dispatcher: maisEduIpv4Dispatcher,
     } as RequestInit & { dispatcher: Dispatcher })
@@ -134,6 +164,12 @@ export async function registerUserOnMaisEdu(
     } catch {
       data = {}
     }
+
+    console.info('[MaisEdu Runtime][RESPONSE]', JSON.stringify({
+      diagnosticId,
+      httpStatus: res.status,
+      body: sanitizeMaisEduLogValue(data),
+    }))
 
     // Erros de autenticação / IP bloqueado
     if (

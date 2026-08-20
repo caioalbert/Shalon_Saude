@@ -1,5 +1,6 @@
 import { createAdminClient } from './supabase/admin'
 import { isMaisEduConfigured, registerUserOnMaisEdu } from './maisedu'
+import { createMaisEduLoginFromName } from './maisedu-login'
 import { getMaisEduProductId } from './maisedu-products'
 
 type MaisEduSyncStatus = 'PENDENTE' | 'SINCRONIZADO' | 'JA_EXISTIA' | 'ERRO' | 'IGNORADO'
@@ -151,11 +152,16 @@ export async function syncCadastroToMaisEdu(
     )
   }
 
+  const login = createMaisEduLoginFromName(cadastro.nome)
+  if (!login) {
+    return failMaisEduSync(cadastroId, 'Nome do titular inválido para gerar o login MaisEdu')
+  }
+
   // 2. Cadastrar Titular na MaisEdu
   const result = await registerUserOnMaisEdu({
     nome: cadastro.nome,
     email: cadastro.email || `${cpfDigits}@shalomsaude.com.br`,
-    login: cpfDigits,                                // CPF sem pontuação como login
+    login,
     doc: cpfDigits,
     produto,
     telefone: sanitizeDigits(cadastro.telefone) || undefined,
