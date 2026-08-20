@@ -7,7 +7,6 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // No Next.js 15/16, params é assíncrono
     const { id } = await params;
 
     if (!id) {
@@ -19,36 +18,49 @@ export async function POST(
 
     const supabase = createAdminClient();
 
-    // 1. Busca o cadastro e faz o join com a tabela planos
+    // 1. Busca o cadastro de forma direta e segura (sem join automático que pode falhar)
     const { data: cadastro, error: fetchError } = await supabase
       .from("cadastros")
-      .select("*, planos(*)")
+      .select("*")
       .eq("id", id)
       .single();
 
     if (fetchError || !cadastro) {
+      console.error("[sync-maisedu] Erro ao buscar cadastro:", fetchError);
       return NextResponse.json(
-        { error: "Cadastro não encontrado." },
+        { 
+          error: "Cadastro não encontrado.",
+          details: fetchError?.message || "Registro não localizado no banco de dados."
+        },
         { status: 404 }
       );
     }
 
-    // 2. Se a relação planos não vier carregada, busca pelo plano_id ou tipo_plano
-    if (!cadastro.planos) {
-      if (cadastro.plano_id) {
-        const { data: planoData } = await supabase
-          .from("planos")
-          .select("*")
-          .eq("id", cadastro.plano_id)
-          .single();
-        if (planoData) cadastro.planos = planoData;
-      } else if (cadastro.tipo_plano) {
-        const { data: planoData } = await supabase
-          .from("planos")
-          .select("*")
-          .ilike("codigo", cadastro.tipo_plano)
-          .single();
-        if (planoData) cadastro.planos = planoData;
+    // 2. Busca os dados do plano de forma resiliente
+    // Tentativa A: por plano_id (UUID)
+    if (cadastro.plano_id) {
+      const { data: planoData } = await supabase
+        .from("planos")
+        .select("*")
+        .eq("id", cadastro.plano_id)
+        .maybeSingle();
+
+      if (planoData) {
+        cadastro.planos = planoData;
+      }
+    }
+
+    // Tentativa B: por código ou nome (para cadastros legados)
+    if (!cadastro.planos && (cadastro.tipo_plano || cadastro.plano)) {
+      const termoPlano = String(cadastro.tipo_plano || cadastro.plano).trim();
+      const { data: planoData } = await supabase
+        .from("planos")
+        .select("*")
+        .or(`codigo.ilike.${termoPlano},nome.ilike.${termoPlano}`)
+        .maybeSingle();
+
+      if (planoData) {
+        cadastro.planos = planoData;
       }
     }
 
@@ -56,7 +68,9 @@ export async function POST(
     const result = await syncSingleCadastroMaisEdu(cadastro);
 
     if (!result.success) {
-      // Registra a falha no banco para histórico
+      console.error("[sync-maisedu] Erro retornado pelo parceiro:", result.error);
+      
+      // Registra a falha no banco para auditoria
       await supabase
         .from("cadastros")
         .update({
@@ -91,6 +105,7 @@ export async function POST(
       data: result.data,
     });
   } catch (err: any) {
+    console.error("[sync-maisedu] Erro inesperado:", err);
     return NextResponse.json(
       { error: err.message || "Erro interno no servidor." },
       { status: 500 }
