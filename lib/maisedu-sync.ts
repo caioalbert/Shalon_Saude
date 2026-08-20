@@ -12,7 +12,7 @@ try {
 } catch {}
 
 /**
- * Realiza uma requisição POST JSON forçando estritamente a conexão por IPv4 (family: 4)
+ * Realiza uma requisição POST JSON forçando conexão por IPv4
  */
 async function postJsonIPv4(
   urlStr: string,
@@ -123,6 +123,7 @@ function generateLogin(email?: string, cpfClean?: string, nome?: string): string
   return `user_${Date.now()}`;
 }
 
+// Interface rigorosamente idêntica à documentação do parceiro
 export interface MaisEduRegisterPayload {
   nome: string;
   email: string;
@@ -131,7 +132,6 @@ export interface MaisEduRegisterPayload {
   telefone: string;
   nascimento: string;
   produto: number;
-  produto_id: number;
   cep: string;
   rua: string;
   numero: string;
@@ -160,6 +160,7 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
   const nomeClean = (cadastro.nome || cadastro.nome_completo || "").trim();
   const loginClean = cadastro.login || generateLogin(emailClean, docClean, nomeClean);
 
+  // Payload contendo estritamente os 12 campos exigidos
   const payload: MaisEduRegisterPayload = {
     nome: nomeClean,
     email: emailClean,
@@ -167,8 +168,7 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
     doc: docClean,
     telefone: telefoneClean,
     nascimento: nascimentoFormatted,
-    produto: Number(produtoId),     // 1 ou 2
-    produto_id: Number(produtoId),  // Alias para garantir leitura
+    produto: Number(produtoId), // 1 (Individual) ou 2 (Familiar)
     cep: cepClean,
     rua: cadastro.endereco || cadastro.rua || cadastro.logradouro || "Não informado",
     numero: String(cadastro.numero || "S/N"),
@@ -178,7 +178,6 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
 
   const timestamp = new Date().toISOString();
 
-  // Validação dos dados do beneficiário
   if (!payload.doc || !payload.email) {
     return {
       success: false,
@@ -188,7 +187,6 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
     };
   }
 
-  // Leitura das variáveis de ambiente
   const rawBaseUrl =
     process.env.GRUPOMAIS_API_URL ||
     process.env.MAISEDU_API_URL ||
@@ -209,18 +207,11 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
 
   const token = rawToken.trim();
 
-  // ==================== LOG DETALHADO DO REQUEST ====================
-  console.log("\n==================== [SYNC PARCEIRO - REQUEST ENVIADO] ====================");
-  console.log(`Data/Hora: ${timestamp}`);
-  console.log(`Endpoint:  POST ${endpoint}`);
-  console.log("Headers:  ", {
-    "Content-Type": "application/json",
-    Accept: "application/json",
-    Authorization: token ? "Bearer [TOKEN_PRESENTE]" : "[SEM_TOKEN]",
-  });
-  console.log("Payload JSON (copie abaixo para enviar ao parceiro):");
+  // Log do payload enviado
+  console.log("\n==================== [PAYLOAD ENVIADO AO PARCEIRO] ====================");
+  console.log(`Endpoint: POST ${endpoint}`);
   console.log(JSON.stringify(payload, null, 2));
-  console.log("===========================================================================\n");
+  console.log("=======================================================================\n");
 
   try {
     const headers: Record<string, string> = {};
@@ -233,12 +224,10 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
 
     const res = await postJsonIPv4(endpoint, headers, payload);
 
-    // ==================== LOG DETALHADO DO RESPONSE ====================
-    console.log("\n==================== [SYNC PARCEIRO - RESPOSTA RECEBIDA] ====================");
-    console.log(`Status HTTP: ${res.status} (${res.ok ? "SUCESSO" : "ERRO"})`);
-    console.log("Body retornado pela API do parceiro:");
+    console.log("\n==================== [RESPOSTA DO PARCEIRO] ====================");
+    console.log(`Status HTTP: ${res.status}`);
     console.log(JSON.stringify(res.data, null, 2));
-    console.log("=============================================================================\n");
+    console.log("=================================================================\n");
 
     if (!res.ok) {
       return {
@@ -264,9 +253,7 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
       payloadSent: payload,
     };
   } catch (err: any) {
-    console.error("\n==================== [SYNC PARCEIRO - EXCEÇÃO DE REDE] ====================");
-    console.error(`Falha ao conectar em ${endpoint}:`, err);
-    console.error("=============================================================================\n");
+    console.error(`[sync-grupomais] Erro ao conectar em ${endpoint}:`, err);
 
     return {
       success: false,
