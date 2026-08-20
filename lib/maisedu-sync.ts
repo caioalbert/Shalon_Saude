@@ -123,7 +123,6 @@ function generateLogin(email?: string, cpfClean?: string, nome?: string): string
   return `user_${Date.now()}`;
 }
 
-// Interface rigorosamente idêntica à documentação do parceiro
 export interface MaisEduRegisterPayload {
   nome: string;
   email: string;
@@ -139,54 +138,120 @@ export interface MaisEduRegisterPayload {
   estado: string;
 }
 
+export interface BeneficiarySyncResult {
+  tipo: "titular" | "dependente";
+  nome: string;
+  doc: string;
+  sucesso: boolean;
+  statusHttp?: number;
+  resposta?: any;
+  erro?: string;
+  payloadSent: MaisEduRegisterPayload;
+}
+
 export interface MaisEduSyncResult {
   success: boolean;
-  data?: any;
+  data?: {
+    titular: BeneficiarySyncResult;
+    dependentes: BeneficiarySyncResult[];
+    totalVidas: number;
+    totalSucesso: number;
+    totalFalhas: number;
+  };
   error?: string;
   status?: number;
   endpoint?: string;
   timestamp?: string;
-  payloadSent?: MaisEduRegisterPayload;
+  payloadSent?: {
+    titular: MaisEduRegisterPayload;
+    dependentes: MaisEduRegisterPayload[];
+  };
 }
 
-export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncResult> {
-  const produtoId = resolveMaisEduProduct(cadastro);
+/**
+ * Monta o payload de um beneficiário individual (titular ou dependente)
+ */
+function buildBeneficiaryPayload(
+  person: any,
+  produtoId: number,
+  titularContext: {
+    email: string;
+    telefone: string;
+    cep: string;
+    rua: string;
+    numero: string;
+    cidade: string;
+    estado: string;
+  },
+  isTitular = false
+): MaisEduRegisterPayload {
+  const docClean = (person.cpf || person.doc || "").replace(/\D/g, "");
+  const telClean = (person.telefone || person.celular || titularContext.telefone || "").replace(/\D/g, "");
+  const nascimentoFormatted = formatNascimento(person.data_nascimento || person.nascimento);
+  const nomeClean = (person.nome || person.nome_completo || "").trim();
 
-  const docClean = (cadastro.cpf || cadastro.doc || "").replace(/\D/g, "");
-  const telefoneClean = (cadastro.telefone || cadastro.celular || "").replace(/\D/g, "");
-  const cepClean = (cadastro.cep || "").trim();
-  const nascimentoFormatted = formatNascimento(cadastro.data_nascimento || cadastro.nascimento);
-  const emailClean = (cadastro.email || "").trim().toLowerCase();
-  const nomeClean = (cadastro.nome || cadastro.nome_completo || "").trim();
-  const loginClean = cadastro.login || generateLogin(emailClean, docClean, nomeClean);
+  // Email: se o dependente tiver email próprio usa ele; caso contrário, gera alias com titular
+  let emailClean = (person.email || "").trim().toLowerCase();
+  if (!emailClean) {
+    if (isTitular) {
+      emailClean = titularContext.email;
+    } else if (titularContext.email && titularContext.email.includes("@")) {
+      // Cria um alias único para evitar conflito de email duplicado no parceiro
+      const [user, domain] = titularContext.email.split("@");
+      emailClean = `${user}+dep${docClean.slice(-4) || Date.now().toString().slice(-4)}@${domain}`;
+    } else {
+      emailClean = titularContext.email;
+    }
+  }
 
-  // Payload contendo estritamente os 12 campos exigidos
-  const payload: MaisEduRegisterPayload = {
+  const loginClean = person.login || generateLogin(emailClean, docClean, nomeClean);
+
+  return {
     nome: nomeClean,
     email: emailClean,
     login: loginClean,
     doc: docClean,
-    telefone: telefoneClean,
+    telefone: telClean,
     nascimento: nascimentoFormatted,
-    produto: Number(produtoId), // 1 (Individual) ou 2 (Familiar)
-    cep: cepClean,
+    produto: Number(produtoId),
+    cep: titularContext.cep,
+    rua: titularContext.rua,
+    numero: titularContext.numero,
+    cidade: titularContext.cidade,
+    estado: titularContext.estado,
+  };
+}
+
+/**
+ * Função principal: Sincroniza o Titular e todos os seus Dependentes sequencialmente
+ */
+export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncResult> {
+  const produtoId = resolveMaisEduProduct(cadastro);
+  const timestamp = new Date().toISOString();
+
+  // 1. Dados base de endereço e contato do titular
+  const titularContext = {
+    email: (cadastro.email || "").trim().toLowerCase(),
+    telefone: (cadastro.telefone || cadastro.celular || "").replace(/\D/g, ""),
+    cep: (cadastro.cep || "").trim(),
     rua: cadastro.endereco || cadastro.rua || cadastro.logradouro || "Não informado",
     numero: String(cadastro.numero || "S/N"),
     cidade: cadastro.cidade || "Não informada",
     estado: (cadastro.estado || cadastro.uf || "").toUpperCase().slice(0, 2),
   };
 
-  const timestamp = new Date().toISOString();
-
-  if (!payload.doc || !payload.email) {
-    return {
-      success: false,
-      error: "CPF (doc) e Email são obrigatórios.",
-      payloadSent: payload,
-      timestamp,
-    };
+  // 2. Extrai a lista de dependentes (trata se vier como array ou string JSON)
+  let dependentesList: any[] = [];
+  if (Array.isArray(cadastro.dependentes)) {
+    dependentesList = cadastro.dependentes;
+  } else if (typeof cadastro.dependentes === "string" && cadastro.dependentes.trim()) {
+    try {
+      const parsed = JSON.parse(cadastro.dependentes);
+      if (Array.isArray(parsed)) dependentesList = parsed;
+    } catch {}
   }
 
+  // Configuração da URL da API e Token
   const rawBaseUrl =
     process.env.GRUPOMAIS_API_URL ||
     process.env.MAISEDU_API_URL ||
@@ -194,7 +259,6 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
     "https://vo.grupomais.net.br";
 
   const baseUrl = rawBaseUrl.trim().replace(/\/+$/, "");
-
   const endpoint = baseUrl.endsWith("/api/v1")
     ? `${baseUrl}/partner_register`
     : `${baseUrl}/api/v1/partner_register`;
@@ -206,63 +270,114 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
     "";
 
   const token = rawToken.trim();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers["Authorization"] = token.toLowerCase().startsWith("bearer ")
+      ? token
+      : `Bearer ${token}`;
+  }
 
-  // Log do payload enviado
-  console.log("\n==================== [PAYLOAD ENVIADO AO PARCEIRO] ====================");
+  // 3. ENVIO DO TITULAR
+  const titularPayload = buildBeneficiaryPayload(cadastro, produtoId, titularContext, true);
+
+  console.log("\n==================== [1/N SYNC - ENVIANDO TITULAR] ====================");
   console.log(`Endpoint: POST ${endpoint}`);
-  console.log(JSON.stringify(payload, null, 2));
-  console.log("=======================================================================\n");
+  console.log(JSON.stringify(titularPayload, null, 2));
 
+  let titularResult: BeneficiarySyncResult;
   try {
-    const headers: Record<string, string> = {};
+    const resTitular = await postJsonIPv4(endpoint, headers, titularPayload);
+    console.log(`Status HTTP: ${resTitular.status}`);
+    console.log("Resposta Titular:", JSON.stringify(resTitular.data, null, 2));
 
-    if (token) {
-      headers["Authorization"] = token.toLowerCase().startsWith("bearer ")
-        ? token
-        : `Bearer ${token}`;
-    }
-
-    const res = await postJsonIPv4(endpoint, headers, payload);
-
-    console.log("\n==================== [RESPOSTA DO PARCEIRO] ====================");
-    console.log(`Status HTTP: ${res.status}`);
-    console.log(JSON.stringify(res.data, null, 2));
-    console.log("=================================================================\n");
-
-    if (!res.ok) {
-      return {
-        success: false,
-        error:
-          res.data?.message ||
-          res.data?.error ||
-          `Erro HTTP ${res.status} retornado pelo parceiro`,
-        status: res.status,
-        data: res.data,
-        endpoint,
-        timestamp,
-        payloadSent: payload,
-      };
-    }
-
-    return {
-      success: true,
-      data: res.data,
-      status: res.status,
-      endpoint,
-      timestamp,
-      payloadSent: payload,
+    titularResult = {
+      tipo: "titular",
+      nome: titularPayload.nome,
+      doc: titularPayload.doc,
+      sucesso: resTitular.ok,
+      statusHttp: resTitular.status,
+      resposta: resTitular.data,
+      erro: resTitular.ok ? undefined : resTitular.data?.message || resTitular.data?.error || `Erro HTTP ${resTitular.status}`,
+      payloadSent: titularPayload,
     };
   } catch (err: any) {
-    console.error(`[sync-grupomais] Erro ao conectar em ${endpoint}:`, err);
-
-    return {
-      success: false,
-      error: `Falha de conexão com ${endpoint}: ${err.message}`,
-      endpoint,
-      timestamp,
-      payloadSent: payload,
+    titularResult = {
+      tipo: "titular",
+      nome: titularPayload.nome,
+      doc: titularPayload.doc,
+      sucesso: false,
+      erro: err.message || "Erro de conexão ao enviar titular",
+      payloadSent: titularPayload,
     };
   }
+
+  // 4. LOOP PARA ENVIO DOS DEPENDENTES
+  const dependentesResults: BeneficiarySyncResult[] = [];
+  const dependentesPayloads: MaisEduRegisterPayload[] = [];
+
+  for (let i = 0; i < dependentesList.length; i++) {
+    const dep = dependentesList[i];
+    if (!dep || (!dep.nome && !dep.cpf)) continue;
+
+    const depPayload = buildBeneficiaryPayload(dep, produtoId, titularContext, false);
+    dependentesPayloads.push(depPayload);
+
+    console.log(`\n==================== [${i + 2}/N SYNC - DEPENDENTE: ${depPayload.nome}] ====================`);
+    console.log(JSON.stringify(depPayload, null, 2));
+
+    try {
+      const resDep = await postJsonIPv4(endpoint, headers, depPayload);
+      console.log(`Status HTTP: ${resDep.status}`);
+      console.log(`Resposta Dependente (${depPayload.nome}):`, JSON.stringify(resDep.data, null, 2));
+
+      dependentesResults.push({
+        tipo: "dependente",
+        nome: depPayload.nome,
+        doc: depPayload.doc,
+        sucesso: resDep.ok,
+        statusHttp: resDep.status,
+        resposta: resDep.data,
+        erro: resDep.ok ? undefined : resDep.data?.message || resDep.data?.error || `Erro HTTP ${resDep.status}`,
+        payloadSent: depPayload,
+      });
+    } catch (err: any) {
+      dependentesResults.push({
+        tipo: "dependente",
+        nome: depPayload.nome,
+        doc: depPayload.doc,
+        sucesso: false,
+        erro: err.message || `Erro de conexão ao enviar dependente ${depPayload.nome}`,
+        payloadSent: depPayload,
+      });
+    }
+  }
+
+  // 5. CONSOLIDAÇÃO DOS RESULTADOS
+  const totalVidas = 1 + dependentesResults.length;
+  const totalSucesso = (titularResult.sucesso ? 1 : 0) + dependentesResults.filter((d) => d.sucesso).length;
+  const totalFalhas = totalVidas - totalSucesso;
+
+  const allSuccess = titularResult.sucesso && dependentesResults.every((d) => d.sucesso);
+
+  return {
+    success: titularResult.sucesso, // Sucesso do titular é a base
+    data: {
+      titular: titularResult,
+      dependentes: dependentesResults,
+      totalVidas,
+      totalSucesso,
+      totalFalhas,
+    },
+    error: allSuccess
+      ? undefined
+      : `Sincronização concluída com avisos: ${totalSucesso} de ${totalVidas} vidas cadastradas.`,
+    endpoint,
+    timestamp,
+    payloadSent: {
+      titular: titularPayload,
+      dependentes: dependentesPayloads,
+    },
+  };
 }
 
 export const syncSingleCadastroMaisEdu = syncCadastroToMaisEdu;
