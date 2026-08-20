@@ -15,7 +15,7 @@ function formatNascimento(dateString?: string): string {
     return `${y}-${m}-${d}`;
   }
 
-  // ISO string
+  // ISO string com timestamp
   try {
     const d = new Date(cleaned);
     if (!isNaN(d.getTime())) {
@@ -67,9 +67,6 @@ export interface MaisEduSyncResult {
   payloadSent?: MaisEduRegisterPayload;
 }
 
-/**
- * Função principal de sincronização com a API do parceiro
- */
 export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncResult> {
   const produtoId = resolveMaisEduProduct(cadastro);
 
@@ -88,7 +85,7 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
     doc: docClean,
     telefone: telefoneClean,
     nascimento: nascimentoFormatted,
-    produto: Number(produtoId), // 1 ou 2
+    produto: Number(produtoId), // 1 (Individual) ou 2 (Familiar)
     cep: cepClean,
     rua: cadastro.endereco || cadastro.rua || cadastro.logradouro || "Não informado",
     numero: String(cadastro.numero || "S/N"),
@@ -96,33 +93,51 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
     estado: (cadastro.estado || cadastro.uf || "").toUpperCase().slice(0, 2),
   };
 
-  // Validações antes do envio
+  // 1. Validação dos dados do beneficiário
   if (!payload.doc || !payload.email) {
     return {
       success: false,
-      error: "CPF (doc) e Email são obrigatórios para a sincronização.",
+      error: "CPF (doc) e Email são obrigatórios.",
       payloadSent: payload,
     };
   }
 
-  if (typeof payload.produto !== "number" || isNaN(payload.produto) || payload.produto <= 0) {
-    return {
-      success: false,
-      error: `Código de produto inválido (${payload.produto}). Verifique o plano cadastrado.`,
-      payloadSent: payload,
-    };
-  }
+  // 2. Leitura das variáveis de ambiente do Grupo Mais / MaisEdu
+  const rawBaseUrl =
+    process.env.GRUPOMAIS_API_URL ||
+    process.env.MAISEDU_API_URL ||
+    process.env.MAISEDU_BASE_URL ||
+    "https://vo.grupomais.net.br";
 
-  const baseUrl = process.env.MAISEDU_API_URL || "https://api.parceiro.com.br";
-  const token = process.env.MAISEDU_API_TOKEN || "";
+  const baseUrl = rawBaseUrl.trim().replace(/\/+$/, "");
+
+  const endpoint = baseUrl.endsWith("/api/v1")
+    ? `${baseUrl}/partner_register`
+    : `${baseUrl}/api/v1/partner_register`;
+
+  const rawToken =
+    process.env.GRUPOMAIS_API_TOKEN ||
+    process.env.MAISEDU_API_TOKEN ||
+    process.env.MAISEDU_TOKEN ||
+    "";
+
+  const token = rawToken.trim();
 
   try {
-    const response = await fetch(`${baseUrl}/api/v1/partner_register`, {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    };
+
+    if (token) {
+      headers["Authorization"] = token.toLowerCase().startsWith("bearer ")
+        ? token
+        : `Bearer ${token}`;
+    }
+
+    const response = await fetch(endpoint, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers,
       body: JSON.stringify(payload),
     });
 
@@ -148,13 +163,15 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
       payloadSent: payload,
     };
   } catch (err: any) {
+    const causeDetail = err.cause ? ` [Causa: ${err.cause.code || err.cause.message || err.cause}]` : "";
+    console.error(`[sync-grupomais] Erro ao conectar em ${endpoint}:`, err);
+
     return {
       success: false,
-      error: err.message || "Falha na conexão com o servidor do parceiro.",
+      error: `Falha de conexão com ${endpoint}: ${err.message}${causeDetail}`,
       payloadSent: payload,
     };
   }
 }
 
-// Exporta também com o alias alternativo para compatibilidade total
 export const syncSingleCadastroMaisEdu = syncCadastroToMaisEdu;
