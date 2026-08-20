@@ -18,7 +18,7 @@ export async function POST(
 
     const supabase = createAdminClient();
 
-    // 1. Busca o cadastro de forma direta e segura (sem join automático que pode falhar)
+    // 1. Busca o cadastro de forma direta
     const { data: cadastro, error: fetchError } = await supabase
       .from("cadastros")
       .select("*")
@@ -26,18 +26,17 @@ export async function POST(
       .single();
 
     if (fetchError || !cadastro) {
-      console.error("[sync-maisedu] Erro ao buscar cadastro:", fetchError);
+      console.error("[sync-maisedu] Erro ao buscar cadastro no banco:", fetchError);
       return NextResponse.json(
-        { 
+        {
           error: "Cadastro não encontrado.",
-          details: fetchError?.message || "Registro não localizado no banco de dados."
+          details: fetchError?.message || "Registro não localizado no banco de dados.",
         },
         { status: 404 }
       );
     }
 
-    // 2. Busca os dados do plano de forma resiliente
-    // Tentativa A: por plano_id (UUID)
+    // 2. Busca os dados do plano associado
     if (cadastro.plano_id) {
       const { data: planoData } = await supabase
         .from("planos")
@@ -50,7 +49,6 @@ export async function POST(
       }
     }
 
-    // Tentativa B: por código ou nome (para cadastros legados)
     if (!cadastro.planos && (cadastro.tipo_plano || cadastro.plano)) {
       const termoPlano = String(cadastro.tipo_plano || cadastro.plano).trim();
       const { data: planoData } = await supabase
@@ -64,45 +62,52 @@ export async function POST(
       }
     }
 
-    // 3. Executa o disparo para a API do parceiro
+    // 3. Executa a sincronização
     const result = await syncSingleCadastroMaisEdu(cadastro);
 
+    // Estrutura completa de auditoria
+    const syncAuditLog = {
+      timestamp: result.timestamp || new Date().toISOString(),
+      endpoint: result.endpoint,
+      status_http: result.status,
+      sucesso: result.success,
+      payload_enviado: result.payloadSent,
+      resposta_parceiro: result.data,
+      erro: result.error || null,
+    };
+
     if (!result.success) {
-      console.error("[sync-maisedu] Erro retornado pelo parceiro:", result.error);
-      
-      // Registra a falha no banco para auditoria
       await supabase
         .from("cadastros")
         .update({
           maisedu_sync_status: "error",
-          maisedu_response: {
-            error: result.error,
-            status: result.status,
-            attempted_at: new Date().toISOString(),
-          },
+          maisedu_response: syncAuditLog,
         })
         .eq("id", id);
 
       return NextResponse.json(
-        { error: result.error, details: result.data },
+        {
+          error: result.error,
+          sync_log: syncAuditLog,
+        },
         { status: 400 }
       );
     }
 
-    // 4. Registra o sucesso no Supabase
+    // 4. Grava o log de auditoria no Supabase
     await supabase
       .from("cadastros")
       .update({
         maisedu_sync_status: "synced",
         maisedu_synced_at: new Date().toISOString(),
-        maisedu_response: result.data,
+        maisedu_response: syncAuditLog,
       })
       .eq("id", id);
 
     return NextResponse.json({
       success: true,
       message: "Cliente sincronizado com sucesso.",
-      data: result.data,
+      sync_log: syncAuditLog,
     });
   } catch (err: any) {
     console.error("[sync-maisedu] Erro inesperado:", err);

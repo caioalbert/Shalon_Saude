@@ -18,7 +18,7 @@ async function postJsonIPv4(
   urlStr: string,
   headers: Record<string, string>,
   body: any
-): Promise<{ status: number; data: any; ok: boolean }> {
+): Promise<{ status: number; data: any; ok: boolean; rawText: string }> {
   return new Promise((resolve, reject) => {
     const url = new URL(urlStr);
     const postData = JSON.stringify(body);
@@ -38,7 +38,7 @@ async function postJsonIPv4(
       path: url.pathname + url.search,
       method: "POST",
       headers: reqHeaders,
-      family: 4, // <-- FORÇA ESTRITAMENTE IPV4
+      family: 4, // Força IPv4
       timeout: 20000,
     };
 
@@ -61,6 +61,7 @@ async function postJsonIPv4(
           status: statusCode,
           ok: statusCode >= 200 && statusCode < 300,
           data: parsedData,
+          rawText: rawData,
         });
       });
     });
@@ -130,6 +131,7 @@ export interface MaisEduRegisterPayload {
   telefone: string;
   nascimento: string;
   produto: number;
+  produto_id: number;
   cep: string;
   rua: string;
   numero: string;
@@ -142,6 +144,8 @@ export interface MaisEduSyncResult {
   data?: any;
   error?: string;
   status?: number;
+  endpoint?: string;
+  timestamp?: string;
   payloadSent?: MaisEduRegisterPayload;
 }
 
@@ -163,7 +167,8 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
     doc: docClean,
     telefone: telefoneClean,
     nascimento: nascimentoFormatted,
-    produto: Number(produtoId), // 1 (Individual) ou 2 (Familiar)
+    produto: Number(produtoId),     // 1 ou 2
+    produto_id: Number(produtoId),  // Alias para garantir leitura
     cep: cepClean,
     rua: cadastro.endereco || cadastro.rua || cadastro.logradouro || "Não informado",
     numero: String(cadastro.numero || "S/N"),
@@ -171,16 +176,19 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
     estado: (cadastro.estado || cadastro.uf || "").toUpperCase().slice(0, 2),
   };
 
-  // 1. Validação dos dados do beneficiário
+  const timestamp = new Date().toISOString();
+
+  // Validação dos dados do beneficiário
   if (!payload.doc || !payload.email) {
     return {
       success: false,
       error: "CPF (doc) e Email são obrigatórios.",
       payloadSent: payload,
+      timestamp,
     };
   }
 
-  // 2. Leitura das variáveis de ambiente
+  // Leitura das variáveis de ambiente
   const rawBaseUrl =
     process.env.GRUPOMAIS_API_URL ||
     process.env.MAISEDU_API_URL ||
@@ -201,6 +209,19 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
 
   const token = rawToken.trim();
 
+  // ==================== LOG DETALHADO DO REQUEST ====================
+  console.log("\n==================== [SYNC PARCEIRO - REQUEST ENVIADO] ====================");
+  console.log(`Data/Hora: ${timestamp}`);
+  console.log(`Endpoint:  POST ${endpoint}`);
+  console.log("Headers:  ", {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    Authorization: token ? "Bearer [TOKEN_PRESENTE]" : "[SEM_TOKEN]",
+  });
+  console.log("Payload JSON (copie abaixo para enviar ao parceiro):");
+  console.log(JSON.stringify(payload, null, 2));
+  console.log("===========================================================================\n");
+
   try {
     const headers: Record<string, string> = {};
 
@@ -210,8 +231,14 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
         : `Bearer ${token}`;
     }
 
-    // Executa a requisição forçando IPv4
     const res = await postJsonIPv4(endpoint, headers, payload);
+
+    // ==================== LOG DETALHADO DO RESPONSE ====================
+    console.log("\n==================== [SYNC PARCEIRO - RESPOSTA RECEBIDA] ====================");
+    console.log(`Status HTTP: ${res.status} (${res.ok ? "SUCESSO" : "ERRO"})`);
+    console.log("Body retornado pela API do parceiro:");
+    console.log(JSON.stringify(res.data, null, 2));
+    console.log("=============================================================================\n");
 
     if (!res.ok) {
       return {
@@ -219,10 +246,11 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
         error:
           res.data?.message ||
           res.data?.error ||
-          res.data?.raw ||
-          `Erro HTTP ${res.status} na API do parceiro`,
+          `Erro HTTP ${res.status} retornado pelo parceiro`,
         status: res.status,
         data: res.data,
+        endpoint,
+        timestamp,
         payloadSent: payload,
       };
     }
@@ -231,14 +259,20 @@ export async function syncCadastroToMaisEdu(cadastro: any): Promise<MaisEduSyncR
       success: true,
       data: res.data,
       status: res.status,
+      endpoint,
+      timestamp,
       payloadSent: payload,
     };
   } catch (err: any) {
-    console.error(`[sync-grupomais-ipv4] Erro ao conectar em ${endpoint}:`, err);
+    console.error("\n==================== [SYNC PARCEIRO - EXCEÇÃO DE REDE] ====================");
+    console.error(`Falha ao conectar em ${endpoint}:`, err);
+    console.error("=============================================================================\n");
 
     return {
       success: false,
       error: `Falha de conexão com ${endpoint}: ${err.message}`,
+      endpoint,
+      timestamp,
       payloadSent: payload,
     };
   }
